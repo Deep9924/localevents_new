@@ -38,6 +38,24 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
+// Module-level cache — persists across modal open/close cycles for the whole session
+let cachedLocation: { latitude: number; longitude: number } | null = null;
+
+async function fetchIpLocation(): Promise<{ latitude: number; longitude: number } | null> {
+  if (cachedLocation) return cachedLocation;
+  try {
+    const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    if (data.latitude && data.longitude) {
+      cachedLocation = { latitude: data.latitude, longitude: data.longitude };
+      return cachedLocation;
+    }
+  } catch {
+    // silently fail
+  }
+  return null;
+}
+
 export default function CityPickerModal({
   open,
   currentCitySlug,
@@ -104,39 +122,27 @@ export default function CityPickerModal({
 
   const detectNearby = async () => {
     setDetecting(true);
-    try {
-      const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
-      const data = await res.json();
-      if (data.latitude && data.longitude) {
-        const sorted = [...CITIES]
-          .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
-          .sort((a, b) => a.dist - b.dist)
-          .slice(0, 6);
-        setNearbyCities(sorted);
-      }
-    } catch {
-      // keep defaults
-    } finally {
-      setDetecting(false);
+    const loc = await fetchIpLocation(); // uses cache if available
+    if (loc) {
+      const sorted = [...CITIES]
+        .map((c) => ({ ...c, dist: haversine(loc.latitude, loc.longitude, c.lat, c.lng) }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 6);
+      setNearbyCities(sorted);
     }
+    setDetecting(false);
   };
 
   const handleLocateMe = async () => {
     setLocating(true);
-    try {
-      const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
-      const data = await res.json();
-      if (data.latitude && data.longitude) {
-        const closest = [...CITIES]
-          .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
-          .sort((a, b) => a.dist - b.dist)[0];
-        if (closest) onSelect(closest.slug);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setLocating(false);
+    const loc = await fetchIpLocation(); // uses cache — no rate limit hit
+    if (loc) {
+      const closest = [...CITIES]
+        .map((c) => ({ ...c, dist: haversine(loc.latitude, loc.longitude, c.lat, c.lng) }))
+        .sort((a, b) => a.dist - b.dist)[0];
+      if (closest) onSelect(closest.slug);
     }
+    setLocating(false);
   };
 
   if (!visible) return null;
@@ -185,7 +191,7 @@ export default function CityPickerModal({
           animating ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-6"
         }`}
       >
-        {/* Header — indigo gradient */}
+        {/* Header */}
         <div
           className="px-5 sm:px-7 pt-6 sm:pt-8 pb-8 sm:pb-10"
           style={{
@@ -267,8 +273,8 @@ export default function CityPickerModal({
                         }}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 last:border-0 hover:bg-indigo-50 active:bg-indigo-100 group"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-white group-hover:shadow-sm group-hover:border group-hover:border-gray-200 group-active:bg-white group-active:shadow-sm group-active:border group-active:border-gray-300 flex items-center justify-center shrink-0 transition-all">
-                          <MapPin className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 group-active:text-indigo-500 transition-colors" />
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-white group-hover:shadow-sm group-hover:border group-hover:border-gray-200 flex items-center justify-center shrink-0 transition-all">
+                          <MapPin className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 h-5">
@@ -298,7 +304,7 @@ export default function CityPickerModal({
           </div>
         </div>
 
-        {/* City grid — plain white */}
+        {/* City grid */}
         <div className="px-5 sm:px-7 pb-6 sm:pb-8 pt-0 bg-white">
           <div className="flex items-center justify-between mb-3 pt-4 sm:pt-5">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -334,14 +340,14 @@ export default function CityPickerModal({
                       ? "bg-indigo-100 group-hover:bg-indigo-200"
                       : isActive
                       ? "bg-white shadow-sm border border-gray-300"
-                      : "bg-gray-100 group-hover:bg-white group-hover:shadow-sm group-hover:border group-hover:border-gray-200 group-active:bg-white group-active:shadow-sm group-active:border group-active:border-gray-300"
+                      : "bg-gray-100 group-hover:bg-white group-hover:shadow-sm group-hover:border group-hover:border-gray-200"
                   }`}>
                     <MapPin className={`w-4 h-4 transition-colors ${
                       isCurrent
                         ? "text-indigo-500"
                         : isActive
                         ? "text-indigo-500"
-                        : "text-gray-400 group-hover:text-indigo-400 group-active:text-indigo-500"
+                        : "text-gray-400 group-hover:text-indigo-400"
                     }`} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -369,4 +375,4 @@ export default function CityPickerModal({
       </div>
     </div>
   );
-}
+                  }
