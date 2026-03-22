@@ -9,9 +9,9 @@ const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 // POST /api/auth/set-session — called after successful login
 export async function POST(
   req: NextRequest,
-  { params }: { params: { action: string } }
+  { params }: { params: Promise<{ action: string }> }  // ← Promise<>
 ) {
-  const { action } = params;
+  const { action } = await params;  // ← await
 
   if (action === "set-session") {
     const { openId, name } = await req.json();
