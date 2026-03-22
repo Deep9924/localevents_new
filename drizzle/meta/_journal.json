@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1773083495100,
+      "tag": "0000_spooky_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1773083575916,
+      "tag": "0001_round_maverick",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773086783330,
+      "tag": "0002_bright_magdalene",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1773457625098,
+      "tag": "0003_yummy_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1773457940353,
+      "tag": "0004_absurd_doomsday",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773458386676,
+      "tag": "0005_soft_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773458411260,
+      "tag": "0006_purple_marvel_apes",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773470307141,
+      "tag": "0007_stiff_madelyne_pryor",
+      "breakpoints": true
+    }
+  ]
+}
