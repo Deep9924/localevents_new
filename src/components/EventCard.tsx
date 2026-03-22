@@ -92,13 +92,13 @@ export default function EventCard({ event, size = "normal", citySlug = "toronto"
           <span className="line-clamp-1">{event.venue}</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-600 mt-0.5">
-          {event.interested > 0 && (
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-indigo-400" />
-              <span className="font-semibold text-indigo-600">{event.interested}</span>
-              <span>Interested</span>
-            </div>
-          )}
+          {(event.interested ?? 0) > 0 && (
+  <div className="flex items-center gap-1">
+    <Users className="w-3 h-3 text-indigo-400" />
+    <span className="font-semibold text-indigo-600">{event.interested}</span>
+    <span>Interested</span>
+  </div>
+)}
           {event.price === "Free" || event.price === null
             ? <><span className="text-gray-300">•</span><span className="text-green-600 font-semibold">Free</span></>
             : <><span className="text-gray-300">•</span><span className="text-gray-600">{event.price}</span></>

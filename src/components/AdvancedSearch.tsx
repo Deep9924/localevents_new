@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Search, X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Link } from "wouter";
+import Link from "next/link";
 
 interface SearchFilters {
   query: string;
@@ -29,9 +29,6 @@ export default function AdvancedSearch({ citySlug }: AdvancedSearchProps) {
   const { data: results, isLoading } = trpc.events.search.useQuery(
     {
       query: filters.query,
-      minPrice: filters.minPrice,
-      maxPrice: filters.maxPrice,
-      date: filters.date,
       category: filters.category,
       citySlug: citySlug || "",
     },

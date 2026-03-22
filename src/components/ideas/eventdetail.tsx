@@ -83,7 +83,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
   const city = CITIES.find((c) => c.slug === citySlug);
 
-  // Loading state
   if (eventLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -92,7 +91,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     );
   }
 
-  // Not found state
   if (!event) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-gray-500">
@@ -132,9 +130,9 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       {/* Hero image */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-6">
         <div className="w-full h-64 sm:h-96 rounded-2xl overflow-hidden bg-gray-200 relative">
-          {!imgError && event.imageUrl ? (
+          {!imgError && event.image ? (
             <img
-              src={event.imageUrl}
+              src={event.image}
               alt={event.title}
               className="w-full h-full object-cover"
               onError={() => setImgError(true)}
@@ -144,7 +142,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <Ticket className="w-16 h-16 text-indigo-300" />
             </div>
           )}
-          {/* Category badge */}
           {event.category && (
             <span className="absolute top-4 left-4 px-3 py-1 bg-white/90 backdrop-blur-sm text-indigo-700 text-xs font-semibold rounded-full shadow-sm capitalize">
               {event.category}
@@ -206,12 +203,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <DetailItem
                 icon={<MapPin className="w-4 h-4" />}
                 label="Location"
-                value={event.location ?? event.venue ?? "TBA"}
+                value={event.venue ?? "TBA"}
               />
               <DetailItem
                 icon={<Users className="w-4 h-4" />}
-                label="Capacity"
-                value={event.capacity ? `${event.capacity} attendees` : "Open attendance"}
+                label="Interested"
+                value={(event.interested ?? 0) > 0 ? `${event.interested} interested` : "Open attendance"}
               />
             </div>
 
