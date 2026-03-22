@@ -8,25 +8,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install pnpm
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: latest
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build app
-        run: |
-          export NODE_OPTIONS="--max-old-space-size=1024"
-          pnpm run build
+        run: pnpm run build
         env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
@@ -38,11 +39,8 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Sync app files to server
+      - name: Sync source files to server
         run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
-            "mkdir -p /home/ubuntu/nextjs-app/my-app"
-
           rsync -av --delete \
             --exclude '.git' \
             --exclude '.github' \
@@ -52,25 +50,19 @@ jobs:
             ./ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/nextjs-app/my-app/
 
+      - name: Sync built .next/ to server
+        run: |
           rsync -av --delete \
-            $GITHUB_WORKSPACE/.next/ \
+            .next/ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/nextjs-app/my-app/.next/
 
-      - name: Login to GHCR on server
-        uses: appleboy/ssh-action@v0.1.6
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u deep9924 --password-stdin
-
-      - name: Run deploy.sh
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /home/ubuntu/nextjs-app
-            bash deploy.sh
+            cd /home/ubuntu/nextjs-app/my-app
+            pnpm install --frozen-lockfile --prod
+            pm2 restart nextjs-app || pm2 start npm --name nextjs-app -- run start
