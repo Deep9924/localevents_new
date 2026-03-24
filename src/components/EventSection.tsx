@@ -26,7 +26,7 @@ export default function EventSection({
     <section className="py-2">
       <SectionHeader
         title={`${title} in ${cityName}`}
-        icon={icon || category.icon}
+        icon={icon || category.icon || ""}
         viewAllLink="#"
       />
 
