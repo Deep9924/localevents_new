@@ -5,10 +5,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "mysql",
   dbCredentials: {
-    url: (process.env.DATABASE_URL ?? "").split("?")[0],
-    ssl: {
-      rejectUnauthorized: true,
-      minVersion: "TLSv1.2",
-    },
+    url: process.env.DATABASE_URL ?? "",
   },
 });
