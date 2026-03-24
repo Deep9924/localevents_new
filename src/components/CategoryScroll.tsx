@@ -1,8 +1,14 @@
+// src/components/CategoryScroll.tsx
 // Design: Civic Warmth — Horizontal scrollable category icons with warm amber active state
 "use client";
 
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
+import type { AppRouter } from "@/server/routers";
+import type { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type Category = RouterOutputs["events"]["getCategories"][number];
 
 interface CategoryScrollProps {
   activeCategory: string;
@@ -28,13 +34,11 @@ export default function CategoryScroll({
   return (
     <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <h2
-          className="text-base font-bold text-indigo-900 mb-3 font-sora"
-        >
+        <h2 className="text-base font-bold text-indigo-900 mb-3 font-sora">
           {cityName}'s Scene
         </h2>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-          {categories.map((cat) => (
+          {categories.map((cat: Category) => (
             <button
               key={cat.id}
               onClick={() => onCategoryChange(cat.id)}
