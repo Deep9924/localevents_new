@@ -18,13 +18,13 @@ type CityCountRow = {
 export const eventsRouter = router({
   getCities: publicProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return [];
+    if (!db) return [] as typeof cities.$inferSelect[];
     return db.select().from(cities).orderBy(cities.name);
   }),
 
   getCategories: publicProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return [];
+    if (!db) return [] as typeof categories.$inferSelect[];
     return db.select().from(categories).orderBy(categories.label);
   }),
 
@@ -71,11 +71,12 @@ export const eventsRouter = router({
         } else if (input.date === "week") {
           const nextWeek = new Date(today);
           nextWeek.setDate(today.getDate() + 7);
-          const weekCondition = and(
-            gte(events.date, todayStr),
-            lte(events.date, nextWeek.toISOString().split("T")[0])
+          conditions.push(
+            and(
+              gte(events.date, todayStr),
+              lte(events.date, nextWeek.toISOString().split("T")[0])
+            )
           );
-          if (weekCondition) conditions.push(weekCondition);
         } else if (input.date === "weekend") {
           const dayOfWeek = today.getDay();
           const daysToSat = (6 - dayOfWeek + 7) % 7;
@@ -83,11 +84,12 @@ export const eventsRouter = router({
           sat.setDate(today.getDate() + daysToSat);
           const sun = new Date(sat);
           sun.setDate(sat.getDate() + 1);
-          const weekendCondition = and(
-            gte(events.date, sat.toISOString().split("T")[0]),
-            lte(events.date, sun.toISOString().split("T")[0])
+          conditions.push(
+            and(
+              gte(events.date, sat.toISOString().split("T")[0]),
+              lte(events.date, sun.toISOString().split("T")[0])
+            )
           );
-          if (weekendCondition) conditions.push(weekendCondition);
         }
       }
 
