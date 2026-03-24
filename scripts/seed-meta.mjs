@@ -1,9 +1,6 @@
 import { drizzle } from 'drizzle-orm/mysql2';
 import mysql from 'mysql2/promise';
-import * as schema from '../src/server/db/schema.js';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import * as schema from '../src/server/db/schema.ts';
 
 const CITIES = [
   { slug: "regina", name: "Regina", province: "Saskatchewan", country: "Canada", lat: 50.4452, lng: -104.6189 },
