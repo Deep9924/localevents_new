@@ -39,6 +39,7 @@
   "exclude": [
     "node_modules",
     "src/components/ideas",
-    "src/components/ui"
+    "src/components/ui",
+    "src/components/backup"
   ]
 }
