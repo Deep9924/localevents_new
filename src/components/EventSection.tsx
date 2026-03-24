@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
 interface EventSectionProps {
   title: string;
   events: Event[];
-  category: { id: string; label: string; icon: string };
+  category: { id: string; label: string; icon: string | null };
   cityName: string;
   citySlug: string;
   icon?: string;
