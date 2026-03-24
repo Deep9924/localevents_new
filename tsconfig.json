@@ -40,6 +40,7 @@
     "node_modules",
     "src/components/ideas",
     "src/components/ui",
-    "src/components/backup"
+    "src/components/backup",
+    "src/server/routers_backup.ts"
   ]
 }
