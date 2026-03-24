@@ -1,3 +1,4 @@
+// src/components/CityPage.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -14,6 +15,12 @@ import { useEventFilters } from "@/hooks/useEventFilters";
 import LocationDetectBanner from "@/components/LocationDetectBanner";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
+import type { AppRouter } from "@/server/routers";
+import type { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type City = RouterOutputs["events"]["getCities"][number];
+type Category = RouterOutputs["events"]["getCategories"][number];
 
 interface CityPageProps {
   citySlug?: string;
@@ -37,7 +44,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
   const { data: cities = [], isLoading: citiesLoading } = trpc.events.getCities.useQuery();
   const { data: categories = [] } = trpc.events.getCategories.useQuery();
 
-  const effectiveCity = city || cities.find((c) => c.slug === effectiveSlug) || cities[0];
+  const effectiveCity = city || cities.find((c: City) => c.slug === effectiveSlug) || cities[0];
 
   const { data: filteredEvents = [], isLoading: eventsLoading } = trpc.events.getByCity.useQuery(
     {
@@ -56,7 +63,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
 
   const eventsByCategory = useMemo(() => {
     const grouped: Record<string, typeof filteredEvents> = {};
-    categories.forEach((cat) => {
+    categories.forEach((cat: Category) => {
       grouped[cat.id] = filteredEvents.filter((e) => e.category === cat.id);
     });
     return grouped;
@@ -64,7 +71,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
 
   const categoriesToShow = activeCategory === "all"
     ? categories
-    : categories.filter((c) => c.id === activeCategory);
+    : categories.filter((c: Category) => c.id === activeCategory);
 
   if (citiesLoading || eventsLoading) {
     return (
@@ -129,7 +136,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-10">
-        {categoriesToShow.map((category) => {
+        {categoriesToShow.map((category: Category) => {
           const categoryEvents = eventsByCategory[category.id] || [];
           if (categoryEvents.length === 0) return null;
           return (
