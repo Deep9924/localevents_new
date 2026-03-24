@@ -38,7 +38,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     { enabled: !!citySlug && !!eventSlug }
   );
 
-  const { data: cities = [] } = trpc.events.getCities.useQuery();
+  const { data: cities = [], isLoading: citiesLoading } = trpc.events.getCities.useQuery();
   const city = useMemo(() => cities.find((c) => c.slug === citySlug), [cities, citySlug]);
 
   const { data: savedStatus } = trpc.savedEvents.isSaved.useQuery(
@@ -79,17 +79,15 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const handleShare = (platform: 'twitter' | 'facebook' | 'email') => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const text = `Check out ${event?.title} on LocalEvents!`;
-    
     const shares = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
       email: `mailto:?subject=${encodeURIComponent(text)}&body=${encodeURIComponent(url)}`
     };
-    
     window.open(shares[platform], '_blank');
   };
 
-  if (eventLoading) {
+  if (eventLoading || citiesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
@@ -100,14 +98,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     );
   }
 
-  if (!city || !event) {
+  if (!event) {
     return (
       <div className="min-h-screen bg-[#FAFAF8]">
         <main className="max-w-4xl mx-auto px-4 py-16 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-indigo-900 mb-2">
-            {!city ? "City not found" : "Event not found"}
-          </h1>
+          <h1 className="text-2xl font-bold text-indigo-900 mb-2">Event not found</h1>
           <Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800">
             <ArrowLeft className="w-4 h-4 mr-2" />Back to Home
           </Button>
@@ -124,7 +120,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center gap-2 text-xs font-medium text-slate-500">
           <button onClick={() => router.push("/")} className="hover:text-indigo-600 transition-colors">Home</button>
           <span>/</span>
-          <button onClick={() => router.push(`/${citySlug}`)} className="hover:text-indigo-600 transition-colors">{city.name}</button>
+          <button onClick={() => router.push(`/${citySlug}`)} className="hover:text-indigo-600 transition-colors">{city?.name ?? citySlug}</button>
           <span>/</span>
           <span className="text-slate-900 truncate max-w-[200px]">{event.title}</span>
         </div>
@@ -166,7 +162,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 leading-tight font-sora">
                 {event.title}
               </h1>
-              
               <div className="flex flex-wrap items-center gap-4 text-slate-600">
                 <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-full text-sm">
                   <MapPin className="w-4 h-4 text-slate-400" />
@@ -197,7 +192,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 ) : (
                   <>
                     <p>
-                      Join us for an unforgettable experience at <strong>{event.title}</strong>! This is a premier event in {city.name} featuring
+                      Join us for an unforgettable experience at <strong>{event.title}</strong>! This is a premier event in {city?.name ?? citySlug} featuring
                       world-class entertainment and an amazing atmosphere.
                     </p>
                     <p>
@@ -216,18 +211,18 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 Location
               </h2>
               <div className="rounded-2xl overflow-hidden border border-slate-200 h-64 relative group shadow-sm">
-                <MapView 
-                  initialCenter={{ lat: city.lat || 43.6532, lng: city.lng || -79.3832 }}
+                <MapView
+                  initialCenter={{ lat: city?.lat ?? 43.6532, lng: city?.lng ?? -79.3832 }}
                   initialZoom={14}
                   className="w-full h-full"
                 />
                 <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-100 flex items-center justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900 truncate">{event.venue}</p>
-                    <p className="text-xs text-slate-500 truncate">{city.name}, {city.province}</p>
+                    <p className="text-xs text-slate-500 truncate">{city?.name ?? citySlug}, {city?.province}</p>
                   </div>
-                  <a 
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue}, ${city.name}`)}`}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue}, ${city?.name ?? citySlug}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors"
@@ -300,25 +295,25 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <div className="pt-6 border-t border-slate-100 space-y-4">
                 <p className="text-sm font-bold text-slate-900">Share with friends</p>
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => handleShare('facebook')}
                     className="flex-1 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                   >
                     <Facebook className="w-5 h-5" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleShare('twitter')}
                     className="flex-1 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-sky-50 hover:text-sky-500 transition-colors"
                   >
                     <Twitter className="w-5 h-5" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleShare('email')}
                     className="flex-1 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                   >
                     <Mail className="w-5 h-5" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.href);
                       toast.success("Link copied!");
@@ -338,7 +333,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                   <div>
                     <p className="text-sm font-bold text-amber-900">Limited Availability</p>
                     <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                      This event is popular in {city.name}. We recommend booking early to secure your spot!
+                      This event is popular in {city?.name ?? citySlug}. We recommend booking early to secure your spot!
                     </p>
                   </div>
                 </div>
