@@ -2,9 +2,19 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Navigation, Loader2 } from "lucide-react";
-import { City, Event } from "@/lib/events-data";
+import { Navigation, Loader2 } from "lucide-react";
+import { Event } from "@/lib/events-data";
 import { MapView } from "@/components/Map";
+
+// Local interface matching what the DB actually returns
+interface City {
+  slug: string;
+  name: string;
+  province: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
+}
 
 interface MapSectionProps {
   city: City;
@@ -15,21 +25,18 @@ export default function MapSection({ city, events }: MapSectionProps) {
   const [mapReady, setMapReady] = useState(false);
   const [activeRadius, setActiveRadius] = useState(10);
 
-  const cityLat = city.lat || 0;
-  const cityLng = city.lng || 0;
+  const cityLat = city.lat ?? 0;
+  const cityLng = city.lng ?? 0;
 
   const handleMapReady = (map: google.maps.Map) => {
     setMapReady(true);
 
-    // Center map on city
     map.setCenter({ lat: cityLat, lng: cityLng });
     map.setZoom(11);
 
-    // Add markers for events (using approximate positions near city center)
     const bounds = new google.maps.LatLngBounds();
 
     events.slice(0, 8).forEach((event, index) => {
-      // Scatter events around city center
       const angle = (index / 8) * 2 * Math.PI;
       const radius = 0.02 + Math.random() * 0.04;
       const lat = cityLat + radius * Math.cos(angle);
@@ -71,7 +78,6 @@ export default function MapSection({ city, events }: MapSectionProps) {
       bounds.extend({ lat, lng });
     });
 
-    // Add city center marker
     new google.maps.Marker({
       position: { lat: cityLat, lng: cityLng },
       map,
