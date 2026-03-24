@@ -21,6 +21,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type City = RouterOutputs["events"]["getCities"][number];
 type Category = RouterOutputs["events"]["getCategories"][number];
+type Event = RouterOutputs["events"]["getByCity"][number];
 
 interface CityPageProps {
   citySlug?: string;
@@ -64,7 +65,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
   const eventsByCategory = useMemo(() => {
     const grouped: Record<string, typeof filteredEvents> = {};
     categories.forEach((cat: Category) => {
-      grouped[cat.id] = filteredEvents.filter((e) => e.category === cat.id);
+      grouped[cat.id] = filteredEvents.filter((e: Event) => e.category === cat.id);
     });
     return grouped;
   }, [filteredEvents, categories]);
