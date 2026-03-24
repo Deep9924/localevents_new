@@ -5,13 +5,14 @@ import mysql from "mysql2/promise";
 import { events as eventsTable, users, savedEvents, organizers } from "./schema";
 import type { InsertUser } from "./schema";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _db: any = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       const url = process.env.DATABASE_URL.split("?")[0];
-      const connection = await mysql.createPool({
+      const connection = mysql.createPool({
         uri: url,
         ssl: { rejectUnauthorized: true },
         waitForConnections: true,
@@ -187,7 +188,7 @@ export async function searchEvents(query: string, citySlug?: string, category?: 
   const db = await getDb();
   if (!db) return [];
   const result = await db.select().from(eventsTable);
-  return result.filter((event) => {
+  return result.filter((event: typeof eventsTable.$inferSelect) => {
     if (query && !event.title.toLowerCase().includes(query.toLowerCase()) &&
       !event.venue.toLowerCase().includes(query.toLowerCase())) return false;
     if (citySlug && event.citySlug !== citySlug) return false;
