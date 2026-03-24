@@ -14,6 +14,9 @@ import type { inferRouterOutputs } from "@trpc/server";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type SavedEventWithEvent = RouterOutputs["savedEvents"]["list"][number];
+type SavedEventWithNonNullEvent = SavedEventWithEvent & {
+  event: NonNullable<SavedEventWithEvent["event"]>;
+};
 
 type FilterType = "all" | "upcoming" | "past";
 
@@ -34,26 +37,34 @@ export default function AccountSaved() {
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
-    let filtered = savedEvents.filter((item): item is SavedEventWithEvent & { event: NonNullable<SavedEventWithEvent["event"]> } => item.event !== null);
-    
+    let filtered = savedEvents.filter(
+      (item: SavedEventWithEvent): item is SavedEventWithNonNullEvent =>
+        item.event !== null
+    );
+
     if (selectedCity) {
-      filtered = filtered.filter((item) => item.event.city === selectedCity);
+      filtered = filtered.filter((item: SavedEventWithNonNullEvent) => item.event.city === selectedCity);
     }
-    
+
     if (filterType === "upcoming") {
-      filtered = filtered.filter((item) => new Date(`${item.event.date}T${item.event.time || "00:00"}`) >= now);
+      filtered = filtered.filter((item: SavedEventWithNonNullEvent) =>
+        new Date(`${item.event.date}T${item.event.time || "00:00"}`) >= now
+      );
     } else if (filterType === "past") {
-      filtered = filtered.filter((item) => new Date(`${item.event.date}T${item.event.time || "00:00"}`) < now);
+      filtered = filtered.filter((item: SavedEventWithNonNullEvent) =>
+        new Date(`${item.event.date}T${item.event.time || "00:00"}`) < now
+      );
     }
-    
-    return filtered.sort((a, b) => 
-      new Date(`${a.event.date}T${a.event.time}`).getTime() - new Date(`${b.event.date}T${b.event.time}`).getTime()
+
+    return filtered.sort((a: SavedEventWithNonNullEvent, b: SavedEventWithNonNullEvent) =>
+      new Date(`${a.event.date}T${a.event.time}`).getTime() -
+      new Date(`${b.event.date}T${b.event.time}`).getTime()
     );
   }, [savedEvents, filterType, selectedCity]);
 
   const cities = useMemo(() => {
     const citySet = new Set<string>();
-    savedEvents.forEach((item) => {
+    savedEvents.forEach((item: SavedEventWithEvent) => {
       if (item.event?.city) {
         citySet.add(item.event.city);
       }
@@ -105,7 +116,7 @@ export default function AccountSaved() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredEvents.map((savedEvent) => {
+            {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
               const isPast = new Date(`${event.date}T${event.time}`) < new Date();
               return (
