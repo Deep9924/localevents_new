@@ -5,6 +5,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { MapPin, Search, LocateFixed, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { calculateDistance, getIPGeolocation } from "@/lib/utils";
+import type { AppRouter } from "@/server/routers";
+import type { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type City = RouterOutputs["events"]["getCities"][number];
 
 interface CityPickerModalProps {
   open: boolean;
@@ -94,9 +99,9 @@ export default function CityPickerModal({
       const data = await getIPGeolocation();
       if (data && data.latitude && data.longitude) {
         const closest = [...cities]
-          .map((c) => ({ 
-            ...c, 
-            dist: calculateDistance(data.latitude, data.longitude, c.lat || 0, c.lng || 0) 
+          .map((c: City) => ({
+            ...c,
+            dist: calculateDistance(data.latitude, data.longitude, c.lat || 0, c.lng || 0),
           }))
           .sort((a, b) => a.dist - b.dist)[0];
         if (closest) onSelect(closest.slug);
@@ -112,13 +117,13 @@ export default function CityPickerModal({
     if (!query.trim()) return [];
     const q = query.toLowerCase().trim();
     return [
-      ...cities.filter((c) => c.name.toLowerCase().startsWith(q)),
-      ...cities.filter((c) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)),
+      ...cities.filter((c: City) => c.name.toLowerCase().startsWith(q)),
+      ...cities.filter((c: City) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)),
     ];
   }, [cities, query]);
 
   const nearbyGrid = useMemo(() => {
-    return cities.filter((c) => c.slug !== currentCitySlug).slice(0, 6);
+    return cities.filter((c: City) => c.slug !== currentCitySlug).slice(0, 6);
   }, [cities, currentCitySlug]);
 
   if (!visible) return null;
@@ -205,7 +210,7 @@ export default function CityPickerModal({
                 {filtered.length === 0 ? (
                   <p className="py-4 text-sm text-gray-400 text-center">No cities found</p>
                 ) : (
-                  filtered.map((city) => (
+                  filtered.map((city: City) => (
                     <button
                       key={city.slug}
                       onClick={() => {
@@ -240,7 +245,7 @@ export default function CityPickerModal({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {nearbyGrid.map((city) => (
+              {nearbyGrid.map((city: City) => (
                 <button
                   key={city.slug}
                   onClick={() => onSelect(city.slug)}
