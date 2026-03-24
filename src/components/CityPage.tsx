@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import HeroBanner from "@/components/HeroBanner";
 import CategoryScroll from "@/components/CategoryScroll";
 import FeaturedEvent from "@/components/FeaturedEvent";
@@ -21,9 +21,9 @@ interface CityPageProps {
 
 export default function CityPage({ citySlug }: CityPageProps) {
   const { city, citySlug: detectedSlug, isDetecting, detectLocation, permissionDenied } = useLocation(citySlug);
-  
+
   const effectiveSlug = citySlug || detectedSlug || "toronto";
-  
+
   const {
     activeCategory,
     dateFilter,
@@ -34,13 +34,13 @@ export default function CityPage({ citySlug }: CityPageProps) {
     clearFilters,
   } = useEventFilters(effectiveSlug);
 
-  const { data: cities = [] } = trpc.events.getCities.useQuery();
+  const { data: cities = [], isLoading: citiesLoading } = trpc.events.getCities.useQuery();
   const { data: categories = [] } = trpc.events.getCategories.useQuery();
-  
+
   const effectiveCity = city || cities.find((c) => c.slug === effectiveSlug) || cities[0];
 
-  const { data: filteredEvents = [], isLoading } = trpc.events.getByCity.useQuery(
-    { 
+  const { data: filteredEvents = [], isLoading: eventsLoading } = trpc.events.getByCity.useQuery(
+    {
       citySlug: effectiveSlug,
       category: activeCategory,
       date: dateFilter,
@@ -54,7 +54,6 @@ export default function CityPage({ citySlug }: CityPageProps) {
     { enabled: !!effectiveSlug }
   );
 
-  // Group filtered events by category for sectioned view
   const eventsByCategory = useMemo(() => {
     const grouped: Record<string, typeof filteredEvents> = {};
     categories.forEach((cat) => {
@@ -63,18 +62,25 @@ export default function CityPage({ citySlug }: CityPageProps) {
     return grouped;
   }, [filteredEvents, categories]);
 
-  // Which categories to show — filtered by activeCategory
   const categoriesToShow = activeCategory === "all"
     ? categories
     : categories.filter((c) => c.id === activeCategory);
 
-  if (isLoading || !effectiveCity) {
+  if (citiesLoading || eventsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
           <p className="text-gray-600">Loading events...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!effectiveCity) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">City not found.</p>
       </div>
     );
   }
