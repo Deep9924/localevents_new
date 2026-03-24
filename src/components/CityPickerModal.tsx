@@ -118,7 +118,9 @@ export default function CityPickerModal({
     const q = query.toLowerCase().trim();
     return [
       ...cities.filter((c: City) => c.name.toLowerCase().startsWith(q)),
-      ...cities.filter((c: City) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)),
+      ...cities.filter(
+        (c: City) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)
+      ),
     ];
   }, [cities, query]);
 
@@ -159,7 +161,8 @@ export default function CityPickerModal({
         <div
           className="px-5 sm:px-7 pt-6 sm:pt-8 pb-8 sm:pb-10"
           style={{
-            background: "linear-gradient(180deg, #4338ca 0%, #818cf8 55%, #c7d2fe 75%, #eef2ff 88%, #ffffff 100%)",
+            background:
+              "linear-gradient(180deg, #4338ca 0%, #818cf8 55%, #c7d2fe 75%, #eef2ff 88%, #ffffff 100%)",
           }}
         >
           <div className="flex items-center justify-between mb-5">
@@ -227,7 +230,9 @@ export default function CityPickerModal({
                         <p className="text-xs text-gray-400">{city.province}</p>
                       </div>
                       {eventCounts[city.slug] && (
-                        <span className="text-xs text-indigo-600 font-semibold">{eventCounts[city.slug]} events</span>
+                        <span className="text-xs text-indigo-600 font-semibold">
+                          {eventCounts[city.slug]} events
+                        </span>
                       )}
                     </button>
                   ))
