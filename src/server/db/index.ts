@@ -20,7 +20,7 @@ function buildPool() {
     port: Number(parsed.port || 3306),
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^//, ""),
+    database: parsed.pathname.replace(/^\//, ""),
     waitForConnections: true,
     connectionLimit: 10,
     ssl: { rejectUnauthorized: true },
