@@ -324,7 +324,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       >
         <Ticket className="w-4 h-4" />
         Get Tickets
-        {event.ticketUrl && <ExternalLink className="w-3 h-3 opacity-70" />}
+        {(event as any).ticketUrl && <ExternalLink className="w-3 h-3 opacity-70" />}
       </a>
 
       {/* Add to Calendar */}
