@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import {
-  Calendar, MapPin, Clock, Users, Share2, Heart,
+  Calendar, MapPin, Clock, Users, Share2, Bookmark,
   Ticket, ArrowLeft, AlertCircle, Loader2, Tag,
-  ExternalLink, Star,
+  ExternalLink, Star, ChevronRight, Home, FileText,
+  CheckCircle2, AlertTriangle, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,28 +45,73 @@ function ErrorState({
   );
 }
 
-function HighlightChip({
+// ── Breadcrumb ───────────────────────────────────────────────────────────────
+function Breadcrumb({
+  citySlug,
+  cityName,
+  eventTitle,
+}: {
+  citySlug: string;
+  cityName: string;
+  eventTitle: string;
+}) {
+  const router = useRouter();
+  return (
+    <nav className="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
+      <button
+        onClick={() => router.push("/")}
+        className="flex items-center gap-1 hover:text-indigo-600 transition-colors font-medium"
+      >
+        <Home className="w-3 h-3" />
+        Home
+      </button>
+      <ChevronRight className="w-3 h-3 shrink-0" />
+      <button
+        onClick={() => router.push(`/${citySlug}`)}
+        className="hover:text-indigo-600 transition-colors font-medium capitalize"
+      >
+        {cityName}
+      </button>
+      <ChevronRight className="w-3 h-3 shrink-0" />
+      <span className="text-gray-500 font-medium truncate max-w-[180px] sm:max-w-xs">
+        {eventTitle}
+      </span>
+    </nav>
+  );
+}
+
+// ── Highlight row ────────────────────────────────────────────────────────────
+function HighlightRow({
   icon: Icon,
   label,
   sub,
+  color = "indigo",
 }: {
   icon: React.ElementType;
   label: string;
   sub?: string;
+  color?: "indigo" | "amber" | "green" | "rose";
 }) {
+  const colors = {
+    indigo: "bg-indigo-50 text-indigo-600",
+    amber: "bg-amber-50 text-amber-600",
+    green: "bg-green-50 text-green-600",
+    rose: "bg-rose-50 text-rose-500",
+  };
   return (
-    <div className="flex items-center gap-3 py-3.5">
-      <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-indigo-600" />
+    <div className="flex items-center gap-4 py-3">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colors[color]}`}>
+        <Icon className="w-4.5 h-4.5 w-[18px] h-[18px]" />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-gray-900 leading-tight">{label}</p>
-        {sub && <p className="text-xs text-gray-500 truncate">{sub}</p>}
+        {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
       </div>
     </div>
   );
 }
 
+// ── Main component ───────────────────────────────────────────────────────────
 export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -87,14 +133,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     { enabled: !!user && !!event?.id }
   );
 
-  // ✅ FIXED: always an array
   const { data: rawSimilar } = trpc.events.getSimilar.useQuery(
-    {
-      eventId: event?.id ?? "",
-      category: event?.category ?? "",
-      citySlug: citySlug ?? "",
-      limit: 8,
-    },
+    { eventId: event?.id ?? "", category: event?.category ?? "", citySlug: citySlug ?? "", limit: 8 },
     { enabled: !!event?.id }
   );
   const similarEvents = Array.isArray(rawSimilar) ? rawSimilar : [];
@@ -186,7 +226,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
 
-  // ✅ FIXED: parse tags from DB string "music,jazz" → ["music", "jazz"]
   const tags: string[] = (() => {
     const raw = event.tags;
     if (!raw) return [event.category];
@@ -207,7 +246,16 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   return (
     <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
 
-      {/* Hero image */}
+      {/* ── Breadcrumb ────────────────────────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-3">
+        <Breadcrumb
+          citySlug={citySlug!}
+          cityName={city.name}
+          eventTitle={event.title}
+        />
+      </div>
+
+      {/* ── Hero image (clean — no badge clutter) ─────────────────────────── */}
       <div className="relative w-full bg-gray-100 overflow-hidden" style={{ maxHeight: 480 }}>
         {!imgError && event.image ? (
           <img
@@ -225,39 +273,41 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             <Calendar className="w-20 h-20 text-indigo-200" />
           </div>
         )}
-
-        <button
-          onClick={() => router.push(`/${citySlug}`)}
-          className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-indigo-700 hover:bg-white text-sm font-semibold px-3 py-2 rounded-full shadow transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {city.name}
-        </button>
-
-        {event.isFeatured && (
-          <div className="absolute top-4 right-4">
-            <Badge className="bg-amber-500 text-white border-0 shadow text-xs px-2.5 py-1">
-              <Star className="w-3 h-3 mr-1 fill-current inline" />Featured
-            </Badge>
-          </div>
-        )}
       </div>
 
-      {/* Body */}
+      {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
 
-          {/* Left column */}
+          {/* ══ LEFT COLUMN ════════════════════════════════════════════════ */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* Title + organizer */}
+            {/* Title row + Featured badge here (clean, below image) */}
             <div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold capitalize">
+                  {event.category}
+                </Badge>
+                {event.isFeatured && (
+                  <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+                    <Star className="w-3 h-3 mr-1 fill-amber-500 text-amber-500 inline" />
+                    Featured
+                  </Badge>
+                )}
+                {isFree && (
+                  <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-semibold">
+                    Free Entry
+                  </Badge>
+                )}
+              </div>
+
               <h1
                 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-indigo-900 leading-tight mb-2"
                 style={{ fontFamily: "'Sora', sans-serif" }}
               >
                 {event.title}
               </h1>
+
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {((event as any).organizerName ?? "L")[0].toUpperCase()}
@@ -270,18 +320,39 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               </div>
             </div>
 
-            {/* Highlights card */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100 px-5">
-              <HighlightChip icon={Calendar} label={`${event.date} · ${event.time}`} sub="Date & Time" />
-              <HighlightChip icon={Clock} label="~2 hours" sub="Estimated duration" />
-              <HighlightChip icon={MapPin} label={event.venue} sub={`${city.name}, ${city.province}`} />
-              <HighlightChip
+            {/* ── Highlights card (improved) ─────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 divide-y divide-gray-100">
+              <HighlightRow
+                icon={Calendar}
+                label={`${event.date}`}
+                sub={`Doors open at ${event.time}`}
+                color="indigo"
+              />
+              <HighlightRow
+                icon={Clock}
+                label={event.time}
+                sub="Start time · approx. 2 hrs"
+                color="indigo"
+              />
+              <HighlightRow
+                icon={MapPin}
+                label={event.venue}
+                sub={`${city.name}, ${city.province}`}
+                color="amber"
+              />
+              <HighlightRow
                 icon={Tag}
-                label={isFree ? "Free entry" : `Starting at ${displayPrice}`}
-                sub="Price"
+                label={isFree ? "Free Entry" : `${displayPrice} per person`}
+                sub={isFree ? "No tickets required" : "Secure checkout · No hidden fees"}
+                color={isFree ? "green" : "indigo"}
               />
               {(event.interested ?? 0) > 0 && (
-                <HighlightChip icon={Users} label={`${event.interested}+ Interested`} sub="People going" />
+                <HighlightRow
+                  icon={Users}
+                  label={`${event.interested}+ people interested`}
+                  sub="Join the crowd"
+                  color="indigo"
+                />
               )}
             </div>
 
@@ -299,7 +370,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     : "border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                 }`}
               >
-                <Heart className={`w-4 h-4 mr-1.5 ${isInterested ? "fill-current" : ""}`} />
+                <Users className={`w-4 h-4 mr-1.5`} />
                 {isInterested ? "Interested" : "I'm Interested"}
               </Button>
               <Button
@@ -317,34 +388,49 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               </Button>
             </div>
 
-            {/* Date & Location */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
-              <h2 className="font-bold text-gray-900">Date &amp; Location</h2>
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 mt-0.5">
-                  <Calendar className="w-4 h-4 text-indigo-600" />
+            {/* ── Date & Location (improved) ─────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 pt-5 pb-3 border-b border-gray-100">
+                <h2 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Date &amp; Location</h2>
+              </div>
+
+              {/* Date row */}
+              <div className="px-5 py-4 flex items-start gap-4 border-b border-gray-100">
+                {/* Calendar icon block */}
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 flex flex-col items-center justify-center shrink-0 text-white">
+                  <span className="text-[10px] font-bold uppercase leading-none opacity-80">
+                    {event.date?.split(" ")[2] ?? ""}
+                  </span>
+                  <span className="text-lg font-bold leading-none">
+                    {event.date?.split(" ")[1] ?? ""}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">{event.date} · {event.time}</p>
-                  <div className="mt-2 max-w-xs">
+                  <p className="font-semibold text-gray-900 text-sm">{event.date}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Starts at {event.time} · Approx. 2 hours</p>
+                  <div className="mt-3">
                     <CalendarButton event={calendarEvent} />
                   </div>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 mt-0.5">
-                  <MapPin className="w-4 h-4 text-indigo-600" />
+
+              {/* Location row */}
+              <div className="px-5 py-4 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+                  <MapPin className="w-5 h-5 text-white" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm">{event.venue}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{city.name}, {city.province}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{city.name}, {city.province}, {city.country}</p>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue} ${city.name}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium mt-1.5"
+                    className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-semibold mt-2 bg-indigo-50 px-2.5 py-1 rounded-full transition-colors"
                   >
-                    View on map <ExternalLink className="w-3 h-3" />
+                    <MapPin className="w-3 h-3" />
+                    View on Google Maps
+                    <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               </div>
@@ -368,28 +454,65 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     key={tag}
                     className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1 capitalize"
                   >
-                    {tag}
+                    #{tag}
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Host */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h2 className="font-bold text-gray-900 mb-4">Host Details</h2>
-              {event.organizerId ? (
-                <OrganizerProfile organizerId={event.organizerId} />
-              ) : (
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                    LE
-                  </div>
+            {/* ── Terms & Conditions (replaces Host Details) ──────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-500" />
+                <h2 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Terms &amp; Conditions</h2>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-gray-900">LocalEvents Team</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Verified organizer</p>
+                    <p className="text-sm font-semibold text-gray-800">Ticket Policy</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      All ticket sales are final. No refunds or exchanges unless the event is cancelled or rescheduled by the organizer.
+                    </p>
                   </div>
                 </div>
-              )}
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Entry Requirements</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      Valid ID may be required for entry. Tickets must be presented digitally or printed at the door.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Age Restrictions</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      Some events may have age restrictions. Please verify event details before purchasing tickets.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Event Changes</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      The organizer reserves the right to make changes to the event lineup or schedule. Ticket holders will be notified of any major changes.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Liability</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      LocalEvents acts as a platform connecting event-goers with organizers and is not liable for the conduct of events listed on this site.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Similar events */}
@@ -415,7 +538,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             )}
           </div>
 
-          {/* Right column: desktop sidebar */}
+          {/* ══ RIGHT COLUMN: sticky sidebar (desktop only) ════════════════ */}
           <div className="hidden lg:block lg:col-span-1">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 sticky top-6 space-y-3">
               <div className="pb-4 border-b border-gray-100">
@@ -445,8 +568,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     : "border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                <Heart className={`w-4 h-4 mr-2 ${isInterested ? "fill-amber-500 text-amber-500" : ""}`} />
-                {isInterested ? "Interested" : "I'm Interested"}
+                <Users className="w-4 h-4 mr-2" />
+                {isInterested ? "Interested ✓" : "I'm Interested"}
               </Button>
 
               <Button
@@ -457,16 +580,17 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 <Share2 className="w-4 h-4 mr-2" />Share Event
               </Button>
 
+              {/* ✅ Bookmark icon for Save */}
               <Button
                 onClick={handleSaveEvent}
                 variant="outline"
                 className={`w-full h-10 font-semibold text-sm ${
                   isSaved
-                    ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                    ? "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
                     : "border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                <Heart className={`w-4 h-4 mr-2 ${isSaved ? "fill-amber-500 text-amber-500" : ""}`} />
+                <Bookmark className={`w-4 h-4 mr-2 ${isSaved ? "fill-indigo-600 text-indigo-600" : ""}`} />
                 {isSaved ? "Saved" : "Save for later"}
               </Button>
 
@@ -478,7 +602,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       <Footer />
 
-      {/* Mobile sticky bottom bar */}
+      {/* ── Mobile sticky bottom bar ──────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 leading-none mb-0.5">Tickets from</p>
@@ -486,13 +610,14 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             {displayPrice}
           </p>
         </div>
+        {/* ✅ Bookmark icon */}
         <Button
           onClick={handleSaveEvent}
           variant="outline"
           size="icon"
-          className={`h-11 w-11 shrink-0 ${isSaved ? "border-amber-300 bg-amber-50" : "border-gray-200"}`}
+          className={`h-11 w-11 shrink-0 ${isSaved ? "border-indigo-300 bg-indigo-50" : "border-gray-200"}`}
         >
-          <Heart className={`w-5 h-5 ${isSaved ? "fill-amber-500 text-amber-500" : "text-gray-400"}`} />
+          <Bookmark className={`w-5 h-5 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
         </Button>
         <Button
           onClick={handleGetTickets}
@@ -503,4 +628,4 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
     </div>
   );
-                  }
+    }
