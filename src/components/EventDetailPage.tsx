@@ -317,8 +317,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       {/* Get Tickets — primary CTA */}
       <a
-        href={event.ticketUrl ?? "#"}
-        target={event.ticketUrl ? "_blank" : undefined}
+        href={(event as any).ticketUrl ?? "#"}
+        target={(event as any).ticketUrl ? "_blank" : undefined}
         rel="noopener noreferrer"
         className="flex items-center justify-center gap-2 w-full h-12 bg-indigo-700 hover:bg-indigo-800 active:scale-[0.98] text-white font-bold rounded-xl transition-all duration-150 shadow-md shadow-indigo-200 text-sm"
       >
@@ -589,8 +589,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           <Bookmark className={`w-4 h-4 transition-all ${isSaved ? "fill-indigo-600 text-indigo-600 scale-110" : "text-gray-400"}`} />
         </button>
         <a
-          href={event.ticketUrl ?? "#"}
-          target={event.ticketUrl ? "_blank" : undefined}
+          href={(event as any).ticketUrl ?? "#"}
+          target={(event as any).ticketUrl ? "_blank" : undefined}
           rel="noopener noreferrer"
           className="h-10 px-5 flex items-center gap-2 bg-indigo-700 hover:bg-indigo-800 active:scale-95 text-white font-bold text-sm rounded-xl shrink-0 transition-all"
         >
