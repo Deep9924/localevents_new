@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,17 +53,14 @@ function Breadcrumb({ citySlug, cityName, eventTitle }: { citySlug: string; city
   );
 }
 
-// ── Compact, minimal highlight row ──────────────────────────────────────────
-function HighlightRow({ icon: Icon, label, sub }: { icon: React.ElementType; label: string; sub?: string }) {
+// ── Compact highlight row — no subtext, no dividers, subtle indigo icon ──────
+function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
     <div className="flex items-center gap-3 py-2.5">
-      <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-gray-500" />
+      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-indigo-400" />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-900 leading-tight">{label}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-      </div>
+      <p className="text-sm font-semibold text-gray-900 leading-tight">{label}</p>
     </div>
   );
 }
@@ -104,34 +100,37 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const unsaveEventMutation = trpc.savedEvents.unsave.useMutation();
 
   const handleSaveEvent = async () => {
-    if (!user) { toast.error("Please sign in to save events"); return; }
-    if (!event) return;
+    if (!user || !event) return;
     try {
       if (isSaved) {
         await unsaveEventMutation.mutateAsync({ eventId: event.id });
         setIsSaved(false);
-        toast.success("Removed from saved events");
       } else {
         await saveEventMutation.mutateAsync({ eventId: event.id, eventTitle: event.title, eventDate: event.date, eventCity: event.citySlug });
         setIsSaved(true);
-        toast.success("Event saved!");
       }
-    } catch { toast.error("Failed to save event"); }
+    } catch { /* silent */ }
   };
 
   const handleShare = async () => {
     const url = window.location.href;
     try {
       if (navigator.share) await navigator.share({ title: event?.title, url });
-      else { await navigator.clipboard.writeText(url); toast.success("Link copied!"); }
-    } catch { toast.error("Could not share event"); }
+      else await navigator.clipboard.writeText(url);
+    } catch { /* silent */ }
   };
 
-  const handleGetTickets = () => toast.info("Ticket booking coming soon!");
+  const handleGetTickets = () => {
+    // Ticket booking coming soon — no popup
+  };
 
   const city = CITIES.find((c) => c.slug === citySlug);
 
-  if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+  if (eventLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+    </div>
+  );
 
   if (!city) return (
     <ErrorState
@@ -152,20 +151,18 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
 
-  // ✅ FIXED: handles JSON array string ["food","wine"] AND comma string "food,wine"
+  // Parse tags
   const tags: string[] = (() => {
     const raw = event.tags;
     if (!raw) return [event.category];
     if (Array.isArray(raw)) return raw;
     const str = String(raw).trim();
-    // JSON array string
     if (str.startsWith("[")) {
       try {
         const parsed = JSON.parse(str);
         if (Array.isArray(parsed)) return parsed.map((t) => String(t).trim()).filter(Boolean);
       } catch { /* fall through */ }
     }
-    // Comma-separated string
     return str.split(",").map((t) => t.trim()).filter(Boolean);
   })();
 
@@ -190,15 +187,56 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         <Breadcrumb citySlug={citySlug!} cityName={city.name} eventTitle={event.title} />
       </div>
 
-      {/* Hero image */}
-      <div className="relative w-full bg-gray-100 overflow-hidden" style={{ maxHeight: 480 }}>
+      {/* Hero image — fixed height, never changes */}
+      <div className="relative w-full overflow-hidden" style={{ height: 288 }}>
         {!imgError && event.image ? (
-          <img src={event.image} alt={event.title} className="w-full object-cover" style={{ maxHeight: 480, minHeight: 240, width: "100%" }} onError={() => setImgError(true)} />
+          <img
+            src={event.image}
+            alt={event.title}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
         ) : (
-          <div className="w-full bg-gradient-to-br from-indigo-100 via-amber-50 to-indigo-50 flex items-center justify-center" style={{ height: 360 }}>
+          <div className="w-full h-full bg-gradient-to-br from-indigo-100 via-amber-50 to-indigo-50 flex items-center justify-center">
             <Calendar className="w-20 h-20 text-indigo-200" />
           </div>
         )}
+      </div>
+
+      {/* Title block — sits between image and body, full width */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 pb-1">
+        <div className="flex items-center gap-2 text-sm mb-3">
+          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {((event as any).organizerName ?? "L")[0].toUpperCase()}
+          </div>
+          <span className="font-medium text-gray-600">{(event as any).organizerName ?? "LocalEvents Team"}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-xs font-medium text-indigo-500">Verified</span>
+        </div>
+
+        <h1
+          className="text-3xl sm:text-4xl lg:text-5xl font-bold text-black leading-tight mb-4"
+          style={{ fontFamily: "'Sora', sans-serif" }}
+        >
+          {event.title}
+        </h1>
+
+        {/* Consolidated badges + tags in one row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="bg-gray-100 text-gray-600 border-0 text-xs capitalize">{event.category}</Badge>
+          {event.isFeatured && (
+            <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-xs">
+              <Star className="w-3 h-3 mr-1 fill-amber-500 text-amber-500 inline" />Featured
+            </Badge>
+          )}
+          {isFree && <Badge className="bg-green-50 text-green-700 border border-green-100 text-xs">Free Entry</Badge>}
+          {/* Tags inline with badges */}
+          {tags.map((tag) => (
+            <span key={tag} className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-0.5 capitalize">
+              #{tag}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Body */}
@@ -208,47 +246,21 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           {/* ══ LEFT COLUMN ════════════════════════════════════════════════ */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* Badges + Title */}
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge className="bg-gray-100 text-gray-600 border-0 text-xs capitalize">{event.category}</Badge>
-                {event.isFeatured && (
-                  <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-xs">
-                    <Star className="w-3 h-3 mr-1 fill-amber-500 text-amber-500 inline" />Featured
-                  </Badge>
-                )}
-                {isFree && <Badge className="bg-green-50 text-green-700 border border-green-100 text-xs">Free Entry</Badge>}
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-indigo-900 leading-tight mb-2" style={{ fontFamily: "'Sora', sans-serif" }}>
-                {event.title}
-              </h1>
-
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                  {((event as any).organizerName ?? "L")[0].toUpperCase()}
-                </div>
-                <span className="font-medium text-gray-600">{(event as any).organizerName ?? "LocalEvents Team"}</span>
-                <span className="text-gray-300">·</span>
-                <span className="text-xs font-medium text-indigo-500">Verified</span>
-              </div>
-            </div>
-
-            {/* Highlights — compact, neutral */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 divide-y divide-gray-100">
-              <HighlightRow icon={Calendar} label={event.date} sub={`Doors open at ${event.time}`} />
-              <HighlightRow icon={Clock} label={event.time} sub="Start time · approx. 2 hrs" />
-              <HighlightRow icon={MapPin} label={event.venue} sub={`${city.name}, ${city.province}`} />
-              <HighlightRow icon={Tag} label={isFree ? "Free Entry" : `${displayPrice} per person`} sub={isFree ? "No tickets required" : "No hidden fees"} />
+            {/* Highlights — no subtext, no dividers, indigo icon bg */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-1">
+              <HighlightRow icon={Calendar} label={event.date} />
+              <HighlightRow icon={Clock} label={event.time} />
+              <HighlightRow icon={MapPin} label={event.venue} />
+              <HighlightRow icon={Tag} label={isFree ? "Free Entry" : `${displayPrice} per person`} />
               {(event.interested ?? 0) > 0 && (
-                <HighlightRow icon={Users} label={`${event.interested}+ people interested`} sub="Join the crowd" />
+                <HighlightRow icon={Users} label={`${event.interested}+ people interested`} />
               )}
             </div>
 
-            {/* Quick actions */}
+            {/* Quick actions — Book Tickets only visible when sidebar is not shown (lg:hidden) */}
             <div className="flex gap-2.5">
               <Button
-                onClick={() => { setIsInterested((v) => !v); toast.success(isInterested ? "Removed interest" : "Marked as interested!"); }}
+                onClick={() => setIsInterested((v) => !v)}
                 variant={isInterested ? "default" : "outline"}
                 className={`flex-1 h-10 font-semibold text-sm ${isInterested ? "bg-indigo-700 hover:bg-indigo-800 text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
               >
@@ -257,7 +269,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <Button onClick={handleShare} variant="outline" className="flex-1 h-10 border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm">
                 <Share2 className="w-4 h-4 mr-1.5" />Share
               </Button>
-              <Button onClick={handleGetTickets} className="hidden sm:flex flex-1 h-10 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm">
+              {/* Only show when sidebar (desktop) is NOT visible */}
+              <Button onClick={handleGetTickets} className="lg:hidden flex flex-1 h-10 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm">
                 <Ticket className="w-4 h-4 mr-1.5" />Book Tickets
               </Button>
             </div>
@@ -312,17 +325,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 <p className="text-gray-400 text-sm italic">No description available.</p>
               )}
             </div>
-
-            {/* Tags — ✅ FIXED */}
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span key={tag} className="text-xs font-medium text-gray-600 bg-gray-100 rounded-full px-3 py-1 capitalize">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
 
             {/* Terms & Conditions */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -382,6 +384,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>}
               </div>
 
+              {/* Book Tickets lives here on desktop */}
               <Button onClick={handleGetTickets} className="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold h-11">
                 <Ticket className="w-4 h-4 mr-2" />Book Tickets
               </Button>
@@ -389,7 +392,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <CalendarButton event={calendarEvent} />
 
               <Button
-                onClick={() => { setIsInterested((v) => !v); toast.success(isInterested ? "Removed interest" : "Marked as interested!"); }}
+                onClick={() => setIsInterested((v) => !v)}
                 variant="outline"
                 className={`w-full h-10 font-semibold text-sm ${isInterested ? "bg-gray-50 border-gray-300 text-gray-800" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
               >
@@ -418,7 +421,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       <Footer />
 
-      {/* Mobile sticky bottom bar */}
+      {/* Mobile sticky bottom bar — Book Tickets shown here (sidebar not visible on mobile) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 leading-none mb-0.5">Tickets from</p>
@@ -438,4 +441,4 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
     </div>
   );
-                  }
+}
