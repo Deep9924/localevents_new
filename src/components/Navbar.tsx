@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, MapPin, Plus, User, Menu, X,
-  LogOut, Settings, LogIn, Calendar, ArrowLeft, Search,
+  LogOut, Settings, LogIn, Calendar,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import {
@@ -38,11 +38,9 @@ export default function Navbar({
   onSearchChange,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [internalCategory, setInternalCategory] = useState("all");
-  const [searchInputValue, setSearchInputValue] = useState(searchQueryProp ?? "");
 
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
@@ -51,25 +49,12 @@ export default function Navbar({
 
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
-  const expandedInputRef = useRef<HTMLInputElement>(null);
 
   const activeCategory = activeCategoryProp ?? internalCategory;
   const visibleCategories = CATEGORIES.slice(0, 8);
   const moreCategories = CATEGORIES.slice(8);
 
   const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
-
-  // Sync external searchQuery prop
-  useEffect(() => {
-    setSearchInputValue(searchQueryProp ?? "");
-  }, [searchQueryProp]);
-
-  // Focus expanded input when it opens
-  useEffect(() => {
-    if (searchExpanded) {
-      setTimeout(() => expandedInputRef.current?.focus(), 60);
-    }
-  }, [searchExpanded]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -89,10 +74,9 @@ export default function Navbar({
     return () => document.removeEventListener("mousedown", handler);
   }, [mobileMenuOpen]);
 
-  // Lock body scroll when mobile menu or search is open
+  // Lock body scroll when mobile menu is open
   useEffect(() => {
-    const shouldLock = mobileMenuOpen || searchExpanded;
-    if (shouldLock) {
+    if (mobileMenuOpen) {
       document.body.style.overflow = "hidden";
       document.body.style.touchAction = "none";
     } else {
@@ -103,18 +87,12 @@ export default function Navbar({
       document.body.style.overflow = "";
       document.body.style.touchAction = "";
     };
-  }, [mobileMenuOpen, searchExpanded]);
+  }, [mobileMenuOpen]);
 
   // Close on city change
   useEffect(() => {
     setMobileMenuOpen(false);
-    setSearchExpanded(false);
   }, [citySlug]);
-
-  const closeSearch = () => {
-    setSearchExpanded(false);
-    setSearchInputValue("");
-  };
 
   const handleCitySelect = (slug: string) => {
     setCitySlug(slug);
@@ -132,7 +110,6 @@ export default function Navbar({
     if (q.trim()) {
       onSearchChange?.(q);
       router.push(`/${citySlug}?search=${encodeURIComponent(q)}&category=${activeCategory}`);
-      closeSearch();
       setMobileMenuOpen(false);
     }
   };
@@ -165,12 +142,11 @@ export default function Navbar({
         eventCounts={cityCounts}
       />
 
-      {/* Backdrop — solid black, no blur, blocks scroll */}
-      {(mobileMenuOpen || searchExpanded) && (
+      {/* ── Solid black overlay — sits behind menu, above page content ── */}
+      {mobileMenuOpen && (
         <div
-          className="sm:hidden fixed inset-0 z-40 bg-black/60"
-          style={{ top: 64 }}
-          onClick={() => { setMobileMenuOpen(false); closeSearch(); }}
+          className="sm:hidden fixed inset-0 z-40 bg-black/70"
+          onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
@@ -178,107 +154,19 @@ export default function Navbar({
 
         {/* ── Top bar ── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="relative flex items-center h-16 gap-3">
-
-            {/* ════════════════════════════════════════════════
-                MOBILE: normal state — Logo · search icon · hamburger
-                ════════════════════════════════════════════════ */}
-            <div
-              className={`sm:hidden absolute inset-0 flex items-center gap-2 transition-all duration-200
-                ${searchExpanded ? "opacity-0 pointer-events-none translate-y-1" : "opacity-100 translate-y-0"}`}
-            >
-              {/* Logo */}
-              <Link href="/" className="flex items-center gap-2 shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">LE</span>
-                </div>
-                <span className="font-bold text-indigo-900 text-lg" style={{ fontFamily: "'Sora', sans-serif" }}>
-                  LocalEvents
-                </span>
-              </Link>
-
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              {/* Search icon */}
-              <button
-                onClick={() => { setSearchExpanded(true); setMobileMenuOpen(false); }}
-                className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg active:bg-indigo-100 active:scale-90 transition-all duration-75 shrink-0"
-                aria-label="Search"
-              >
-                <Search className="w-5 h-5" />
-              </button>
-
-              {/* Hamburger */}
-              <button
-                ref={menuBtnRef}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75 shrink-0"
-                onClick={() => setMobileMenuOpen((v) => !v)}
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
-
-            {/* ════════════════════════════════════════════════
-                MOBILE: search-expanded — back · input (with inline X)
-                ════════════════════════════════════════════════ */}
-            <div
-              className={`sm:hidden absolute inset-0 flex items-center gap-2 transition-all duration-200
-                ${searchExpanded ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none -translate-y-1"}`}
-            >
-              {/* Back arrow */}
-              <button
-                onClick={closeSearch}
-                className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg active:scale-90 transition-all duration-75 shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-
-              {/* Input with inline X */}
-              <div className="flex-1 flex items-center gap-2 h-9 px-3 rounded-full border border-indigo-300 bg-white shadow-sm ring-2 ring-indigo-100">
-                <Search className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
-                <input
-                  ref={expandedInputRef}
-                  type="text"
-                  placeholder={`Search in ${cityName}…`}
-                  value={searchInputValue}
-                  className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
-                  onChange={(e) => setSearchInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSearchSubmit(searchInputValue);
-                    if (e.key === "Escape") closeSearch();
-                  }}
-                />
-                {searchInputValue && (
-                  <button
-                    onClick={() => {
-                      setSearchInputValue("");
-                      expandedInputRef.current?.focus();
-                    }}
-                    className="p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
-                    tabIndex={-1}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ════════════════════════════════════════════════
-                DESKTOP — original style, unchanged
-                ════════════════════════════════════════════════ */}
+          <div className="flex items-center h-16 gap-3">
 
             {/* Logo */}
-            <Link href="/" className="hidden sm:flex items-center gap-2 shrink-0">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center">
                 <span className="text-white font-bold text-sm">LE</span>
               </div>
-              <span className="font-bold text-indigo-900 text-lg" style={{ fontFamily: "'Sora', sans-serif" }}>
+              <span className="hidden sm:inline font-bold text-indigo-900 text-lg" style={{ fontFamily: "'Sora', sans-serif" }}>
                 LocalEvents
               </span>
             </Link>
 
-            {/* City */}
+            {/* City — desktop only */}
             <button
               onClick={() => setCityModalOpen(true)}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-sm font-medium text-gray-700 shrink-0"
@@ -288,8 +176,8 @@ export default function Navbar({
               <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
             </button>
 
-            {/* Search bar */}
-            <div className="flex-1 max-w-lg hidden sm:block">
+            {/* SearchBar — shared mobile + desktop */}
+            <div className="flex-1 max-w-lg">
               <SearchBar
                 cityName={cityName}
                 citySlug={citySlug}
@@ -300,7 +188,7 @@ export default function Navbar({
               />
             </div>
 
-            {/* Right actions */}
+            {/* Right — desktop */}
             <div className="hidden sm:flex items-center gap-2 ml-auto">
               <button
                 onClick={() => toast.info("Create Event feature coming soon!")}
@@ -347,21 +235,75 @@ export default function Navbar({
               )}
             </div>
 
+            {/* Hamburger — mobile only */}
+            <button
+              ref={menuBtnRef}
+              className="sm:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75 shrink-0 ml-1"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
           </div>
         </div>
 
-        {/* ── Mobile menu ── */}
+        {/* ── Category tabs ── */}
+        <div className="border-t border-gray-100 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex items-center overflow-x-auto scrollbar-hide">
+              {visibleCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryChange(cat.id)}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    activeCategory === cat.id
+                      ? "border-amber-500 text-amber-600"
+                      : "border-transparent text-gray-500 hover:text-gray-800"
+                  }`}
+                  style={{ fontFamily: "'Sora', sans-serif" }}
+                >
+                  {cat.label}
+                </button>
+              ))}
+              {moreCategories.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex items-center gap-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-800 whitespace-nowrap border-b-2 border-transparent"
+                      style={{ fontFamily: "'Sora', sans-serif" }}
+                    >
+                      More <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {moreCategories.map((cat) => (
+                      <DropdownMenuItem
+                        key={cat.id}
+                        onClick={() => handleCategoryChange(cat.id)}
+                        className="cursor-pointer"
+                      >
+                        <span className="mr-2">{cat.icon}</span> {cat.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Mobile menu — slides down, layered above the black backdrop ── */}
         <div
           ref={menuRef}
-          className={`sm:hidden absolute left-0 right-0 top-16 bg-white border-t border-gray-100 shadow-lg z-50 overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen && !searchExpanded
-              ? "max-h-[520px] opacity-100"
+          className={`sm:hidden absolute left-0 right-0 bg-white border-t border-gray-100 shadow-xl z-50 overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileMenuOpen
+              ? "max-h-[540px] opacity-100"
               : "max-h-0 opacity-0 pointer-events-none"
           }`}
         >
           <div className="px-5 py-3 flex flex-col gap-1">
 
-            {/* City row — no location label, "Change City" label */}
+            {/* City row */}
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-indigo-100 bg-indigo-50/60">
               <MapPin className="w-[18px] h-[18px] text-indigo-500 shrink-0" />
               <span className="text-sm text-gray-900 flex-1 truncate">{cityName}</span>
@@ -433,51 +375,6 @@ export default function Navbar({
                 </button>
               </>
             )}
-          </div>
-        </div>
-
-        {/* ── Category tabs — desktop ── */}
-        <div className="hidden sm:block border-t border-gray-100 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex items-center overflow-x-auto scrollbar-hide">
-              {visibleCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => handleCategoryChange(cat.id)}
-                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    activeCategory === cat.id
-                      ? "border-amber-500 text-amber-600"
-                      : "border-transparent text-gray-500 hover:text-gray-800"
-                  }`}
-                  style={{ fontFamily: "'Sora', sans-serif" }}
-                >
-                  {cat.label}
-                </button>
-              ))}
-              {moreCategories.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="flex items-center gap-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-800 whitespace-nowrap border-b-2 border-transparent"
-                      style={{ fontFamily: "'Sora', sans-serif" }}
-                    >
-                      More <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {moreCategories.map((cat) => (
-                      <DropdownMenuItem
-                        key={cat.id}
-                        onClick={() => handleCategoryChange(cat.id)}
-                        className="cursor-pointer"
-                      >
-                        <span className="mr-2">{cat.icon}</span> {cat.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
           </div>
         </div>
 
