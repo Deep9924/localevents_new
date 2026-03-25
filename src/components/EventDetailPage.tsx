@@ -25,18 +25,20 @@ import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Footer from "@/components/Footer";
-import { CITIES } from "@/lib/events-data";
 import SimilarEvents from "@/components/SimilarEvents";
 import OrganizerProfile from "@/components/OrganizerProfile";
 import CalendarButton from "@/components/CalendarButton";
 import { MapView } from "@/components/Map";
+import type { AppRouter } from "@/server/routers";
+import type { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type City = RouterOutputs["events"]["getCities"][number];
 
 interface EventDetailPageProps {
   citySlug?: string;
   eventSlug?: string;
 }
-
-type City = (typeof CITIES)[number];
 
 export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPageProps) {
   const router = useRouter();
@@ -54,7 +56,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   );
 
   const { data: cities = [], isLoading: citiesLoading } = trpc.events.getCities.useQuery();
-  const city = useMemo(() => cities.find((c: City) => c.slug === citySlug), [cities, citySlug]);
+  const city = useMemo(() => cities.find((c) => c.slug === citySlug), [cities, citySlug]);
 
   const { data: savedStatus } = trpc.savedEvents.isSaved.useQuery(
     { eventId: event?.id || "" },
@@ -74,7 +76,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       return;
     }
     if (!event) return;
-
     try {
       if (isSaved) {
         await unsaveEventMutation.mutateAsync({ eventId: event.id });
@@ -117,31 +118,15 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     );
   }
 
-  if (!city) {
-    return (
-      <div className="min-h-screen bg-[#FAFAF8]">
-        <main className="max-w-4xl mx-auto px-4 py-16 text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-indigo-900 mb-2">City not found</h1>
-          <Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   if (!event) {
     return (
       <div className="min-h-screen bg-[#FAFAF8]">
         <main className="max-w-4xl mx-auto px-4 py-16 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-indigo-900 mb-2">Event not found</h1>
-          <Button onClick={() => router.push(`/${citySlug}`)} className="bg-indigo-700 hover:bg-indigo-800">
+          <Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to {city.name}
+            Back to Home
           </Button>
         </main>
         <Footer />
@@ -191,9 +176,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-amber-600 font-bold text-sm tracking-wider uppercase font-sora">
                 <Calendar className="w-4 h-4" />
-                <span>
-                  {event.date} • {event.time}
-                </span>
+                <span>{event.date} • {event.time}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 leading-tight font-sora">
                 {event.title}
@@ -227,13 +210,10 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 ) : (
                   <>
                     <p>
-                      Join us for an unforgettable experience at <strong>{event.title}</strong>! This is a premier event in{" "}
-                      {city?.name ?? citySlug} featuring world-class entertainment and an amazing atmosphere.
+                      Join us for an unforgettable experience at <strong>{event.title}</strong>! This is a premier event in {city?.name ?? citySlug} featuring world-class entertainment and an amazing atmosphere.
                     </p>
                     <p>
-                      Whether you're a local or just visiting, this {event.category} event promises to deliver memorable
-                      moments and exciting experiences. Don't miss out on this opportunity to connect with the community at{" "}
-                      {event.venue}.
+                      Whether you're a local or just visiting, this {event.category} event promises to deliver memorable moments and exciting experiences. Don't miss out on this opportunity to connect with the community at {event.venue}.
                     </p>
                   </>
                 )}
@@ -259,9 +239,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     </p>
                   </div>
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                      `${event.venue}, ${city?.name ?? citySlug}`
-                    )}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue}, ${city?.name ?? citySlug}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors"
