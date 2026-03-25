@@ -32,7 +32,7 @@ export async function getDb(): Promise<Db> {
 
   try {
     const pool = buildPool();
-    _db = drizzle(pool) as Db;
+    _db = drizzle(pool) as unknown as Db;
     return _db as Db;
   } catch (error) {
     console.error("[Database] Failed to connect:", error);
