@@ -304,7 +304,18 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 <Ticket className="w-4 h-4 mr-2" />Get Tickets
               </Button>
 
-              <CalendarButton event={event} />
+              <CalendarButton
+                event={{
+                  title: event.title,
+                  description: event.description ?? null,
+                  date:
+                    typeof event.date === "string"
+                      ? event.date
+                      : (event.date as Date).toLocaleDateString("en-CA"),
+                  time: event.time,
+                  venue: event.venue,
+                }}
+              />
 
               <Button
                 onClick={handleShare}
