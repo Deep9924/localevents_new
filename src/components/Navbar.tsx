@@ -4,7 +4,10 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, MapPin, Plus, User, Menu, X, LogOut, Settings, LogIn, Calendar } from "lucide-react";
+import {
+  ChevronDown, MapPin, Plus, User, Menu, X,
+  LogOut, Settings, LogIn, Calendar, ArrowLeft, Search,
+} from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import {
   DropdownMenu,
@@ -35,11 +38,11 @@ export default function Navbar({
   onSearchChange,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  // searchExpanded = top-bar takeover mode (Option B)
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [internalCategory, setInternalCategory] = useState("all");
-  const [showMenuBg, setShowMenuBg] = useState(false);
 
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
@@ -47,9 +50,8 @@ export default function Navbar({
   const { citySlug, cityName, setCitySlug } = useCity();
 
   const menuRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
-  const searchBtnRef = useRef<HTMLButtonElement>(null);
+  const expandedInputRef = useRef<HTMLInputElement>(null);
 
   const activeCategory = activeCategoryProp ?? internalCategory;
   const visibleCategories = CATEGORIES.slice(0, 8);
@@ -57,15 +59,14 @@ export default function Navbar({
 
   const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
 
+  // Focus the expanded search input when it opens
   useEffect(() => {
-    if (mobileMenuOpen || mobileSearchOpen) {
-      setShowMenuBg(true);
-    } else {
-      const t = setTimeout(() => setShowMenuBg(false), 300);
-      return () => clearTimeout(t);
+    if (searchExpanded) {
+      setTimeout(() => expandedInputRef.current?.focus(), 60);
     }
-  }, [mobileMenuOpen, mobileSearchOpen]);
+  }, [searchExpanded]);
 
+  // Close menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const t = e.target as Node;
@@ -75,20 +76,19 @@ export default function Navbar({
         !menuRef.current.contains(t) &&
         menuBtnRef.current &&
         !menuBtnRef.current.contains(t)
-      )
+      ) {
         setMobileMenuOpen(false);
-      if (
-        mobileSearchOpen &&
-        searchRef.current &&
-        !searchRef.current.contains(t) &&
-        searchBtnRef.current &&
-        !searchBtnRef.current.contains(t)
-      )
-        setMobileSearchOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [mobileMenuOpen, mobileSearchOpen]);
+  }, [mobileMenuOpen]);
+
+  // Close menu / search on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setSearchExpanded(false);
+  }, [citySlug]);
 
   const handleCitySelect = (slug: string) => {
     setCitySlug(slug);
@@ -106,7 +106,8 @@ export default function Navbar({
     if (q) {
       onSearchChange?.(q);
       router.push(`/${citySlug}?search=${encodeURIComponent(q)}&category=${activeCategory}`);
-      setMobileSearchOpen(false);
+      setSearchExpanded(false);
+      setMobileMenuOpen(false);
     }
   };
 
@@ -120,9 +121,8 @@ export default function Navbar({
     }
   };
 
-  // Same hover box style as city row — inset with rounded border
   const menuRowCls =
-    "flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/60 active:bg-indigo-100 active:scale-[0.98] transition-all duration-75 text-left";
+    "flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/60 active:bg-indigo-100 active:scale-[0.98] transition-all duration-75 text-left w-full";
 
   return (
     <>
@@ -139,31 +139,109 @@ export default function Navbar({
         eventCounts={cityCounts}
       />
 
-      {/* Mobile backdrop */}
-      {showMenuBg && (
+      {/* Mobile backdrop — behind menu, above page */}
+      {(mobileMenuOpen || searchExpanded) && (
         <div
-          className={`sm:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
-            mobileMenuOpen || mobileSearchOpen ? "opacity-100" : "opacity-0"
-          }`}
-          style={{ top: "64px" }}
-          onClick={() => { setMobileMenuOpen(false); setMobileSearchOpen(false); }}
+          className="sm:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          style={{ top: 64 }}
+          onClick={() => { setMobileMenuOpen(false); setSearchExpanded(false); }}
         />
       )}
 
       <header className="sticky top-0 z-50 bg-white shadow-sm">
+
         {/* ── Top bar ── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center h-16 gap-3">
+          <div className="relative flex items-center h-16 gap-3">
 
-            {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 shrink-0">
+            {/* ════════════════════════════════════════════════
+                MOBILE: normal state — Logo · pill · hamburger
+                ════════════════════════════════════════════════ */}
+            <div
+              className={`sm:hidden absolute inset-0 flex items-center gap-3 transition-all duration-200
+                ${searchExpanded ? "opacity-0 pointer-events-none translate-y-1" : "opacity-100 translate-y-0"}`}
+            >
+              {/* Logo */}
+              <Link href="/" className="flex items-center gap-2 shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">LE</span>
+                </div>
+                <span className="font-bold text-indigo-900 text-lg" style={{ fontFamily: "'Sora', sans-serif" }}>
+                  LocalEvents
+                </span>
+              </Link>
+
+              {/* Search pill — tapping triggers expand */}
+              <button
+                onClick={() => { setSearchExpanded(true); setMobileMenuOpen(false); }}
+                className="flex-1 flex items-center gap-2 h-9 px-3 rounded-full border border-gray-200 bg-gray-50 text-gray-400 text-sm min-w-0"
+              >
+                <Search className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                <span className="truncate">Search events…</span>
+              </button>
+
+              {/* Hamburger — single icon, no separate search icon */}
+              <button
+                ref={menuBtnRef}
+                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75 shrink-0"
+                onClick={() => setMobileMenuOpen((v) => !v)}
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+
+            {/* ════════════════════════════════════════════════
+                MOBILE: search-expanded state — back · input · X
+                ════════════════════════════════════════════════ */}
+            <div
+              className={`sm:hidden absolute inset-0 flex items-center gap-2 transition-all duration-200
+                ${searchExpanded ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none -translate-y-1"}`}
+            >
+              {/* Back arrow */}
+              <button
+                onClick={() => setSearchExpanded(false)}
+                className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg active:scale-90 transition-all duration-75 shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+
+              {/* Full-width search input */}
+              <div className="flex-1 flex items-center gap-2 h-9 px-3 rounded-full border border-indigo-300 bg-white shadow-sm ring-2 ring-indigo-100">
+                <Search className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
+                <input
+                  ref={expandedInputRef}
+                  type="text"
+                  placeholder={`Search in ${cityName}…`}
+                  defaultValue={searchQueryProp ?? ""}
+                  className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearchSubmit((e.target as HTMLInputElement).value);
+                    }
+                    if (e.key === "Escape") setSearchExpanded(false);
+                  }}
+                />
+              </div>
+
+              {/* Clear / close */}
+              <button
+                onClick={() => setSearchExpanded(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg active:scale-90 transition-all shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* ════════════════════════════════════════════════
+                DESKTOP — always visible, never changes
+                ════════════════════════════════════════════════ */}
+
+            {/* Logo — desktop */}
+            <Link href="/" className="hidden sm:flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center">
                 <span className="text-white font-bold text-sm">LE</span>
               </div>
-              <span
-                className="font-bold text-indigo-900 text-lg"
-                style={{ fontFamily: "'Sora', sans-serif" }}
-              >
+              <span className="font-bold text-indigo-900 text-lg" style={{ fontFamily: "'Sora', sans-serif" }}>
                 LocalEvents
               </span>
             </Link>
@@ -178,7 +256,7 @@ export default function Navbar({
               <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
             </button>
 
-            {/* Search — desktop */}
+            {/* Search bar — desktop */}
             <div className="flex-1 max-w-lg hidden sm:block">
               <SearchBar
                 cityName={cityName}
@@ -191,10 +269,10 @@ export default function Navbar({
             </div>
 
             {/* Right — desktop */}
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="hidden sm:flex items-center gap-2 ml-auto">
               <button
                 onClick={() => toast.info("Create Event feature coming soon!")}
-                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-full border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
                 style={{ fontFamily: "'Sora', sans-serif" }}
               >
                 <Plus className="w-3.5 h-3.5" /> Create Event
@@ -203,13 +281,11 @@ export default function Navbar({
               {isAuthenticated && user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="hidden sm:flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-gray-100 transition-colors">
+                    <button className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-gray-100 transition-colors">
                       <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
                         {user.name?.charAt(0).toUpperCase() ?? "U"}
                       </div>
-                      <span className="text-sm font-medium text-gray-700 max-w-[100px] truncate">
-                        {user.name}
-                      </span>
+                      <span className="text-sm font-medium text-gray-700 max-w-[100px] truncate">{user.name}</span>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
@@ -232,78 +308,45 @@ export default function Navbar({
               ) : (
                 <button
                   onClick={() => setAuthModalOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-700 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-700 transition-colors"
                 >
                   <User className="w-4 h-4" /> Sign in
                 </button>
               )}
-
-              {/* Mobile icons */}
-              <button
-                ref={searchBtnRef}
-                className="sm:hidden p-2 text-gray-500 hover:text-indigo-600 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75"
-                onClick={() => { setMobileSearchOpen((v) => !v); setMobileMenuOpen(false); }}
-              >
-                {mobileSearchOpen
-                  ? <X className="w-5 h-5" />
-                  : <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <circle cx="11" cy="11" r="8" />
-                      <path d="m21 21-4.35-4.35" />
-                    </svg>
-                }
-              </button>
-
-              {/* ── Hamburger ── */}
-              <button
-                ref={menuBtnRef}
-                className="sm:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75"
-                onClick={() => { setMobileMenuOpen((v) => !v); setMobileSearchOpen(false); }}
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
             </div>
+
           </div>
         </div>
 
-        {/* ── Mobile search ── */}
-        <div
-          ref={searchRef}
-          className={`sm:hidden absolute left-0 right-0 top-16 bg-white border-t border-gray-100 shadow-lg px-4 z-50 overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileSearchOpen ? "max-h-24 py-3 opacity-100" : "max-h-0 py-0 opacity-0 pointer-events-none"
-          }`}
-        >
-          <SearchBar
-            cityName={cityName}
-            citySlug={citySlug}
-            activeCategory={activeCategory}
-            value={searchQueryProp}
-            onChange={onSearchChange}
-            onSubmit={handleSearchSubmit}
-            autoFocus={mobileSearchOpen}
-          />
-        </div>
-
-        {/* ── Mobile menu ── */}
+        {/* ── Mobile menu — slides down, search at top ── */}
         <div
           ref={menuRef}
           className={`sm:hidden absolute left-0 right-0 top-16 bg-white border-t border-gray-100 shadow-lg z-50 overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+            mobileMenuOpen && !searchExpanded
+              ? "max-h-[520px] opacity-100"
+              : "max-h-0 opacity-0 pointer-events-none"
           }`}
         >
-          {/* Outer gutter: px-5 on all rows so hover box sits visually inset */}
           <div className="px-5 py-3 flex flex-col gap-1">
 
-            {/* ── City row — always shown with border/bg ── */}
+            {/* ── Search bar at top of menu (Option A fallback) ── */}
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 mb-1 cursor-text"
+              onClick={() => { setSearchExpanded(true); setMobileMenuOpen(false); }}
+            >
+              <Search className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-sm text-gray-400 select-none">Search events in {cityName}…</span>
+            </div>
+
+            {/* ── City row ── */}
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-indigo-100 bg-indigo-50/60">
               <MapPin className="w-[18px] h-[18px] text-indigo-500 shrink-0" />
-              <span className="text-sm text-gray-900 flex-1 truncate">
-                {cityName}
-              </span>
+              <span className="text-sm text-gray-900 flex-1 truncate">{cityName}</span>
               <button
                 onClick={() => { setCityModalOpen(true); setMobileMenuOpen(false); }}
-                className="text-sm  font-medium text-indigo-600 hover:text-indigo-800 active:scale-95 active:text-indigo-900 transition-all duration-75 shrink-0 pr-5"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 active:scale-95 transition-all duration-75 shrink-0 pr-1"
               >
-                Change City
+                Change
               </button>
             </div>
 
@@ -327,17 +370,12 @@ export default function Navbar({
               </span>
             </button>
 
-            {/* ── Separator ── */}
             <div className="h-px bg-gray-100 my-0.5" />
 
-            {/* ── Host Control label ── */}
             <div className="px-4 pt-1 pb-0.5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                Host Control
-              </p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Host Control</p>
             </div>
 
-            {/* ── Create an event ── */}
             <button
               className={menuRowCls}
               onClick={() => { toast.info("Create Event feature coming soon!"); setMobileMenuOpen(false); }}
@@ -348,7 +386,6 @@ export default function Navbar({
               <span className="text-sm text-gray-900">Create an event</span>
             </button>
 
-            {/* ── Manage events ── */}
             <button
               className={menuRowCls}
               onClick={() => { router.push("/organizer/dashboard"); setMobileMenuOpen(false); }}
@@ -359,12 +396,11 @@ export default function Navbar({
               <span className="text-sm text-gray-900">Manage events</span>
             </button>
 
-            {/* ── Sign out ── */}
             {isAuthenticated && user && (
               <>
                 <div className="h-px bg-gray-100 my-0.5" />
                 <button
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-75 text-left"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-75 text-left w-full"
                   onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                 >
                   <LogOut className="w-[18px] h-[18px] text-red-400 shrink-0" />
@@ -419,6 +455,7 @@ export default function Navbar({
             </div>
           </div>
         </div>
+
       </header>
     </>
   );
