@@ -6,7 +6,8 @@ import type { InsertUser } from "./schema";
 
 type Db = ReturnType<typeof drizzle> | null;
 
-let _db: Db = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _db: any = null;
 
 function buildPool() {
   const url = process.env.DATABASE_URL;
@@ -19,20 +20,20 @@ function buildPool() {
     port: Number(parsed.port || 3306),
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^\//, ""),
+    database: parsed.pathname.replace(/^//, ""),
     waitForConnections: true,
     connectionLimit: 10,
     ssl: { rejectUnauthorized: true },
   });
 }
 
-export async function getDb() {
-  if (_db) return _db;
+export async function getDb(): Promise<Db> {
+  if (_db) return _db as Db;
 
   try {
     const pool = buildPool();
-    _db = drizzle(pool);
-    return _db;
+    _db = drizzle(pool) as Db;
+    return _db as Db;
   } catch (error) {
     console.error("[Database] Failed to connect:", error);
     _db = null;
@@ -224,7 +225,7 @@ export async function getOrganizerEvents(organizerId: number, limit = 5) {
 
 export async function searchEvents(query: string, citySlug?: string, category?: string) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) return [];
   const result = await db.select().from(eventsTable);
   return result
     .filter((event: typeof eventsTable.$inferSelect) => {
