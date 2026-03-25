@@ -53,7 +53,6 @@ function Breadcrumb({ citySlug, cityName, eventTitle }: { citySlug: string; city
   );
 }
 
-// ── Compact highlight row — no subtext, no dividers, subtle indigo icon ──────
 function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
     <div className="flex items-center gap-3 py-2.5">
@@ -115,8 +114,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const handleShare = async () => {
     const url = window.location.href;
     try {
-      if (navigator.share) await navigator.share({ title: event?.title, url });
-      else await navigator.clipboard.writeText(url);
+      if (navigator.share) {
+        await navigator.share({ title: event?.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied to clipboard!");
+      }
     } catch { /* silent */ }
   };
 
@@ -151,17 +154,16 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
 
-  // Parse tags
   const tags: string[] = (() => {
     const raw = event.tags;
-    if (!raw) return [event.category];
-    if (Array.isArray(raw)) return raw;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
     const str = String(raw).trim();
     if (str.startsWith("[")) {
       try {
         const parsed = JSON.parse(str);
         if (Array.isArray(parsed)) return parsed.map((t) => String(t).trim()).filter(Boolean);
-      } catch { /* fall through */ }
+      } catch { }
     }
     return str.split(",").map((t) => t.trim()).filter(Boolean);
   })();
@@ -174,7 +176,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     venue: event.venue,
   };
 
-  // Parse day/month from date string e.g. "Sat, 28 Mar"
   const dateParts = event.date?.split(" ") ?? [];
   const dateDay = dateParts[1] ?? "";
   const dateMonth = dateParts[2] ?? "";
@@ -187,8 +188,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         <Breadcrumb citySlug={citySlug!} cityName={city.name} eventTitle={event.title} />
       </div>
 
-      {/* Hero image — fixed height, never changes */}
-      <div className="relative w-full overflow-hidden" style={{ height: 288 }}>
+      {/* Hero image */}
+      <div className="relative w-full overflow-hidden aspect-video">
         {!imgError && event.image ? (
           <img
             src={event.image}
@@ -203,35 +204,34 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         )}
       </div>
 
-      {/* Title block — sits between image and body, full width */}
+      {/* Title & Organizer */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 pb-1">
-        <div className="flex items-center gap-2 text-sm mb-3">
-          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {((event as any).organizerName ?? "L")[0].toUpperCase()}
-          </div>
-          <span className="font-medium text-gray-600">{(event as any).organizerName ?? "LocalEvents Team"}</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-xs font-medium text-indigo-500">Verified</span>
-        </div>
-
-        <h1
-          className="text-3xl sm:text-4xl lg:text-5xl font-bold text-black leading-tight mb-4"
-          style={{ fontFamily: "'Sora', sans-serif" }}
-        >
+        <h1 className="text-4xl sm:text-5xl font-bold text-black mb-2" style={{ fontFamily: "'Sora', sans-serif" }}>
           {event.title}
         </h1>
 
-        {/* Consolidated badges + tags in one row */}
+        <div className="flex items-center gap-2 text-sm mb-3">
+          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {event.organizerName ? event.organizerName[0].toUpperCase() : "L"}
+          </div>
+          <span className="font-medium text-gray-600">{event.organizerName ?? "LocalEvents Team"}</span>
+          {event.isVerified && (
+            <span className="text-xs font-semibold text-indigo-600 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Verified
+            </span>
+          )}
+        </div>
+
+        {/* Badges */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="bg-gray-100 text-gray-600 border-0 text-xs capitalize">{event.category}</Badge>
           {event.isFeatured && (
-            <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-xs">
-              <Star className="w-3 h-3 mr-1 fill-amber-500 text-amber-500 inline" />Featured
+            <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-xs flex items-center">
+              <Star className="w-3 h-3 mr-1 fill-amber-500" /> Featured
             </Badge>
           )}
+          <Badge className="bg-gray-100 text-gray-600 border-0 text-xs capitalize">{event.category}</Badge>
           {isFree && <Badge className="bg-green-50 text-green-700 border border-green-100 text-xs">Free Entry</Badge>}
-          {/* Tags inline with badges */}
-          {tags.map((tag) => (
+          {tags.length > 0 && tags.map((tag) => (
             <span key={tag} className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-0.5 capitalize">
               #{tag}
             </span>
@@ -243,10 +243,10 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <div className="lg:grid lg:grid-cols-3 lg:gap-10 lg:items-start">
 
-          {/* ══ LEFT COLUMN ════════════════════════════════════════════════ */}
+          {/* Left column */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* Highlights — no subtext, no dividers, indigo icon bg */}
+            {/* Highlights */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-1">
               <HighlightRow icon={Calendar} label={event.date} />
               <HighlightRow icon={Clock} label={event.time} />
@@ -257,21 +257,23 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               )}
             </div>
 
-            {/* Quick actions — Book Tickets only visible when sidebar is not shown (lg:hidden) */}
+            {/* Quick actions (only Interested & Share) */}
             <div className="flex gap-2.5">
               <Button
                 onClick={() => setIsInterested((v) => !v)}
                 variant={isInterested ? "default" : "outline"}
-                className={`flex-1 h-10 font-semibold text-sm ${isInterested ? "bg-indigo-700 hover:bg-indigo-800 text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                className={`flex-1 h-10 rounded-lg font-semibold text-sm transition-colors
+                  ${isInterested ? "bg-indigo-700 text-white hover:bg-indigo-800" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
               >
-                <Users className="w-4 h-4 mr-1.5" />{isInterested ? "Interested" : "I'm Interested"}
+                <Users className="w-4 h-4 mr-1.5" /> {isInterested ? "Interested ✓" : "I'm Interested"}
               </Button>
-              <Button onClick={handleShare} variant="outline" className="flex-1 h-10 border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm">
-                <Share2 className="w-4 h-4 mr-1.5" />Share
-              </Button>
-              {/* Only show when sidebar (desktop) is NOT visible */}
-              <Button onClick={handleGetTickets} className="lg:hidden flex flex-1 h-10 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm">
-                <Ticket className="w-4 h-4 mr-1.5" />Book Tickets
+
+              <Button
+                onClick={handleShare}
+                variant="outline"
+                className="flex-1 h-10 rounded-lg border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm"
+              >
+                <Share2 className="w-4 h-4 mr-1.5" /> Share
               </Button>
             </div>
 
@@ -281,7 +283,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 <h2 className="font-semibold text-gray-700 text-xs uppercase tracking-wider">Date &amp; Location</h2>
               </div>
 
-              {/* Date row */}
               <div className="px-5 py-4 flex items-start gap-4 border-b border-gray-100">
                 <div className="w-11 h-11 rounded-xl bg-indigo-700 flex flex-col items-center justify-center shrink-0 text-white">
                   <span className="text-[9px] font-bold uppercase leading-none opacity-70">{dateMonth}</span>
@@ -296,7 +297,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 </div>
               </div>
 
-              {/* Location row */}
               <div className="px-5 py-4 flex items-start gap-4">
                 <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                   <MapPin className="w-5 h-5 text-gray-500" />
@@ -353,27 +353,26 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             {/* Similar events */}
             {similarEvents.length > 0 && (
-              <section>
-                <h2 className="text-base font-bold text-gray-900 mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
-                  More events like this ✨
-                </h2>
-                <div
-                  className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6"
-                  style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
-                >
-                  {similarEvents.map((e) => (
-                    <div key={e.id} className="shrink-0 w-52 sm:w-60">
-                      <EventCard event={e} citySlug={citySlug} />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+      <section>
+              <h2 className="text-base font-bold text-gray-900 mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
+                More events like this ✨
+              </h2>
+              <div
+                className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6"
+                style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+              >
+                {similarEvents.map((e) => (
+                  <div key={e.id} className="shrink-0 w-52 sm:w-60">
+                    <EventCard event={e} citySlug={citySlug} />
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
 
-          {/* ══ RIGHT COLUMN: sticky sidebar ══════════════════════════════ */}
+          {/* Right sidebar */}
           <div className="hidden lg:block lg:col-span-1">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sticky top-6 space-y-2.5">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sticky top-6 space-y-3">
 
               {/* Price */}
               <div className="pb-4 border-b border-gray-100">
@@ -384,25 +383,33 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>}
               </div>
 
-              {/* Book Tickets lives here on desktop */}
-              <Button onClick={handleGetTickets} className="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold h-11">
-                <Ticket className="w-4 h-4 mr-2" />Book Tickets
+              {/* Book Tickets */}
+              <Button onClick={handleGetTickets} className="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold h-11 flex items-center justify-center gap-2">
+                <Ticket className="w-4 h-4" /> Book Tickets
               </Button>
 
+              {/* Calendar */}
               <CalendarButton event={calendarEvent} />
 
+              {/* Interested */}
               <Button
                 onClick={() => setIsInterested((v) => !v)}
                 variant="outline"
                 className={`w-full h-10 font-semibold text-sm ${isInterested ? "bg-gray-50 border-gray-300 text-gray-800" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
               >
-                <Users className="w-4 h-4 mr-2" />{isInterested ? "Interested ✓" : "I'm Interested"}
+                <Users className="w-4 h-4 mr-2" /> {isInterested ? "Interested ✓" : "I'm Interested"}
               </Button>
 
-              <Button onClick={handleShare} variant="outline" className="w-full h-10 border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm">
-                <Share2 className="w-4 h-4 mr-2" />Share Event
+              {/* Share */}
+              <Button
+                onClick={handleShare}
+                variant="outline"
+                className="w-full h-10 border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm"
+              >
+                <Share2 className="w-4 h-4 mr-2" /> Share Event
               </Button>
 
+              {/* Save */}
               <Button
                 onClick={handleSaveEvent}
                 variant="outline"
@@ -415,13 +422,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <p className="text-center text-xs text-gray-300 pt-1">Secure checkout · LocalEvents</p>
             </div>
           </div>
-
         </div>
       </div>
 
       <Footer />
 
-      {/* Mobile sticky bottom bar — Book Tickets shown here (sidebar not visible on mobile) */}
+      {/* Mobile bottom bar — only show Get Tickets if sidebar hidden */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 leading-none mb-0.5">Tickets from</p>
@@ -441,4 +447,4 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
     </div>
   );
-}
+      }
