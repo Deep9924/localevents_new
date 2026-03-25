@@ -23,8 +23,6 @@ interface EventDetailPageProps {
   eventSlug?: string;
 }
 
-// ── Error state ──────────────────────────────────────────────────────────────
-
 function ErrorState({
   icon,
   title,
@@ -45,8 +43,6 @@ function ErrorState({
     </div>
   );
 }
-
-// ── Highlight row item ───────────────────────────────────────────────────────
 
 function HighlightChip({
   icon: Icon,
@@ -70,8 +66,6 @@ function HighlightChip({
   );
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
-
 export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -83,7 +77,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [citySlug, eventSlug]);
 
-  // ── Queries ────────────────────────────────────────────────────────────────
   const { data: event, isLoading: eventLoading } = trpc.events.getBySlug.useQuery(
     { citySlug: citySlug ?? "", eventSlug: eventSlug ?? "" },
     { enabled: !!citySlug && !!eventSlug }
@@ -94,7 +87,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     { enabled: !!user && !!event?.id }
   );
 
-  const { data: similarEvents = [] } = trpc.events.getSimilar.useQuery(
+  // ✅ FIXED: always an array
+  const { data: rawSimilar } = trpc.events.getSimilar.useQuery(
     {
       eventId: event?.id ?? "",
       category: event?.category ?? "",
@@ -103,12 +97,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     },
     { enabled: !!event?.id }
   );
+  const similarEvents = Array.isArray(rawSimilar) ? rawSimilar : [];
 
   useEffect(() => {
     if (savedStatus !== undefined) setIsSaved(savedStatus);
   }, [savedStatus]);
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
   const saveEventMutation = trpc.savedEvents.save.useMutation();
   const unsaveEventMutation = trpc.savedEvents.unsave.useMutation();
 
@@ -151,7 +145,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
   const handleGetTickets = () => toast.info("Ticket booking coming soon!");
 
-  // ── Guards ─────────────────────────────────────────────────────────────────
   const city = CITIES.find((c) => c.slug === citySlug);
 
   if (eventLoading) {
@@ -192,24 +185,29 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
-  const tags: string[] = (event as any).tags ?? [event.category];
+
+  // ✅ FIXED: parse tags from DB string "music,jazz" → ["music", "jazz"]
+  const tags: string[] = (() => {
+    const raw = event.tags;
+    if (!raw) return [event.category];
+    if (Array.isArray(raw)) return raw;
+    return String(raw).split(",").map((t) => t.trim()).filter(Boolean);
+  })();
 
   const calendarEvent = {
     title: event.title,
     description: event.description ?? null,
-    date:
-      typeof event.date === "string"
-        ? event.date
-        : (event.date as Date).toLocaleDateString("en-CA"),
+    date: typeof event.date === "string"
+      ? event.date
+      : (event.date as Date).toLocaleDateString("en-CA"),
     time: event.time,
     venue: event.venue,
   };
 
   return (
-    // Extra bottom padding on mobile so content clears the sticky bar
     <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
 
-      {/* ── Hero image ─────────────────────────────────────────────────────── */}
+      {/* Hero image */}
       <div className="relative w-full bg-gray-100 overflow-hidden" style={{ maxHeight: 480 }}>
         {!imgError && event.image ? (
           <img
@@ -228,7 +226,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           </div>
         )}
 
-        {/* Back pill over image */}
         <button
           onClick={() => router.push(`/${citySlug}`)}
           className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-indigo-700 hover:bg-white text-sm font-semibold px-3 py-2 rounded-full shadow transition-colors"
@@ -246,11 +243,11 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         )}
       </div>
 
-      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      {/* Body */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
 
-          {/* ══ LEFT COLUMN ═══════════════════════════════════════════════════ */}
+          {/* Left column */}
           <div className="lg:col-span-2 space-y-5">
 
             {/* Title + organizer */}
@@ -275,32 +272,20 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             {/* Highlights card */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100 px-5">
-              <HighlightChip
-                icon={Calendar}
-                label={`${event.date} · ${event.time}`}
-                sub="Date & Time"
-              />
+              <HighlightChip icon={Calendar} label={`${event.date} · ${event.time}`} sub="Date & Time" />
               <HighlightChip icon={Clock} label="~2 hours" sub="Estimated duration" />
-              <HighlightChip
-                icon={MapPin}
-                label={event.venue}
-                sub={`${city.name}, ${city.province}`}
-              />
+              <HighlightChip icon={MapPin} label={event.venue} sub={`${city.name}, ${city.province}`} />
               <HighlightChip
                 icon={Tag}
                 label={isFree ? "Free entry" : `Starting at ${displayPrice}`}
                 sub="Price"
               />
               {(event.interested ?? 0) > 0 && (
-                <HighlightChip
-                  icon={Users}
-                  label={`${event.interested}+ Interested`}
-                  sub="People going"
-                />
+                <HighlightChip icon={Users} label={`${event.interested}+ Interested`} sub="People going" />
               )}
             </div>
 
-            {/* Quick actions row */}
+            {/* Quick actions */}
             <div className="flex gap-2.5">
               <Button
                 onClick={() => {
@@ -324,7 +309,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               >
                 <Share2 className="w-4 h-4 mr-1.5" />Share
               </Button>
-              {/* Book Tickets visible on sm+; hidden on mobile (shown in sticky bar) */}
               <Button
                 onClick={handleGetTickets}
                 className="hidden sm:flex flex-1 h-11 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm"
@@ -333,10 +317,9 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               </Button>
             </div>
 
-            {/* Date & Location card */}
+            {/* Date & Location */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
               <h2 className="font-bold text-gray-900">Date &amp; Location</h2>
-
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 mt-0.5">
                   <Calendar className="w-4 h-4 text-indigo-600" />
@@ -348,7 +331,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                   </div>
                 </div>
               </div>
-
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 mt-0.5">
                   <MapPin className="w-4 h-4 text-indigo-600" />
@@ -357,9 +339,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                   <p className="font-semibold text-gray-900 text-sm">{event.venue}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{city.name}, {city.province}</p>
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                      `${event.venue} ${city.name}`
-                    )}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue} ${city.name}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium mt-1.5"
@@ -374,9 +354,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <h2 className="font-bold text-gray-900 mb-3">About the event</h2>
               {event.description ? (
-                <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                  {event.description}
-                </p>
+                <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">{event.description}</p>
               ) : (
                 <p className="text-gray-400 text-sm italic">No description available.</p>
               )}
@@ -385,7 +363,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             {/* Tags */}
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {tags.map((tag: string) => (
+                {tags.map((tag) => (
                   <span
                     key={tag}
                     className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1 capitalize"
@@ -414,7 +392,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               )}
             </div>
 
-            {/* ── Similar events — horizontal scroll ───────────────────────── */}
+            {/* Similar events */}
             {similarEvents.length > 0 && (
               <section>
                 <h2
@@ -425,7 +403,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 </h2>
                 <div
                   className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6"
-                  style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+                  style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
                 >
                   {similarEvents.map((e) => (
                     <div key={e.id} className="shrink-0 w-52 sm:w-60">
@@ -437,13 +415,11 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             )}
           </div>
 
-          {/* ══ RIGHT COLUMN: sticky sidebar (desktop only) ═══════════════════ */}
+          {/* Right column: desktop sidebar */}
           <div className="hidden lg:block lg:col-span-1">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 sticky top-6 space-y-3">
               <div className="pb-4 border-b border-gray-100">
-                <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">
-                  Tickets from
-                </p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Tickets from</p>
                 <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-indigo-900"}`}>
                   {displayPrice}
                 </p>
@@ -469,9 +445,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     : "border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                <Heart
-                  className={`w-4 h-4 mr-2 ${isInterested ? "fill-amber-500 text-amber-500" : ""}`}
-                />
+                <Heart className={`w-4 h-4 mr-2 ${isInterested ? "fill-amber-500 text-amber-500" : ""}`} />
                 {isInterested ? "Interested" : "I'm Interested"}
               </Button>
 
@@ -492,15 +466,11 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     : "border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                <Heart
-                  className={`w-4 h-4 mr-2 ${isSaved ? "fill-amber-500 text-amber-500" : ""}`}
-                />
+                <Heart className={`w-4 h-4 mr-2 ${isSaved ? "fill-amber-500 text-amber-500" : ""}`} />
                 {isSaved ? "Saved" : "Save for later"}
               </Button>
 
-              <p className="text-center text-xs text-gray-400 pt-1">
-                Secure checkout · No hidden fees
-              </p>
+              <p className="text-center text-xs text-gray-400 pt-1">Secure checkout · No hidden fees</p>
             </div>
           </div>
         </div>
@@ -508,7 +478,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       <Footer />
 
-      {/* ── Sticky mobile bottom bar ────────────────────────────────────────── */}
+      {/* Mobile sticky bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 leading-none mb-0.5">Tickets from</p>
@@ -520,9 +490,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           onClick={handleSaveEvent}
           variant="outline"
           size="icon"
-          className={`h-11 w-11 shrink-0 ${
-            isSaved ? "border-amber-300 bg-amber-50" : "border-gray-200"
-          }`}
+          className={`h-11 w-11 shrink-0 ${isSaved ? "border-amber-300 bg-amber-50" : "border-gray-200"}`}
         >
           <Heart className={`w-5 h-5 ${isSaved ? "fill-amber-500 text-amber-500" : "text-gray-400"}`} />
         </Button>
@@ -535,4 +503,4 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
     </div>
   );
-}
+                  }
