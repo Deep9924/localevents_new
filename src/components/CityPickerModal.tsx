@@ -58,7 +58,7 @@ export default function CityPickerModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
-  const { data: countsData } = trpc.events.getEventCounts.useQuery(undefined, {
+  const { data: countsData } = trpc.events.getCountByCity.useQuery(undefined, {
     enabled: open,
     staleTime: 5 * 60 * 1000,
   });
