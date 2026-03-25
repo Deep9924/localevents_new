@@ -22,6 +22,8 @@ interface EventDetailPageProps {
   eventSlug?: string;
 }
 
+// ── Small helpers ────────────────────────────────────────────────────────────
+
 function ErrorState({
   icon,
   title,
@@ -43,16 +45,20 @@ function ErrorState({
   );
 }
 
+// ── Main component ───────────────────────────────────────────────────────────
+
 export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [isSaved, setIsSaved] = useState(false);
   const [imgError, setImgError] = useState(false);
 
+  // Scroll to top on navigation
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [citySlug, eventSlug]);
 
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: event, isLoading: eventLoading } = trpc.events.getBySlug.useQuery(
     { citySlug: citySlug ?? "", eventSlug: eventSlug ?? "" },
     { enabled: !!citySlug && !!eventSlug }
@@ -72,6 +78,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     if (savedStatus !== undefined) setIsSaved(savedStatus);
   }, [savedStatus]);
 
+  // ── Mutations ──────────────────────────────────────────────────────────────
   const saveEventMutation = trpc.savedEvents.save.useMutation();
   const unsaveEventMutation = trpc.savedEvents.unsave.useMutation();
 
@@ -88,7 +95,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           eventId: event.id,
           eventTitle: event.title,
           eventDate: event.date,
-          eventCity: event.citySlug,
+          eventCity: event.citySlug,   // use citySlug, not display name
         });
         setIsSaved(true);
         toast.success("Event saved!");
@@ -112,6 +119,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     }
   };
 
+  // ── Guards ─────────────────────────────────────────────────────────────────
   const city = CITIES.find((c) => c.slug === citySlug);
 
   if (eventLoading) {
@@ -152,33 +160,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
   const isFree = event.price === "Free" || event.price === null;
 
-  // ✅ Safe CalendarButton props (fixes TypeScript mismatch)
-  const calendarEvent = {
-    title: event.title,
-    description: event.description || null,
-    date: event.date,
-    time: event.time || "",
-    venue: event.venue || "",
-  };
-
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-
-      {/* ✅ MOBILE STICKY BAR - Get Tickets + Calendar */}
-      {event && (
-        <div className="lg:hidden sticky top-[70px] z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-            <CalendarButton event={calendarEvent} />
-            <Button
-              onClick={() => toast.info("Ticket booking coming soon!")}
-              className="flex-1 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold h-10 rounded-lg"
-            >
-              <Ticket className="w-4 h-4 mr-2" />Get Tickets
-            </Button>
-          </div>
-        </div>
-      )}
-
       <main className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Back button */}
@@ -203,6 +186,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               <Calendar className="w-16 h-16 text-indigo-300" />
             </div>
           )}
+
+          {/* Overlay badges */}
           <div className="absolute top-4 left-4 flex gap-2">
             {event.isFeatured && (
               <Badge className="bg-amber-500 text-white border-0 shadow">★ Featured</Badge>
@@ -211,9 +196,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               {event.category}
             </Badge>
           </div>
+
           {isFree && (
             <div className="absolute top-4 right-4">
-              <Badge className="bg-green-500 text-white border-0 shadow text-sm px-3 py-1">Free</Badge>
+              <Badge className="bg-green-500 text-white border-0 shadow text-sm px-3 py-1">
+                Free
+              </Badge>
             </div>
           )}
         </div>
@@ -221,7 +209,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         {/* Body */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Left: event details */}
+          {/* ── Left: event details ─────────────────────────────────────────── */}
           <div className="lg:col-span-2 space-y-8">
 
             {/* Title */}
@@ -260,7 +248,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               ))}
             </div>
 
-            {/* Description */}
+            {/* Description — use real description if available, fallback otherwise */}
             <div>
               <h2
                 className="text-2xl font-bold text-indigo-900 mb-4"
@@ -269,9 +257,13 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 About this event
               </h2>
               {event.description ? (
-                <p className="text-gray-700 leading-relaxed whitespace-pre-line">{event.description}</p>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                  {event.description}
+                </p>
               ) : (
-                <p className="text-gray-500 italic text-sm">No description available for this event.</p>
+                <p className="text-gray-500 italic text-sm">
+                  No description available for this event.
+                </p>
               )}
             </div>
 
@@ -291,8 +283,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
             )}
           </div>
 
-          {/* ✅ RIGHT SIDEBAR - DESKTOP ONLY */}
-          <div className="hidden lg:block lg:col-span-1">
+          {/* ── Right: sticky sidebar ───────────────────────────────────────── */}
+          <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl p-6 border border-gray-100 sticky top-4 shadow-md space-y-3">
 
               {/* Price */}
@@ -304,6 +296,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per ticket</p>}
               </div>
 
+              {/* Actions */}
               <Button
                 onClick={() => toast.info("Ticket booking coming soon!")}
                 className="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-semibold h-12"
@@ -311,8 +304,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 <Ticket className="w-4 h-4 mr-2" />Get Tickets
               </Button>
 
-              {/* ✅ FIXED: mapped props */}
-              <CalendarButton event={calendarEvent} />
+              <CalendarButton event={event} />
 
               <Button
                 onClick={handleShare}
@@ -335,6 +327,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {isSaved ? "Saved" : "Save Event"}
               </Button>
 
+              {/* Tip */}
               <div className="bg-amber-50 rounded-lg p-4 border border-amber-100 mt-1">
                 <p className="text-xs font-semibold text-amber-800 mb-1">Pro tip</p>
                 <p className="text-xs text-amber-700 leading-relaxed">
@@ -345,7 +338,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           </div>
         </div>
 
-        {/* Similar Events */}
+        {/* ── Similar events ─────────────────────────────────────────────────── */}
         {similarEvents.length > 0 && (
           <section className="mt-16">
             <h2
