@@ -327,7 +327,7 @@ export default function Navbar({
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm w-full text-left mb-1"
               onClick={() => {
                 setMobileMenuOpen(false);
-                router.push(`/${citySlug}/search`);
+                router.push(`/${city}/search`);
               }}
             >
               <span className="text-gray-400">🔍</span>
