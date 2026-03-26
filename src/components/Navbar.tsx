@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, MapPin, Plus, User, Menu, X,
-  LogOut, Settings, LogIn, Calendar,
+  LogOut, Settings, LogIn, Calendar, Search,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import {
@@ -19,7 +19,6 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import AuthModal from "./AuthModal";
-import SearchBar from "./SearchBar";
 import CityPickerModal from "./CityPickerModal";
 import { trpc } from "@/lib/trpc";
 import { useCity } from "@/contexts/CityContext";
@@ -38,6 +37,7 @@ export default function Navbar({
   onSearchChange,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuMounted, setMenuMounted] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [internalCategory, setInternalCategory] = useState("all");
@@ -55,6 +55,17 @@ export default function Navbar({
   const moreCategories = CATEGORIES.slice(8);
 
   const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
+
+  // Mount/unmount with delay for smooth animation
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      setMenuMounted(true);
+    } else {
+      // Keep mounted during close animation then unmount
+      const t = setTimeout(() => setMenuMounted(false), 320);
+      return () => clearTimeout(t);
+    }
+  }, [mobileMenuOpen]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -89,7 +100,6 @@ export default function Navbar({
     };
   }, [mobileMenuOpen]);
 
-  // Close on city change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [citySlug]);
@@ -106,15 +116,14 @@ export default function Navbar({
     else setInternalCategory(cat);
   };
 
-  // Route search to the dedicated search page
-  const handleSearchSubmit = (q: string) => {
-    if (q.trim()) {
-      onSearchChange?.(q);
-      router.push(
-        `/${citySlug}/search?search=${encodeURIComponent(q)}&category=${activeCategory}`
-      );
-      setMobileMenuOpen(false);
-    }
+  // Both mobile search icon and desktop SearchBar click → search page
+  const goToSearch = (query = "") => {
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("search", query.trim());
+    params.set("category", activeCategory);
+    params.set("focus", "1"); // signal SearchPage to auto-focus input
+    router.push(`/${citySlug}/search?${params.toString()}`);
+    setMobileMenuOpen(false);
   };
 
   const handleLogout = async () => {
@@ -128,7 +137,7 @@ export default function Navbar({
   };
 
   const menuRowCls =
-    "flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/60 active:bg-indigo-100 active:scale-[0.98] transition-all duration-75 text-left w-full";
+    "flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/60 active:bg-indigo-100 active:scale-[0.98] transition-all duration-150 text-left w-full";
 
   return (
     <>
@@ -145,13 +154,13 @@ export default function Navbar({
         eventCounts={cityCounts}
       />
 
-      {/* Solid black backdrop — mobile menu only */}
-      {mobileMenuOpen && (
-        <div
-          className="sm:hidden fixed inset-0 z-40 bg-black/70"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+      {/* Solid black backdrop */}
+      <div
+        className={`sm:hidden fixed inset-0 z-40 bg-black transition-opacity duration-300
+          ${mobileMenuOpen ? "opacity-70 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        style={{ top: 64 }}
+        onClick={() => setMobileMenuOpen(false)}
+      />
 
       <header className="sticky top-0 z-50 bg-white shadow-sm">
 
@@ -159,7 +168,7 @@ export default function Navbar({
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center h-16 gap-3">
 
-            {/* Logo — full name on ALL screen sizes */}
+            {/* Logo — always full name */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center">
                 <span className="text-white font-bold text-sm">LE</span>
@@ -172,7 +181,8 @@ export default function Navbar({
               </span>
             </Link>
 
-            {/* City pill — desktop only */}
+            {/* ── DESKTOP layout ── */}
+            {/* City pill */}
             <button
               onClick={() => setCityModalOpen(true)}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-sm font-medium text-gray-700 shrink-0"
@@ -182,19 +192,20 @@ export default function Navbar({
               <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
             </button>
 
-            {/* SearchBar — desktop only (mobile goes to search page via icon/tap) */}
+            {/* Desktop search bar — clicking navigates to /search */}
             <div className="flex-1 max-w-lg hidden sm:block">
-              <SearchBar
-                cityName={cityName}
-                citySlug={citySlug}
-                activeCategory={activeCategory}
-                value={searchQueryProp}
-                onChange={onSearchChange}
-                onSubmit={handleSearchSubmit}
-              />
+              <button
+                onClick={() => goToSearch()}
+                className="w-full flex items-center gap-2 h-10 px-4 rounded-full border border-gray-200 bg-gray-50 text-gray-400 text-sm hover:border-indigo-300 hover:bg-white transition-all group"
+              >
+                <Search className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors shrink-0" />
+                <span className="flex-1 text-left truncate">
+                  {searchQueryProp || `Search events in ${cityName}…`}
+                </span>
+              </button>
             </div>
 
-            {/* Right actions — desktop */}
+            {/* Desktop right */}
             <div className="hidden sm:flex items-center gap-2 ml-auto">
               <button
                 onClick={() => toast.info("Create Event feature coming soon!")}
@@ -221,23 +232,14 @@ export default function Navbar({
                       {user.email ?? user.name}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => router.push("/account/saved")}
-                      className="cursor-pointer"
-                    >
+                    <DropdownMenuItem onClick={() => router.push("/account/saved")} className="cursor-pointer">
                       <User className="w-3.5 h-3.5 mr-2" /> Saved Events
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => router.push("/account/profile")}
-                      className="cursor-pointer"
-                    >
+                    <DropdownMenuItem onClick={() => router.push("/account/profile")} className="cursor-pointer">
                       <Settings className="w-3.5 h-3.5 mr-2" /> Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleLogout}
-                      className="cursor-pointer text-red-600"
-                    >
+                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
                       <LogOut className="w-3.5 h-3.5 mr-2" /> Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -252,14 +254,38 @@ export default function Navbar({
               )}
             </div>
 
-            {/* Mobile right — spacer + hamburger */}
-            <div className="sm:hidden flex items-center gap-1 ml-auto">
+            {/* ── MOBILE right: search icon + hamburger ── */}
+            <div className="sm:hidden flex items-center gap-0.5 ml-auto">
+              {/* Search icon → goes to /search page with autofocus */}
+              <button
+                onClick={() => goToSearch()}
+                className="p-2 text-gray-500 hover:text-indigo-600 rounded-lg active:bg-indigo-50 active:scale-90 transition-all duration-100"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+
+              {/* Hamburger with animated icon swap */}
               <button
                 ref={menuBtnRef}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg active:bg-indigo-100 active:text-indigo-600 active:scale-90 transition-all duration-75"
+                className="p-2 text-gray-500 hover:text-gray-800 rounded-lg active:bg-gray-100 active:scale-90 transition-all duration-100 relative w-9 h-9 flex items-center justify-center"
                 onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-label="Menu"
               >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                <span
+                  className={`absolute transition-all duration-200 ${
+                    mobileMenuOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-90 scale-75"
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </span>
+                <span
+                  className={`absolute transition-all duration-200 ${
+                    mobileMenuOpen ? "opacity-0 -rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
+                  }`}
+                >
+                  <Menu className="w-5 h-5" />
+                </span>
               </button>
             </div>
 
@@ -311,110 +337,104 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* ── Mobile menu — slides down above the solid backdrop ── */}
-        <div
-          ref={menuRef}
-          className={`sm:hidden absolute left-0 right-0 top-16 bg-white border-t border-gray-100 shadow-xl z-50 overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen
-              ? "max-h-[560px] opacity-100"
-              : "max-h-0 opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="px-5 py-3 flex flex-col gap-1">
-
-            {/* Search — taps through to search page */}
-            <button
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm w-full text-left mb-1"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                router.push(`/${city}/search`);
-              }}
+        {/* ── Mobile menu — animates open from top, closes to top ── */}
+        {menuMounted && (
+          <div
+            ref={menuRef}
+            className={`sm:hidden absolute left-0 right-0 top-full bg-white border-t border-gray-100 shadow-xl z-50 overflow-hidden
+              transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+              ${mobileMenuOpen
+                ? "max-h-[560px] opacity-100 translate-y-0"
+                : "max-h-0 opacity-0 -translate-y-2"
+              }`}
+          >
+            <div
+              className={`px-5 py-3 flex flex-col gap-1 transition-all duration-300
+                ${mobileMenuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"}`}
             >
-              <span className="text-gray-400">🔍</span>
-              <span>Search events in {cityName}…</span>
-            </button>
 
-            {/* City row */}
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-indigo-100 bg-indigo-50/60">
-              <MapPin className="w-[18px] h-[18px] text-indigo-500 shrink-0" />
-              <span className="text-sm text-gray-900 flex-1 truncate">{cityName}</span>
-              <button
-                onClick={() => { setCityModalOpen(true); setMobileMenuOpen(false); }}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 active:scale-95 transition-all duration-75 shrink-0 pr-1"
-              >
-                Change City
-              </button>
-            </div>
-
-            <div className="h-px bg-gray-100 my-0.5" />
-
-            {/* Login / User row */}
-            <button
-              className={menuRowCls}
-              onClick={() => {
-                if (isAuthenticated && user) {
-                  router.push("/account/profile");
-                  setMobileMenuOpen(false);
-                } else {
-                  setAuthModalOpen(true);
-                  setMobileMenuOpen(false);
-                }
-              }}
-            >
-              {isAuthenticated && user ? (
-                <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-indigo-500 to-amber-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
-                  {user.name?.charAt(0).toUpperCase() ?? "U"}
-                </div>
-              ) : (
-                <LogIn className="w-[18px] h-[18px] text-gray-500 shrink-0" />
-              )}
-              <span className="text-sm text-gray-900 truncate">
-                {isAuthenticated && user ? user.name : "Login"}
-              </span>
-            </button>
-
-            <div className="h-px bg-gray-100 my-0.5" />
-
-            <div className="px-4 pt-1 pb-0.5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                Host Control
-              </p>
-            </div>
-
-            <button
-              className={menuRowCls}
-              onClick={() => { toast.info("Create Event feature coming soon!"); setMobileMenuOpen(false); }}
-            >
-              <div className="w-[18px] h-[18px] rounded border border-gray-400 flex items-center justify-center shrink-0">
-                <Plus className="w-3 h-3 text-gray-500" />
-              </div>
-              <span className="text-sm text-gray-900">Create an event</span>
-            </button>
-
-            <button
-              className={menuRowCls}
-              onClick={() => { router.push("/organizer/dashboard"); setMobileMenuOpen(false); }}
-            >
-              <div className="w-[18px] h-[18px] rounded border border-gray-400 flex items-center justify-center shrink-0">
-                <Calendar className="w-3 h-3 text-gray-500" />
-              </div>
-              <span className="text-sm text-gray-900">Manage events</span>
-            </button>
-
-            {isAuthenticated && user && (
-              <>
-                <div className="h-px bg-gray-100 my-0.5" />
+              {/* City row */}
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-indigo-100 bg-indigo-50/60">
+                <MapPin className="w-[18px] h-[18px] text-indigo-500 shrink-0" />
+                <span className="text-sm text-gray-900 flex-1 truncate">{cityName}</span>
                 <button
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-75 text-left w-full"
-                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  onClick={() => { setCityModalOpen(true); setMobileMenuOpen(false); }}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-800 active:scale-95 transition-all duration-100 shrink-0 pr-1"
                 >
-                  <LogOut className="w-[18px] h-[18px] text-red-400 shrink-0" />
-                  <span className="text-sm font-semibold text-red-500">Sign out</span>
+                  Change City
                 </button>
-              </>
-            )}
+              </div>
+
+              <div className="h-px bg-gray-100 my-0.5" />
+
+              {/* Login / User row */}
+              <button
+                className={menuRowCls}
+                onClick={() => {
+                  if (isAuthenticated && user) {
+                    router.push("/account/profile");
+                    setMobileMenuOpen(false);
+                  } else {
+                    setAuthModalOpen(true);
+                    setMobileMenuOpen(false);
+                  }
+                }}
+              >
+                {isAuthenticated && user ? (
+                  <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-indigo-500 to-amber-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
+                    {user.name?.charAt(0).toUpperCase() ?? "U"}
+                  </div>
+                ) : (
+                  <LogIn className="w-[18px] h-[18px] text-gray-500 shrink-0" />
+                )}
+                <span className="text-sm text-gray-900 truncate">
+                  {isAuthenticated && user ? user.name : "Login"}
+                </span>
+              </button>
+
+              <div className="h-px bg-gray-100 my-0.5" />
+
+              <div className="px-4 pt-1 pb-0.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  Host Control
+                </p>
+              </div>
+
+              <button
+                className={menuRowCls}
+                onClick={() => { toast.info("Create Event feature coming soon!"); setMobileMenuOpen(false); }}
+              >
+                <div className="w-[18px] h-[18px] rounded border border-gray-400 flex items-center justify-center shrink-0">
+                  <Plus className="w-3 h-3 text-gray-500" />
+                </div>
+                <span className="text-sm text-gray-900">Create an event</span>
+              </button>
+
+              <button
+                className={menuRowCls}
+                onClick={() => { router.push("/organizer/dashboard"); setMobileMenuOpen(false); }}
+              >
+                <div className="w-[18px] h-[18px] rounded border border-gray-400 flex items-center justify-center shrink-0">
+                  <Calendar className="w-3 h-3 text-gray-500" />
+                </div>
+                <span className="text-sm text-gray-900">Manage events</span>
+              </button>
+
+              {isAuthenticated && user && (
+                <>
+                  <div className="h-px bg-gray-100 my-0.5" />
+                  <button
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-150 text-left w-full"
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  >
+                    <LogOut className="w-[18px] h-[18px] text-red-400 shrink-0" />
+                    <span className="text-sm font-semibold text-red-500">Sign out</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
       </header>
     </>
