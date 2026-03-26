@@ -4,8 +4,17 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown, MapPin, Plus, User, Menu, X,
-  LogOut, Settings, LogIn, Calendar, Search,
+  ChevronDown,
+  MapPin,
+  Plus,
+  User,
+  Menu,
+  X,
+  LogOut,
+  Settings,
+  LogIn,
+  Calendar,
+  Search,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import {
@@ -302,7 +311,6 @@ export default function Navbar({
                   {cat.label}
                 </button>
               ))}
-
               {moreCategories.length > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
