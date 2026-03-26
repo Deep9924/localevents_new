@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import { useCity } from "@/contexts/CityContext";
+import { createPortal } from "react-dom";
 
 type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week";
 type PriceFilter = "any" | "free" | "under20" | "20to50" | "50plus";
@@ -47,20 +48,37 @@ function FilterDropdown({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        ref.current && !ref.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  const handleOpen = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={buttonRef}
+        onClick={handleOpen}
         className={`flex items-center gap-1.5 h-9 px-3.5 rounded-full border text-sm font-medium transition-all duration-100 whitespace-nowrap ${
           active
             ? "bg-indigo-600 border-indigo-600 text-white"
@@ -74,13 +92,16 @@ function FilterDropdown({
         />
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
-          className="absolute top-full mt-2 left-0 z-[9999] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[280px]"
+          ref={ref}
+          style={{ position: "absolute", top: coords.top, left: coords.left }}
+          className="z-[9999] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[280px]"
           onClick={(e) => e.stopPropagation()}
         >
           {children}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
