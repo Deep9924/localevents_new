@@ -50,13 +50,13 @@ export const eventsRouter = router({
       }
 
       if (input.search) {
-  const searchPattern = `%${input.search}%`;
-  const searchCondition = or(
-    like(events.title, searchPattern),
-    like(events.venue, searchPattern),
-    like(events.description, searchPattern)
-  );
-  if (searchCondition) conditions.push(searchCondition);
+        const searchPattern = `%${input.search}%`;
+        const searchCondition = or(
+          like(events.title, searchPattern),
+          like(events.venue, searchPattern),
+          like(events.description, searchPattern)
+        );
+        if (searchCondition) conditions.push(searchCondition);
       }
 
       if (input.date && input.date !== "all") {
@@ -73,12 +73,11 @@ export const eventsRouter = router({
         } else if (input.date === "week") {
           const nextWeek = new Date(today);
           nextWeek.setDate(today.getDate() + 7);
-          conditions.push(
-            and(
-              gte(events.date, todayStr),
-              lte(events.date, nextWeek.toISOString().split("T")[0])
-            )
+          const weekCondition = and(
+            gte(events.date, todayStr),
+            lte(events.date, nextWeek.toISOString().split("T")[0])
           );
+          if (weekCondition) conditions.push(weekCondition);
         } else if (input.date === "weekend") {
           const dayOfWeek = today.getDay();
           const daysToSat = (6 - dayOfWeek + 7) % 7;
@@ -86,12 +85,11 @@ export const eventsRouter = router({
           sat.setDate(today.getDate() + daysToSat);
           const sun = new Date(sat);
           sun.setDate(sat.getDate() + 1);
-          conditions.push(
-            and(
-              gte(events.date, sat.toISOString().split("T")[0]),
-              lte(events.date, sun.toISOString().split("T")[0])
-            )
+          const weekendCondition = and(
+            gte(events.date, sat.toISOString().split("T")[0]),
+            lte(events.date, sun.toISOString().split("T")[0])
           );
+          if (weekendCondition) conditions.push(weekendCondition);
         }
       }
 
