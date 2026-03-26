@@ -1,121 +1,190 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Calendar, Heart, MapPin, Star, Users } from "lucide-react";
-import { CATEGORIES } from "@/lib/events-data";
+import { useMemo, useState } from "react";
+import SearchNavbar from "@/components/SearchNavbar";
+import EventCard from "@/components/EventCard";
 import { useCity } from "@/contexts/CityContext";
 import { trpc } from "@/lib/trpc";
-import SearchNavbar from "@/components/SearchNavbar";
-
-type EventCardProps = {
-  id: string;
-  title: string;
-  category: string;
-  date: string;
-  time: string;
-  location: string;
-  price: string;
-  isFree: boolean;
-  imageUrl?: string;
-  attendees?: number;
-  rating?: number;
-  format?: string;
-  citySlug: string;
-};
-
-function EventCard({ id, title, category, date, time, location, price, isFree, imageUrl, attendees, rating, format, citySlug }: EventCardProps) {
-  const [saved, setSaved] = useState(false);
-  const cat = CATEGORIES.find(c => c.id === category);
-
-  return (
-    <Link href={`/${citySlug}/events/${id}`} className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all duration-200 overflow-hidden flex flex-col">
-      <div className="relative h-40 bg-gradient-to-br from-indigo-50 to-amber-50 overflow-hidden shrink-0">
-        {imageUrl ? (
-          <img src={imageUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl opacity-30">{cat?.icon ?? "🎉"}</div>
-        )}
-        {format && format !== "in-person" && (
-          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-indigo-700 border border-indigo-100">
-            {format === "online" ? "🌐 Online" : "🔀 Hybrid"}
-          </span>
-        )}
-        <span className={`absolute top-2 right-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isFree ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white/90 border-gray-200 text-gray-700"}`}>
-          {isFree ? "Free" : price}
-        </span>
-        <button onClick={(e) => { e.preventDefault(); setSaved(v => !v); }} className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm hover:bg-white transition-colors">
-          <Heart className={`w-4 h-4 transition-colors ${saved ? "fill-red-500 text-red-500" : "text-gray-400"}`} />
-        </button>
-      </div>
-
-      <div className="p-4 flex flex-col gap-1.5 flex-1">
-        {cat && <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">{cat.icon} {cat.label}</span>}
-        <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-snug group-hover:text-indigo-700 transition-colors" style={{ fontFamily: "'Sora', sans-serif" }}>{title}</h3>
-        <div className="flex flex-col gap-1 mt-0.5">
-          <span className="flex items-center gap-1.5 text-xs text-gray-500"><Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />{date} · {time}</span>
-          <span className="flex items-center gap-1.5 text-xs text-gray-500 truncate"><MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" /><span className="truncate">{location}</span></span>
-        </div>
-        <div className="flex items-center justify-between mt-auto pt-2">
-          {attendees ? <span className="text-[11px] text-gray-400"><Users className="w-3 h-3 inline mr-0.5" />{attendees.toLocaleString()} going</span> : <span />}
-          {rating ? <span className="flex items-center gap-0.5 text-[11px] font-semibold text-amber-500"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{rating}</span> : null}
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
-      <div className="h-40 bg-gray-100" />
-      <div className="p-4 space-y-2.5">
-        <div className="h-2.5 bg-gray-100 rounded-full w-1/4" />
-        <div className="h-4 bg-gray-100 rounded-full w-3/4" />
-        <div className="h-3 bg-gray-100 rounded-full w-1/2" />
-        <div className="h-3 bg-gray-100 rounded-full w-2/5" />
-      </div>
-    </div>
-  );
-}
+import { CATEGORIES } from "@/lib/events-data";
 
 export default function SearchPage() {
-  const router = useRouter();
-  const { citySlug } = useCity();
-  const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
+  const { citySlug, cityName } = useCity();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [activeTab, setActiveTab] = useState<"discover" | "search">("discover");
 
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { data: categoryEvents = [] } = trpc.events.getByCity.useQuery(
+    {
+      citySlug,
+      category: category === "all" ? undefined : category,
+      search: query || undefined,
+      date: undefined,
+    },
+    { enabled: !!citySlug }
+  );
 
-  const mockEvents: EventCardProps[] = hasSearched && !isLoading ? [
-    { id: "1", title: "Jazz Night at The Rooftop", category: "music", date: "Sat Mar 29", time: "8:00 PM", location: "The Rooftop Bar", price: "$15", isFree: false, attendees: 120, rating: 4.8, format: "in-person", citySlug },
-    { id: "2", title: "Modern Art Exhibition Opening", category: "arts", date: "Sun Mar 30", time: "6:00 PM", location: "City Gallery", price: "Free", isFree: true, attendees: 340, rating: 4.6, format: "in-person", citySlug },
-    { id: "3", title: "React Advanced Workshop", category: "tech", date: "Mon Mar 31", time: "10:00 AM", location: "Online", price: "$49", isFree: false, attendees: 85, format: "online", citySlug },
-    { id: "4", title: "Sunday Farmers Market", category: "food", date: "Sun Mar 30", time: "9:00 AM", location: "Central Park Plaza", price: "Free", isFree: true, attendees: 600, rating: 4.9, format: "in-person", citySlug },
-    { id: "5", title: "Beginner Yoga in the Park", category: "sports", date: "Sat Mar 29", time: "7:00 AM", location: "Riverside Park", price: "Free", isFree: true, attendees: 45, format: "in-person", citySlug },
-    { id: "6", title: "Startup Pitch Night", category: "business", date: "Tue Apr 1", time: "6:30 PM", location: "Innovation Hub", price: "$10", isFree: false, attendees: 200, rating: 4.5, format: "hybrid", citySlug },
-  ] : [];
+  const { data: searchEvents = [] } = trpc.events.search.useQuery(
+    { query, citySlug, category: category === "all" ? undefined : category },
+    { enabled: activeTab === "search" && query.trim().length > 0 }
+  );
+
+  const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
+    { citySlug },
+    { enabled: !!citySlug }
+  );
+
+  const visibleEvents = activeTab === "search" ? searchEvents : categoryEvents;
+
+  const popularEvents = useMemo(
+    () =>
+      [...featuredEvents]
+        .sort((a, b) => (b.interested ?? 0) - (a.interested ?? 0))
+        .slice(0, 6),
+    [featuredEvents]
+  );
+
+  const weekendEvents = useMemo(
+    () => categoryEvents.slice(0, 6),
+    [categoryEvents]
+  );
+
+  const organizerGroups = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const event of featuredEvents as any[]) {
+      const key = event.organizerName ?? event.organizer ?? "Unknown organizer";
+      const arr = map.get(key) ?? [];
+      arr.push(event);
+      map.set(key, arr);
+    }
+    return [...map.entries()].filter(([, arr]) => arr.length > 1).slice(0, 3);
+  }, [featuredEvents]);
+
+  const categoryPicks = useMemo(() => {
+    const top = CATEGORIES.slice(0, 6);
+    return top.map((cat) => ({
+      ...cat,
+      events: featuredEvents.filter((e: any) => e.category === cat.id).slice(0, 3),
+    }));
+  }, [featuredEvents]);
+
+  const hasActiveSearch = query.trim().length > 0 || category !== "all";
 
   return (
     <div className="min-h-screen bg-gray-50">
       <SearchNavbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-          </div>
-        ) : hasSearched ? (
-          mockEvents.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {mockEvents.map((event) => <EventCard key={event.id} {...event} />)}
-            </div>
-          ) : (
-            <div className="py-16 text-center text-gray-500">No events found.</div>
-          )
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-10">
+        {!hasActiveSearch ? (
+          <>
+            <section>
+              <div className="flex items-end justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Browse by category</h2>
+                  <p className="text-sm text-gray-500">
+                    Explore what&apos;s happening in {cityName}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                {categoryPicks.map((group) => (
+                  <div key={group.id}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-gray-700">
+                        {group.icon} {group.label}
+                      </h3>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {group.events.map((event: any) => (
+                        <EventCard key={event.id} event={event} citySlug={citySlug} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">
+                Popular in {cityName}
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {popularEvents.map((event: any) => (
+                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">By same organizers</h2>
+              <div className="space-y-6">
+                {organizerGroups.map(([organizer, list]) => (
+                  <div key={organizer}>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">{organizer}</p>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {list.slice(0, 3).map((event: any) => (
+                        <EventCard key={event.id} event={event} citySlug={citySlug} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Happening this weekend</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {weekendEvents.map((event: any) => (
+                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                ))}
+              </div>
+            </section>
+          </>
         ) : (
-          <div className="py-16 text-center text-gray-500">Search to see events.</div>
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Search results</h2>
+                <p className="text-sm text-gray-500">
+                  {activeTab === "search" ? "Text search" : "Filtered events"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setActiveTab("discover")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                    activeTab === "discover"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-600 border-gray-200"
+                  }`}
+                >
+                  Browse
+                </button>
+                <button
+                  onClick={() => setActiveTab("search")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                    activeTab === "search"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-600 border-gray-200"
+                  }`}
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleEvents.length > 0 ? (
+                visibleEvents.map((event: any) => (
+                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                ))
+              ) : (
+                <div className="col-span-full py-16 text-center text-gray-500">
+                  No events found.
+                </div>
+              )}
+            </div>
+          </>
         )}
       </main>
     </div>
