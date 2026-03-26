@@ -8,12 +8,14 @@ import {
   getDb,
 } from "../db";
 import { events, cities, categories } from "../db/schema";
-import { sql, eq, and, like, or, gte, lte } from "drizzle-orm";
+import { sql, eq, and, like, or, gte, lte, desc } from "drizzle-orm";
 
 type CityCountRow = {
   citySlug: string;
   count: number | string;
 };
+
+const dateEnum = z.enum(["all", "today", "tomorrow", "weekend", "week"]);
 
 export const eventsRouter = router({
   getCities: publicProcedure.query(async () => {
@@ -33,7 +35,7 @@ export const eventsRouter = router({
       z.object({
         citySlug: z.string(),
         category: z.string().optional(),
-        date: z.enum(["all", "today", "tomorrow", "weekend", "week"]).optional(),
+        date: dateEnum.optional(),
         search: z.string().optional(),
       })
     )
@@ -49,12 +51,13 @@ export const eventsRouter = router({
 
       if (input.search) {
         const searchPattern = `%${input.search}%`;
-        const searchCondition = or(
-          like(events.title, searchPattern),
-          like(events.venue, searchPattern),
-          like(events.description, searchPattern)
+        conditions.push(
+          or(
+            like(events.title, searchPattern),
+            like(events.venue, searchPattern),
+            like(events.description, searchPattern)
+          )
         );
-        if (searchCondition) conditions.push(searchCondition);
       }
 
       if (input.date && input.date !== "all") {
@@ -71,11 +74,12 @@ export const eventsRouter = router({
         } else if (input.date === "week") {
           const nextWeek = new Date(today);
           nextWeek.setDate(today.getDate() + 7);
-          const weekCondition = and(
-            gte(events.date, todayStr),
-            lte(events.date, nextWeek.toISOString().split("T")[0])
+          conditions.push(
+            and(
+              gte(events.date, todayStr),
+              lte(events.date, nextWeek.toISOString().split("T")[0])
+            )
           );
-          if (weekCondition) conditions.push(weekCondition);
         } else if (input.date === "weekend") {
           const dayOfWeek = today.getDay();
           const daysToSat = (6 - dayOfWeek + 7) % 7;
@@ -83,11 +87,12 @@ export const eventsRouter = router({
           sat.setDate(today.getDate() + daysToSat);
           const sun = new Date(sat);
           sun.setDate(sat.getDate() + 1);
-          const weekendCondition = and(
-            gte(events.date, sat.toISOString().split("T")[0]),
-            lte(events.date, sun.toISOString().split("T")[0])
+          conditions.push(
+            and(
+              gte(events.date, sat.toISOString().split("T")[0]),
+              lte(events.date, sun.toISOString().split("T")[0])
+            )
           );
-          if (weekendCondition) conditions.push(weekendCondition);
         }
       }
 
@@ -95,7 +100,7 @@ export const eventsRouter = router({
         .select()
         .from(events)
         .where(and(...conditions))
-        .orderBy(sql`${events.isFeatured} DESC`, sql`${events.createdAt} DESC`);
+        .orderBy(desc(events.isFeatured), desc(events.createdAt));
     }),
 
   getBySlug: publicProcedure
@@ -127,7 +132,9 @@ export const eventsRouter = router({
         citySlug: z.string().optional(),
       })
     )
-    .query(async ({ input }) => searchEvents(input.query, input.citySlug, input.category ?? undefined)),
+    .query(async ({ input }) =>
+      searchEvents(input.query, input.citySlug, input.category ?? undefined)
+    ),
 
   getCountByCity: publicProcedure.query(async () => {
     const db = await getDb();
