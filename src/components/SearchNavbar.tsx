@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Search, X, ChevronDown,
-  Calendar, Tag, RotateCcw,
+  Calendar, Tag, RotateCcw, DollarSign,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import { useCity } from "@/contexts/CityContext";
 
 type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week";
+type PriceFilter = "any" | "free" | "under20" | "20to50" | "50plus";
 
 function Pill({
   active,
@@ -75,7 +76,7 @@ function FilterDropdown({
 
       {open && (
         <div
-          className="absolute top-full mt-2 left-0 z-[200] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[280px]"
+          className="absolute top-full mt-2 left-0 z-[9999] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[280px]"
           onClick={(e) => e.stopPropagation()}
         >
           {children}
@@ -91,37 +92,46 @@ export default function SearchNavbar() {
   const { citySlug, cityName } = useCity();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // localQuery is purely local — never pushed to URL until search is submitted
   const [localQuery, setLocalQuery] = useState(searchParams.get("search") ?? "");
   const [category, setCategory] = useState(searchParams.get("category") ?? "all");
   const [date, setDate] = useState<DateFilter>(
     (searchParams.get("date") as DateFilter) ?? "any"
   );
+  const [price, setPrice] = useState<PriceFilter>(
+    (searchParams.get("price") as PriceFilter) ?? "any"
+  );
 
-  const pushFilters = (q: string, cat: string, d: DateFilter) => {
+  const pushFilters = (q: string, cat: string, d: DateFilter, p: PriceFilter) => {
     const params = new URLSearchParams();
     if (q.trim()) params.set("search", q.trim());
     if (cat !== "all") params.set("category", cat);
     if (d !== "any") params.set("date", d);
+    if (p !== "any") params.set("price", p);
     router.replace(`/${citySlug}/search?${params.toString()}`, { scroll: false });
   };
 
-  const handleSearch = () => pushFilters(localQuery, category, date);
+  const handleSearch = () => pushFilters(localQuery, category, date, price);
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
-    pushFilters(localQuery, val, date);
+    pushFilters(localQuery, val, date, price);
   };
 
   const handleDateChange = (val: DateFilter) => {
     setDate(val);
-    pushFilters(localQuery, category, val);
+    pushFilters(localQuery, category, val, price);
+  };
+
+  const handlePriceChange = (val: PriceFilter) => {
+    setPrice(val);
+    pushFilters(localQuery, category, date, val);
   };
 
   const handleReset = () => {
     setCategory("all");
     setDate("any");
-    pushFilters(localQuery, "all", "any");
+    setPrice("any");
+    pushFilters(localQuery, "all", "any", "any");
   };
 
   const dateLabels: Record<DateFilter, string> = {
@@ -132,10 +142,25 @@ export default function SearchNavbar() {
     week: "This week",
   };
 
+  const priceLabels: Record<PriceFilter, string> = {
+    any: "Price",
+    free: "Free",
+    under20: "Under $20",
+    "20to50": "$20 – $50",
+    "50plus": "$50+",
+  };
+
   const activeFilters = [
     category !== "all" && CATEGORIES.find((c) => c.id === category)?.label,
     date !== "any" && dateLabels[date],
+    price !== "any" && priceLabels[price],
   ].filter(Boolean) as string[];
+
+  const handleRemoveFilter = (i: number) => {
+    if (i === 0) { setCategory("all"); pushFilters(localQuery, "all", date, price); }
+    if (i === 1) { setDate("any"); pushFilters(localQuery, category, "any", price); }
+    if (i === 2) { setPrice("any"); pushFilters(localQuery, category, date, "any"); }
+  };
 
   return (
     <header className="sticky top-0 z-[60] bg-white border-b border-gray-100 shadow-sm">
@@ -164,7 +189,7 @@ export default function SearchNavbar() {
               <button
                 onClick={() => {
                   setLocalQuery("");
-                  pushFilters("", category, date);
+                  pushFilters("", category, date, price);
                 }}
                 className="ml-1 p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0"
                 tabIndex={-1}
@@ -187,11 +212,7 @@ export default function SearchNavbar() {
 
           {/* Category */}
           <FilterDropdown
-            label={
-              category === "all"
-                ? "Category"
-                : CATEGORIES.find((c) => c.id === category)?.label ?? "Category"
-            }
+            label={category === "all" ? "Category" : CATEGORIES.find((c) => c.id === category)?.label ?? "Category"}
             icon={<Tag className="w-3.5 h-3.5" />}
             active={category !== "all"}
           >
@@ -232,6 +253,24 @@ export default function SearchNavbar() {
             </div>
           </FilterDropdown>
 
+          {/* Price */}
+          <FilterDropdown
+            label={priceLabels[price]}
+            icon={<DollarSign className="w-3.5 h-3.5" />}
+            active={price !== "any"}
+          >
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Price
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(["any", "free", "under20", "20to50", "50plus"] as PriceFilter[]).map((p) => (
+                <Pill key={p} active={price === p} onClick={() => handlePriceChange(p)}>
+                  {priceLabels[p]}
+                </Pill>
+              ))}
+            </div>
+          </FilterDropdown>
+
           {/* Reset */}
           {activeFilters.length > 0 && (
             <button
@@ -254,10 +293,7 @@ export default function SearchNavbar() {
               >
                 <span>{filter}</span>
                 <button
-                  onClick={() => {
-                    if (i === 0) { setCategory("all"); pushFilters(localQuery, "all", date); }
-                    if (i === 1) { setDate("any"); pushFilters(localQuery, category, "any"); }
-                  }}
+                  onClick={() => handleRemoveFilter(i)}
                   className="ml-0.5 p-0.5 hover:bg-indigo-200 rounded-full transition-colors"
                 >
                   <X className="w-3 h-3" />
@@ -266,6 +302,7 @@ export default function SearchNavbar() {
             ))}
           </div>
         )}
+
       </div>
     </header>
   );
