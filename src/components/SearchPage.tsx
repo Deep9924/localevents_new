@@ -1,532 +1,123 @@
-// src/app/[citySlug]/search/page.tsx
-// (or use as src/components/SearchPage.tsx and mount wherever needed)
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Search, SlidersHorizontal, X, ChevronDown, ChevronUp,
-  MapPin, Calendar, Tag, DollarSign, Users, Clock, Star,
-  Check, RotateCcw,
-} from "lucide-react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Calendar, Heart, MapPin, Star, Users } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import { useCity } from "@/contexts/CityContext";
+import { trpc } from "@/lib/trpc";
+import SearchNavbar from "@/components/SearchNavbar";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week" | "month" | "custom";
-type PriceFilter = "any" | "free" | "paid" | "under10" | "under25" | "under50";
-type FormatFilter = "any" | "in-person" | "online" | "hybrid";
-type SortOption = "relevance" | "date-asc" | "date-desc" | "price-asc" | "price-desc" | "popular";
-
-interface Filters {
-  query: string;
+type EventCardProps = {
+  id: string;
+  title: string;
   category: string;
-  date: DateFilter;
-  dateFrom: string;
-  dateTo: string;
-  price: PriceFilter;
-  format: FormatFilter;
-  distance: number; // km
-  minRating: number;
-  sort: SortOption;
-}
-
-const DEFAULT_FILTERS: Filters = {
-  query: "",
-  category: "all",
-  date: "any",
-  dateFrom: "",
-  dateTo: "",
-  price: "any",
-  format: "any",
-  distance: 50,
-  minRating: 0,
-  sort: "relevance",
+  date: string;
+  time: string;
+  location: string;
+  price: string;
+  isFree: boolean;
+  imageUrl?: string;
+  attendees?: number;
+  rating?: number;
+  format?: string;
+  citySlug: string;
 };
 
-// ─── Filter pill ─────────────────────────────────────────────────────────────
+function EventCard({ id, title, category, date, time, location, price, isFree, imageUrl, attendees, rating, format, citySlug }: EventCardProps) {
+  const [saved, setSaved] = useState(false);
+  const cat = CATEGORIES.find(c => c.id === category);
 
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-100 whitespace-nowrap
-        ${active
-          ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
-          : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
-        }`}
-      style={{ fontFamily: "'Sora', sans-serif" }}
-    >
-      {children}
-    </button>
+    <Link href={`/${citySlug}/events/${id}`} className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all duration-200 overflow-hidden flex flex-col">
+      <div className="relative h-40 bg-gradient-to-br from-indigo-50 to-amber-50 overflow-hidden shrink-0">
+        {imageUrl ? (
+          <img src={imageUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-4xl opacity-30">{cat?.icon ?? "🎉"}</div>
+        )}
+        {format && format !== "in-person" && (
+          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-indigo-700 border border-indigo-100">
+            {format === "online" ? "🌐 Online" : "🔀 Hybrid"}
+          </span>
+        )}
+        <span className={`absolute top-2 right-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isFree ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white/90 border-gray-200 text-gray-700"}`}>
+          {isFree ? "Free" : price}
+        </span>
+        <button onClick={(e) => { e.preventDefault(); setSaved(v => !v); }} className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm hover:bg-white transition-colors">
+          <Heart className={`w-4 h-4 transition-colors ${saved ? "fill-red-500 text-red-500" : "text-gray-400"}`} />
+        </button>
+      </div>
+
+      <div className="p-4 flex flex-col gap-1.5 flex-1">
+        {cat && <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">{cat.icon} {cat.label}</span>}
+        <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-snug group-hover:text-indigo-700 transition-colors" style={{ fontFamily: "'Sora', sans-serif" }}>{title}</h3>
+        <div className="flex flex-col gap-1 mt-0.5">
+          <span className="flex items-center gap-1.5 text-xs text-gray-500"><Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />{date} · {time}</span>
+          <span className="flex items-center gap-1.5 text-xs text-gray-500 truncate"><MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" /><span className="truncate">{location}</span></span>
+        </div>
+        <div className="flex items-center justify-between mt-auto pt-2">
+          {attendees ? <span className="text-[11px] text-gray-400"><Users className="w-3 h-3 inline mr-0.5" />{attendees.toLocaleString()} going</span> : <span />}
+          {rating ? <span className="flex items-center gap-0.5 text-[11px] font-semibold text-amber-500"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{rating}</span> : null}
+        </div>
+      </div>
+    </Link>
   );
 }
 
-// ─── Collapsible section ──────────────────────────────────────────────────────
-
-function FilterSection({
-  title,
-  icon,
-  children,
-  defaultOpen = true,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+function SkeletonCard() {
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between w-full py-3 px-1 text-left group"
-      >
-        <span className="flex items-center gap-2 text-sm font-semibold text-gray-700 group-hover:text-indigo-700 transition-colors">
-          {icon}
-          {title}
-        </span>
-        {open ? (
-          <ChevronUp className="w-4 h-4 text-gray-400" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-gray-400" />
-        )}
-      </button>
-      {open && <div className="pb-4">{children}</div>}
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
+      <div className="h-40 bg-gray-100" />
+      <div className="p-4 space-y-2.5">
+        <div className="h-2.5 bg-gray-100 rounded-full w-1/4" />
+        <div className="h-4 bg-gray-100 rounded-full w-3/4" />
+        <div className="h-3 bg-gray-100 rounded-full w-1/2" />
+        <div className="h-3 bg-gray-100 rounded-full w-2/5" />
+      </div>
     </div>
   );
 }
-
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SearchPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { citySlug, cityName } = useCity();
+  const { citySlug } = useCity();
+  const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
 
-  const [filters, setFilters] = useState<Filters>({
-    ...DEFAULT_FILTERS,
-    query: searchParams.get("search") ?? "",
-    category: searchParams.get("category") ?? "all",
-  });
+  const [hasSearched, setHasSearched] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-
-  const setFilter = useCallback(<K extends keyof Filters>(key: K, value: Filters[K]) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const resetFilters = () => setFilters({ ...DEFAULT_FILTERS, query: filters.query });
-
-  const activeFilterCount = [
-    filters.category !== "all",
-    filters.date !== "any",
-    filters.price !== "any",
-    filters.format !== "any",
-    filters.distance !== 50,
-    filters.minRating > 0,
-  ].filter(Boolean).length;
-
-  const handleApply = () => {
-    const params = new URLSearchParams();
-    if (filters.query) params.set("search", filters.query);
-    if (filters.category !== "all") params.set("category", filters.category);
-    if (filters.date !== "any") params.set("date", filters.date);
-    if (filters.price !== "any") params.set("price", filters.price);
-    if (filters.format !== "any") params.set("format", filters.format);
-    params.set("sort", filters.sort);
-    router.push(`/${citySlug}/search?${params.toString()}`);
-    setMobileFiltersOpen(false);
-  };
-
-  // ── Sidebar filter panel (shared mobile/desktop) ──────────────────────────
-  const FilterPanel = () => (
-    <div className="flex flex-col gap-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span className="font-bold text-gray-800 text-sm" style={{ fontFamily: "'Sora', sans-serif" }}>
-          Filters {activeFilterCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">
-              {activeFilterCount}
-            </span>
-          )}
-        </span>
-        {activeFilterCount > 0 && (
-          <button
-            onClick={resetFilters}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" /> Reset
-          </button>
-        )}
-      </div>
-
-      <div className="px-4 py-2 divide-y divide-gray-100">
-
-        {/* Category */}
-        <FilterSection title="Category" icon={<Tag className="w-3.5 h-3.5 text-indigo-500" />}>
-          <div className="flex flex-wrap gap-2">
-            <Pill active={filters.category === "all"} onClick={() => setFilter("category", "all")}>
-              All
-            </Pill>
-            {CATEGORIES.map((cat) => (
-              <Pill
-                key={cat.id}
-                active={filters.category === cat.id}
-                onClick={() => setFilter("category", cat.id)}
-              >
-                {cat.icon} {cat.label}
-              </Pill>
-            ))}
-          </div>
-        </FilterSection>
-
-        {/* Date */}
-        <FilterSection title="Date" icon={<Calendar className="w-3.5 h-3.5 text-indigo-500" />}>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {(
-              [
-                { id: "any", label: "Any time" },
-                { id: "today", label: "Today" },
-                { id: "tomorrow", label: "Tomorrow" },
-                { id: "weekend", label: "This weekend" },
-                { id: "week", label: "This week" },
-                { id: "month", label: "This month" },
-                { id: "custom", label: "Custom range" },
-              ] as { id: DateFilter; label: string }[]
-            ).map((d) => (
-              <Pill key={d.id} active={filters.date === d.id} onClick={() => setFilter("date", d.id)}>
-                {d.label}
-              </Pill>
-            ))}
-          </div>
-          {filters.date === "custom" && (
-            <div className="flex gap-2 mt-2">
-              <div className="flex-1">
-                <label className="text-[11px] text-gray-400 font-medium mb-1 block">From</label>
-                <input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilter("dateFrom", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[11px] text-gray-400 font-medium mb-1 block">To</label>
-                <input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilter("dateTo", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                />
-              </div>
-            </div>
-          )}
-        </FilterSection>
-
-        {/* Price */}
-        <FilterSection title="Price" icon={<DollarSign className="w-3.5 h-3.5 text-indigo-500" />}>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { id: "any", label: "Any price" },
-                { id: "free", label: "Free" },
-                { id: "paid", label: "Paid" },
-                { id: "under10", label: "Under $10" },
-                { id: "under25", label: "Under $25" },
-                { id: "under50", label: "Under $50" },
-              ] as { id: PriceFilter; label: string }[]
-            ).map((p) => (
-              <Pill key={p.id} active={filters.price === p.id} onClick={() => setFilter("price", p.id)}>
-                {p.label}
-              </Pill>
-            ))}
-          </div>
-        </FilterSection>
-
-        {/* Format */}
-        <FilterSection title="Format" icon={<Users className="w-3.5 h-3.5 text-indigo-500" />}>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { id: "any", label: "Any format" },
-                { id: "in-person", label: "In-person" },
-                { id: "online", label: "Online" },
-                { id: "hybrid", label: "Hybrid" },
-              ] as { id: FormatFilter; label: string }[]
-            ).map((f) => (
-              <Pill key={f.id} active={filters.format === f.id} onClick={() => setFilter("format", f.id)}>
-                {f.label}
-              </Pill>
-            ))}
-          </div>
-        </FilterSection>
-
-        {/* Distance */}
-        <FilterSection title="Distance" icon={<MapPin className="w-3.5 h-3.5 text-indigo-500" />}>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">Within</span>
-              <span className="text-sm font-semibold text-indigo-700">
-                {filters.distance} km
-              </span>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={200}
-              step={1}
-              value={filters.distance}
-              onChange={(e) => setFilter("distance", Number(e.target.value))}
-              className="w-full accent-indigo-600"
-            />
-            <div className="flex justify-between text-[11px] text-gray-300">
-              <span>1 km</span>
-              <span>200 km</span>
-            </div>
-          </div>
-        </FilterSection>
-
-        {/* Min rating */}
-        <FilterSection title="Min. Rating" icon={<Star className="w-3.5 h-3.5 text-indigo-500" />} defaultOpen={false}>
-          <div className="flex gap-2">
-            {[0, 3, 3.5, 4, 4.5].map((r) => (
-              <Pill key={r} active={filters.minRating === r} onClick={() => setFilter("minRating", r)}>
-                {r === 0 ? "Any" : `${r}★`}
-              </Pill>
-            ))}
-          </div>
-        </FilterSection>
-
-        {/* Sort */}
-        <FilterSection title="Sort by" icon={<Clock className="w-3.5 h-3.5 text-indigo-500" />} defaultOpen={false}>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { id: "relevance", label: "Relevance" },
-                { id: "date-asc", label: "Date ↑" },
-                { id: "date-desc", label: "Date ↓" },
-                { id: "price-asc", label: "Price ↑" },
-                { id: "price-desc", label: "Price ↓" },
-                { id: "popular", label: "Most popular" },
-              ] as { id: SortOption; label: string }[]
-            ).map((s) => (
-              <Pill key={s.id} active={filters.sort === s.id} onClick={() => setFilter("sort", s.id)}>
-                {s.label}
-              </Pill>
-            ))}
-          </div>
-        </FilterSection>
-
-      </div>
-
-      {/* Apply button */}
-      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/60">
-        <button
-          onClick={handleApply}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold transition-all duration-100 shadow-sm"
-          style={{ fontFamily: "'Sora', sans-serif" }}
-        >
-          <Check className="w-4 h-4" />
-          Apply Filters
-        </button>
-      </div>
-    </div>
-  );
+  const mockEvents: EventCardProps[] = hasSearched && !isLoading ? [
+    { id: "1", title: "Jazz Night at The Rooftop", category: "music", date: "Sat Mar 29", time: "8:00 PM", location: "The Rooftop Bar", price: "$15", isFree: false, attendees: 120, rating: 4.8, format: "in-person", citySlug },
+    { id: "2", title: "Modern Art Exhibition Opening", category: "arts", date: "Sun Mar 30", time: "6:00 PM", location: "City Gallery", price: "Free", isFree: true, attendees: 340, rating: 4.6, format: "in-person", citySlug },
+    { id: "3", title: "React Advanced Workshop", category: "tech", date: "Mon Mar 31", time: "10:00 AM", location: "Online", price: "$49", isFree: false, attendees: 85, format: "online", citySlug },
+    { id: "4", title: "Sunday Farmers Market", category: "food", date: "Sun Mar 30", time: "9:00 AM", location: "Central Park Plaza", price: "Free", isFree: true, attendees: 600, rating: 4.9, format: "in-person", citySlug },
+    { id: "5", title: "Beginner Yoga in the Park", category: "sports", date: "Sat Mar 29", time: "7:00 AM", location: "Riverside Park", price: "Free", isFree: true, attendees: 45, format: "in-person", citySlug },
+    { id: "6", title: "Startup Pitch Night", category: "business", date: "Tue Apr 1", time: "6:30 PM", location: "Innovation Hub", price: "$10", isFree: false, attendees: 200, rating: 4.5, format: "hybrid", citySlug },
+  ] : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SearchNavbar />
 
-      {/* ── Search header bar ─────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
-
-            {/* Search input */}
-            <div className="flex-1 flex items-center gap-2 h-10 px-4 rounded-full border border-gray-200 bg-gray-50 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 focus-within:bg-white transition-all">
-              <Search className="w-4 h-4 text-gray-400 shrink-0" />
-              <input
-                type="text"
-                placeholder={`Search events in ${cityName}…`}
-                value={filters.query}
-                onChange={(e) => setFilter("query", e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleApply()}
-                className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
-              />
-              {filters.query && (
-                <button
-                  onClick={() => setFilter("query", "")}
-                  className="p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Mobile: filter toggle button */}
-            <button
-              onClick={() => setMobileFiltersOpen((v) => !v)}
-              className={`sm:hidden flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm font-medium transition-all shrink-0
-                ${mobileFiltersOpen || activeFilterCount > 0
-                  ? "border-indigo-600 bg-indigo-600 text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300"
-                }`}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              {activeFilterCount > 0 && (
-                <span className="text-[11px] font-bold">{activeFilterCount}</span>
-              )}
-            </button>
-
-            {/* Desktop: sort quick-select */}
-            <div className="hidden sm:flex items-center gap-2">
-              <span className="text-sm text-gray-400 shrink-0">Sort:</span>
-              <select
-                value={filters.sort}
-                onChange={(e) => setFilter("sort", e.target.value as SortOption)}
-                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 bg-white text-gray-700 cursor-pointer"
-              >
-                <option value="relevance">Relevance</option>
-                <option value="date-asc">Date (earliest)</option>
-                <option value="date-desc">Date (latest)</option>
-                <option value="price-asc">Price (low–high)</option>
-                <option value="price-desc">Price (high–low)</option>
-                <option value="popular">Most popular</option>
-              </select>
-            </div>
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+        {isLoading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-
-          {/* Active filter chips */}
-          {activeFilterCount > 0 && (
-            <div className="flex items-center gap-2 mt-2 overflow-x-auto scrollbar-hide pb-0.5">
-              {filters.category !== "all" && (
-                <ActiveChip label={CATEGORIES.find((c) => c.id === filters.category)?.label ?? filters.category} onRemove={() => setFilter("category", "all")} />
-              )}
-              {filters.date !== "any" && (
-                <ActiveChip label={filters.date === "custom" ? `${filters.dateFrom} → ${filters.dateTo}` : filters.date} onRemove={() => { setFilter("date", "any"); setFilter("dateFrom", ""); setFilter("dateTo", ""); }} />
-              )}
-              {filters.price !== "any" && (
-                <ActiveChip label={filters.price} onRemove={() => setFilter("price", "any")} />
-              )}
-              {filters.format !== "any" && (
-                <ActiveChip label={filters.format} onRemove={() => setFilter("format", "any")} />
-              )}
-              {filters.distance !== 50 && (
-                <ActiveChip label={`≤${filters.distance}km`} onRemove={() => setFilter("distance", 50)} />
-              )}
-              {filters.minRating > 0 && (
-                <ActiveChip label={`${filters.minRating}★+`} onRemove={() => setFilter("minRating", 0)} />
-              )}
-              <button
-                onClick={resetFilters}
-                className="text-xs text-gray-400 hover:text-red-500 transition-colors whitespace-nowrap shrink-0 ml-1"
-              >
-                Clear all
-              </button>
+        ) : hasSearched ? (
+          mockEvents.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {mockEvents.map((event) => <EventCard key={event.id} {...event} />)}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Mobile filter drawer ──────────────────────────── */}
-      {mobileFiltersOpen && (
-        <div className="sm:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMobileFiltersOpen(false)} />
-      )}
-      <div
-        className={`sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out max-h-[85vh] overflow-y-auto
-          ${mobileFiltersOpen ? "translate-y-0" : "translate-y-full"}`}
-      >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
-        </div>
-        <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100">
-          <span className="font-bold text-gray-800" style={{ fontFamily: "'Sora', sans-serif" }}>Filters</span>
-          <button onClick={() => setMobileFiltersOpen(false)} className="p-1 text-gray-400 hover:text-gray-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="px-4 pb-6">
-          <FilterPanel />
-        </div>
-      </div>
-
-      {/* ── Main layout ───────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex gap-6">
-
-          {/* Desktop sidebar */}
-          <aside className="hidden sm:block w-72 shrink-0">
-            <div className="sticky top-24">
-              <FilterPanel />
-            </div>
-          </aside>
-
-          {/* Results area */}
-          <main className="flex-1 min-w-0">
-
-            {/* Result count + heading */}
-            <div className="mb-4">
-              <h1
-                className="text-xl font-bold text-gray-900 mb-0.5"
-                style={{ fontFamily: "'Sora', sans-serif" }}
-              >
-                {filters.query ? `Results for "${filters.query}"` : "All Events"}
-              </h1>
-              <p className="text-sm text-gray-400">
-                in <span className="font-medium text-gray-600">{cityName}</span>
-                {activeFilterCount > 0 && ` · ${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""} applied`}
-              </p>
-            </div>
-
-            {/* Placeholder result cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-pulse">
-                  <div className="h-36 bg-gray-100" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-gray-100 rounded w-3/4" />
-                    <div className="h-3 bg-gray-100 rounded w-1/2" />
-                    <div className="h-3 bg-gray-100 rounded w-1/3" />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Empty state hint */}
-            <p className="text-center text-xs text-gray-300 mt-8">
-              Connect your events query to populate results here
-            </p>
-          </main>
-        </div>
-      </div>
+          ) : (
+            <div className="py-16 text-center text-gray-500">No events found.</div>
+          )
+        ) : (
+          <div className="py-16 text-center text-gray-500">Search to see events.</div>
+        )}
+      </main>
     </div>
-  );
-}
-
-// ─── Active filter chip ───────────────────────────────────────────────────────
-
-function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium whitespace-nowrap shrink-0">
-      {label}
-      <button
-        onClick={onRemove}
-        className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-indigo-200 transition-colors"
-      >
-        <X className="w-2.5 h-2.5" />
-      </button>
-    </span>
   );
 }
