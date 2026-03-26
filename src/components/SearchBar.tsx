@@ -1,4 +1,3 @@
-// src/components/SearchBar.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -28,13 +27,11 @@ export default function SearchBar({
   const [internal, setInternal] = useState(value ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync external value without losing focus
   useEffect(() => {
     if (value !== undefined && value !== internal) {
       setInternal(value);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, internal]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
@@ -66,7 +63,6 @@ export default function SearchBar({
 
   return (
     <div className={`relative flex items-center w-full ${className}`}>
-      {/* Search icon — left, no background */}
       <button
         onClick={handleSubmit}
         className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors z-10"
@@ -76,7 +72,6 @@ export default function SearchBar({
         <Search className="w-4 h-4 text-gray-400" />
       </button>
 
-      {/* Input — controlled internally, never loses focus */}
       <input
         ref={inputRef}
         autoFocus={autoFocus}
@@ -87,7 +82,6 @@ export default function SearchBar({
         className="w-full pl-11 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 focus:bg-white transition-all"
       />
 
-      {/* Clear — right */}
       {internal && (
         <button
           onClick={handleClear}
