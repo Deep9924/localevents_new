@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Search, X, ChevronDown,
@@ -10,30 +10,27 @@ import { CATEGORIES } from "@/lib/events-data";
 import { useCity } from "@/contexts/CityContext";
 
 type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week";
-type SortOption = "relevance" | "date-asc" | "date-desc" | "popular";
 
 interface Filters {
   query: string;
   category: string;
   date: DateFilter;
-  sort: SortOption;
 }
 
 const DEFAULT_FILTERS: Filters = {
   query: "",
   category: "all",
   date: "any",
-  sort: "relevance",
 };
 
 function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-100 whitespace-nowrap ${
+      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150 whitespace-nowrap ${
         active
-          ? "bg-indigo-600 border-indigo-600 text-white"
-          : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
+          ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+          : "bg-white/80 border-gray-200 text-gray-700 hover:border-indigo-300 hover:text-indigo-700 hover:shadow-sm"
       }`}
     >
       {children}
@@ -46,14 +43,22 @@ function FilterDropdown({
   icon,
   active,
   children,
+  onSelect,
 }: {
   label: string;
   icon: React.ReactNode;
   active: boolean;
   children: React.ReactNode;
+  onSelect: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const handleClick = useCallback(() => {
+    setOpen((v) => !v);
+    // Apply immediately on open
+    onSelect();
+  }, [onSelect]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -64,32 +69,23 @@ function FilterDropdown({
   }, []);
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 h-9 px-3.5 rounded-full border text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+        onClick={handleClick}
+        className={`flex items-center gap-1.5 h-10 px-4 rounded-full border text-sm font-medium transition-all duration-200 whitespace-nowrap shadow-sm ${
           active
-            ? "bg-indigo-600 border-indigo-600 text-white"
-            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50/40"
+            ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
+            : "bg-white/80 border-gray-200 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/50 hover:shadow-md backdrop-blur-sm"
         }`}
       >
         {icon}
-        <span>{label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <span className="font-medium">{label}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div
-          className="absolute top-full mt-2 left-0 z-[100] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[260px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {children}
-          <button
-            onClick={() => setOpen(false)}
-            className="mt-4 w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
-          >
-            Apply
-          </button>
+        <div className="absolute top-full mt-2 left-0 z-[100] bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[280px] animate-in slide-in-from-top-2 duration-200">
+          <div className="max-h-60 overflow-y-auto">{children}</div>
         </div>
       )}
     </div>
@@ -100,42 +96,40 @@ export default function SearchNavbar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { citySlug, cityName } = useCity();
-  const shouldFocus = searchParams.get("focus") === "1";
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [filters, setFilters] = useState<Filters>({
     query: searchParams.get("search") ?? "",
     category: searchParams.get("category") ?? "all",
     date: (searchParams.get("date") as DateFilter) ?? "any",
-    sort: (searchParams.get("sort") as SortOption) ?? "relevance",
   });
 
+  // Sync with URL changes
   useEffect(() => {
-    if (shouldFocus) setTimeout(() => inputRef.current?.focus(), 80);
-  }, [shouldFocus]);
+    setFilters({
+      query: searchParams.get("search") ?? "",
+      category: searchParams.get("category") ?? "all",
+      date: (searchParams.get("date") as DateFilter) ?? "any",
+    });
+  }, [searchParams]);
 
-  const activeFilterCount = useMemo(
-    () => [filters.category !== "all", filters.date !== "any"].filter(Boolean).length,
-    [filters]
-  );
-
-  const pushFilters = (next: Filters) => {
+  const pushFilters = (nextFilters: Filters) => {
     const params = new URLSearchParams();
-    if (next.query.trim()) params.set("search", next.query.trim());
-    if (next.category !== "all") params.set("category", next.category);
-    if (next.date !== "any") params.set("date", next.date);
-    if (next.sort !== "relevance") params.set("sort", next.sort);
-    router.replace(`/${citySlug}/search?${params.toString()}`);
+    if (nextFilters.query.trim()) params.set("search", nextFilters.query.trim());
+    if (nextFilters.category !== "all") params.set("category", nextFilters.category);
+    if (nextFilters.date !== "any") params.set("date", nextFilters.date);
+    router.replace(`/${citySlug}/search?${params.toString()}`, { scroll: false });
   };
 
   const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     const next = { ...filters, [key]: value } as Filters;
     setFilters(next);
-    // category and date push immediately; query only on submit
-    if (key !== "query") pushFilters(next);
+    pushFilters(next);
   };
 
-  const handleSearch = () => pushFilters(filters);
+  const handleSearch = () => {
+    pushFilters(filters);
+  };
 
   const resetFilters = () => {
     const next = { ...DEFAULT_FILTERS, query: filters.query };
@@ -143,108 +137,142 @@ export default function SearchNavbar() {
     pushFilters(next);
   };
 
-  const dateLabels: Record<string, string> = {
-    any: "Date",
+  const dateLabels: Record<DateFilter, string> = {
+    any: "Any date",
     today: "Today",
-    tomorrow: "Tomorrow",
-    weekend: "Weekend",
+    tomorrow: "Tomorrow", 
+    weekend: "This weekend",
     week: "This week",
   };
 
-  return (
-    <header className="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+  const activeFilters = [
+    filters.category !== "all" && CATEGORIES.find(c => c.id === filters.category)?.label,
+    filters.date !== "any" && dateLabels[filters.date],
+  ].filter(Boolean);
 
-        <div className="flex items-center h-14 gap-2">
+  return (
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-100/50 shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Search Row */}
+        <div className="flex items-center h-16 gap-3">
           <button
             onClick={() => router.back()}
-            className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-all shrink-0"
-            aria-label="Back"
+            className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-2xl transition-all duration-200 shrink-0 backdrop-blur-sm"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div className="flex-1 flex items-center h-10 px-3 rounded-full border border-gray-200 bg-gray-50/80 focus-within:border-indigo-400 focus-within:bg-white focus-within:shadow-sm transition-all duration-200">
-            <Search className="w-4 h-4 text-gray-400 shrink-0 mr-2" />
+          <div className="flex-1 flex items-center h-12 px-4 rounded-2xl border-2 border-gray-200/60 bg-white/80 focus-within:border-indigo-400 focus-within:bg-white focus-within:shadow-xl transition-all duration-300 backdrop-blur-sm shadow-sm">
+            <Search className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
             <input
               ref={inputRef}
               type="text"
-              placeholder={`Search in ${cityName}…`}
+              placeholder={`Search events in ${cityName}…`}
               value={filters.query}
               onChange={(e) => setFilter("query", e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
-              className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400 min-w-0"
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="flex-1 text-base bg-transparent outline-none text-gray-900 placeholder:text-gray-500 font-medium"
             />
             {filters.query && (
               <button
                 onClick={() => setFilter("query", "")}
-                className="ml-1 p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0"
-                tabIndex={-1}
+                className="p-1.5 ml-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-200/50 transition-all duration-200 flex-shrink-0"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
           <button
             onClick={handleSearch}
-            className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shrink-0 shadow-sm transition-all"
-            aria-label="Search"
+            className="w-12 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] shadow-lg hover:shadow-xl text-white flex items-center justify-center transition-all duration-200 flex-shrink-0"
           >
-            <Search className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => router.push(`/${citySlug}`)}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all text-sm font-medium text-gray-600 shrink-0"
-          >
-            <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-            <span className="max-w-[80px] truncate">{cityName}</span>
+            <Search className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 pt-0.5">
+        {/* Filters Row */}
+        <div className="flex items-center gap-2.5 pb-4 overflow-x-auto scrollbar-hide -mb-1">
+          
           <FilterDropdown
-            label={filters.category === "all" ? "Category" : (CATEGORIES.find((c) => c.id === filters.category)?.label ?? filters.category)}
-            icon={<Tag className="w-3.5 h-3.5" />}
+            label={filters.category === "all" ? "All categories" : CATEGORIES.find(c => c.id === filters.category)?.label ?? "Category"}
+            icon={<Tag className="w-4 h-4" />}
             active={filters.category !== "all"}
+            onSelect={() => {}}
           >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Category</p>
-            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
-              <Pill active={filters.category === "all"} onClick={() => setFilter("category", "all")}>All</Pill>
-              {CATEGORIES.map((cat) => (
-                <Pill key={cat.id} active={filters.category === cat.id} onClick={() => setFilter("category", cat.id)}>
-                  {cat.icon} {cat.label}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1.5 pb-3 -m-1.5">
+                <Pill active={filters.category === "all"} onClick={() => setFilter("category", "all")}>
+                  All
                 </Pill>
-              ))}
+                {CATEGORIES.slice(1).map((cat) => (
+                  <Pill 
+                    key={cat.id} 
+                    active={filters.category === cat.id} 
+                    onClick={() => setFilter("category", cat.id)}
+                  >
+                    <span className="w-4 h-4 flex-shrink-0">{cat.icon}</span>
+                    <span className="max-w-[120px] truncate">{cat.label}</span>
+                  </Pill>
+                ))}
+              </div>
             </div>
           </FilterDropdown>
 
           <FilterDropdown
-            label={dateLabels[filters.date] ?? "Date"}
-            icon={<Calendar className="w-3.5 h-3.5" />}
+            label={dateLabels[filters.date] ?? "Any date"}
+            icon={<Calendar className="w-4 h-4" />}
             active={filters.date !== "any"}
+            onSelect={() => {}}
           >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">When</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-2 gap-2 p-1">
               {(["any", "today", "tomorrow", "weekend", "week"] as DateFilter[]).map((d) => (
-                <Pill key={d} active={filters.date === d} onClick={() => setFilter("date", d)}>
+                <Pill 
+                  key={d} 
+                  active={filters.date === d}
+                  onClick={() => setFilter("date", d)}
+                >
                   {dateLabels[d]}
                 </Pill>
               ))}
             </div>
           </FilterDropdown>
 
-          {activeFilterCount > 0 && (
+          {activeFilters.length > 0 && (
             <button
               onClick={resetFilters}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-full border border-red-200 text-red-500 text-sm hover:bg-red-50 transition-colors shrink-0"
+              className="flex items-center gap-2 h-10 px-4 rounded-2xl border-2 border-red-200/60 bg-red-50/50 text-red-600 hover:bg-red-100 hover:border-red-300 text-sm font-semibold transition-all duration-200 shadow-sm hover:shadow-md flex-shrink-0"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-4 h-4" />
               <span>Reset</span>
             </button>
           )}
         </div>
+
+        {/* Active filter chips */}
+        {activeFilters.length > 0 && (
+          <div className="flex items-center gap-2 pb-4 overflow-x-auto scrollbar-hide -mx-1 px-1">
+            {activeFilters.map((filter, i) => (
+              <div 
+                key={i}
+                className="px-3 py-1.5 bg-indigo-100/80 border border-indigo-200 text-indigo-800 text-xs font-medium rounded-full backdrop-blur-sm shadow-sm flex-shrink-0"
+              >
+                {filter}
+                <button
+                  onClick={() => {
+                    // Reset this specific filter
+                    if (i === 0) setFilter("category", "all");
+                    if (i === 1) setFilter("date", "any");
+                  }}
+                  className="ml-1.5 -mr-1.5 p-0.5 hover:bg-indigo-200 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </header>
   );
