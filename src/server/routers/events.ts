@@ -50,14 +50,13 @@ export const eventsRouter = router({
       }
 
       if (input.search) {
-        const searchPattern = `%${input.search}%`;
-        conditions.push(
-          or(
-            like(events.title, searchPattern),
-            like(events.venue, searchPattern),
-            like(events.description, searchPattern)
-          )
-        );
+  const searchPattern = `%${input.search}%`;
+  const searchCondition = or(
+    like(events.title, searchPattern),
+    like(events.venue, searchPattern),
+    like(events.description, searchPattern)
+  );
+  if (searchCondition) conditions.push(searchCondition);
       }
 
       if (input.date && input.date !== "all") {
