@@ -21,13 +21,7 @@ import { useCity } from "@/contexts/CityContext";
 type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week" | "month";
 type PriceFilter = "any" | "free" | "under10" | "under25" | "under50" | "paid";
 type FormatFilter = "any" | "in-person" | "online" | "hybrid";
-type SortOption =
-  | "relevance"
-  | "date-asc"
-  | "date-desc"
-  | "price-asc"
-  | "price-desc"
-  | "popular";
+type SortOption = "relevance" | "date-asc" | "date-desc" | "price-asc" | "price-desc" | "popular";
 
 interface Filters {
   query: string;
@@ -146,8 +140,20 @@ export default function SearchNavbar() {
     if (shouldFocus) setTimeout(() => inputRef.current?.focus(), 80);
   }, [shouldFocus]);
 
-  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) =>
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    const next = { ...filters, [key]: value } as Filters;
+    setFilters(next);
+
+    const params = new URLSearchParams();
+    if (next.query.trim()) params.set("search", next.query.trim());
+    if (next.category !== "all") params.set("category", next.category);
+    if (next.date !== "any") params.set("date", next.date);
+    if (next.price !== "any") params.set("price", next.price);
+    if (next.format !== "any") params.set("format", next.format);
+    if (next.sort !== "relevance") params.set("sort", next.sort);
+
+    router.replace(`/${citySlug}/search?${params.toString()}`);
+  };
 
   const activeFilterCount = useMemo(
     () =>
@@ -167,12 +173,19 @@ export default function SearchNavbar() {
     if (filters.date !== "any") params.set("date", filters.date);
     if (filters.price !== "any") params.set("price", filters.price);
     if (filters.format !== "any") params.set("format", filters.format);
-    params.set("sort", filters.sort);
+    if (filters.sort !== "relevance") params.set("sort", filters.sort);
     router.replace(`/${citySlug}/search?${params.toString()}`);
   };
 
-  const resetFilters = () =>
-    setFilters({ ...DEFAULT_FILTERS, query: filters.query });
+  const resetFilters = () => {
+    const next = { ...DEFAULT_FILTERS, query: filters.query };
+    setFilters(next);
+    router.replace(
+      filters.query.trim()
+        ? `/${citySlug}/search?search=${encodeURIComponent(filters.query.trim())}`
+        : `/${citySlug}/search`
+    );
+  };
 
   return (
     <header className="sticky top-0 z-[60] bg-white border-b border-gray-100 shadow-sm">
@@ -200,10 +213,7 @@ export default function SearchNavbar() {
             />
             {filters.query && (
               <button
-                onClick={() => {
-                  setFilter("query", "");
-                  inputRef.current?.focus();
-                }}
+                onClick={() => setFilter("query", "")}
                 className="ml-1 p-0.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0"
                 tabIndex={-1}
               >
@@ -378,8 +388,8 @@ export default function SearchNavbar() {
                 relevance: "Relevance",
                 "date-asc": "Earliest",
                 "date-desc": "Latest",
-                "price-asc": "Cheapest",
-                "price-desc": "Priciest",
+                price-asc: "Cheapest",
+                price-desc: "Priciest",
                 popular: "Popular",
               }[filters.sort] ?? "Sort")
             }
