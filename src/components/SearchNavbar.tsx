@@ -388,8 +388,8 @@ export default function SearchNavbar() {
                 relevance: "Relevance",
                 "date-asc": "Earliest",
                 "date-desc": "Latest",
-                price-asc: "Cheapest",
-                price-desc: "Priciest",
+                "price-asc": "Cheapest",
+                "price-desc": "Priciest",
                 popular: "Popular",
               }[filters.sort] ?? "Sort")
             }
