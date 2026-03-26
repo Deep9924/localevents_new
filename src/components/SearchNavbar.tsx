@@ -3,32 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft,
-  Search,
-  X,
-  ChevronDown,
-  MapPin,
-  Calendar,
-  Tag,
-  DollarSign,
-  Users,
-  Clock,
-  RotateCcw,
+  ArrowLeft, Search, X, ChevronDown,
+  MapPin, Calendar, Tag, RotateCcw,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/events-data";
 import { useCity } from "@/contexts/CityContext";
 
-type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week" | "month";
-type PriceFilter = "any" | "free" | "under10" | "under25" | "under50" | "paid";
-type FormatFilter = "any" | "in-person" | "online" | "hybrid";
-type SortOption = "relevance" | "date-asc" | "date-desc" | "price-asc" | "price-desc" | "popular";
+type DateFilter = "any" | "today" | "tomorrow" | "weekend" | "week";
+type SortOption = "relevance" | "date-asc" | "date-desc" | "popular";
 
 interface Filters {
   query: string;
   category: string;
   date: DateFilter;
-  price: PriceFilter;
-  format: FormatFilter;
   sort: SortOption;
 }
 
@@ -36,26 +23,16 @@ const DEFAULT_FILTERS: Filters = {
   query: "",
   category: "all",
   date: "any",
-  price: "any",
-  format: "any",
   sort: "relevance",
 };
 
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-100 whitespace-nowrap shrink-0 ${
+      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-100 whitespace-nowrap ${
         active
-          ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+          ? "bg-indigo-600 border-indigo-600 text-white"
           : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
       }`}
     >
@@ -90,29 +67,28 @@ function FilterDropdown({
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 h-9 px-3.5 rounded-full border text-sm font-medium transition-all duration-100 ${
+        className={`flex items-center gap-1.5 h-9 px-3.5 rounded-full border text-sm font-medium transition-all duration-100 whitespace-nowrap ${
           active
-            ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
-            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50/40"
+            ? "bg-indigo-600 border-indigo-600 text-white"
+            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50/40"
         }`}
       >
         {icon}
         <span>{label}</span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 min-w-[240px]">
+        <div
+          className="absolute top-full mt-2 left-0 z-[100] bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 min-w-[260px]"
+          onClick={(e) => e.stopPropagation()}
+        >
           {children}
           <button
             onClick={() => setOpen(false)}
-            className="mt-3 w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
+            className="mt-4 w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
           >
-            Done
+            Apply
           </button>
         </div>
       )}
@@ -131,8 +107,6 @@ export default function SearchNavbar() {
     query: searchParams.get("search") ?? "",
     category: searchParams.get("category") ?? "all",
     date: (searchParams.get("date") as DateFilter) ?? "any",
-    price: (searchParams.get("price") as PriceFilter) ?? "any",
-    format: (searchParams.get("format") as FormatFilter) ?? "any",
     sort: (searchParams.get("sort") as SortOption) ?? "relevance",
   });
 
@@ -140,76 +114,66 @@ export default function SearchNavbar() {
     if (shouldFocus) setTimeout(() => inputRef.current?.focus(), 80);
   }, [shouldFocus]);
 
-  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
-    const next = { ...filters, [key]: value } as Filters;
-    setFilters(next);
+  const activeFilterCount = useMemo(
+    () => [filters.category !== "all", filters.date !== "any"].filter(Boolean).length,
+    [filters]
+  );
 
+  const pushFilters = (next: Filters) => {
     const params = new URLSearchParams();
     if (next.query.trim()) params.set("search", next.query.trim());
     if (next.category !== "all") params.set("category", next.category);
     if (next.date !== "any") params.set("date", next.date);
-    if (next.price !== "any") params.set("price", next.price);
-    if (next.format !== "any") params.set("format", next.format);
     if (next.sort !== "relevance") params.set("sort", next.sort);
-
     router.replace(`/${citySlug}/search?${params.toString()}`);
   };
 
-  const activeFilterCount = useMemo(
-    () =>
-      [
-        filters.category !== "all",
-        filters.date !== "any",
-        filters.price !== "any",
-        filters.format !== "any",
-      ].filter(Boolean).length,
-    [filters]
-  );
-
-  const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (filters.query.trim()) params.set("search", filters.query.trim());
-    if (filters.category !== "all") params.set("category", filters.category);
-    if (filters.date !== "any") params.set("date", filters.date);
-    if (filters.price !== "any") params.set("price", filters.price);
-    if (filters.format !== "any") params.set("format", filters.format);
-    if (filters.sort !== "relevance") params.set("sort", filters.sort);
-    router.replace(`/${citySlug}/search?${params.toString()}`);
+  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    const next = { ...filters, [key]: value } as Filters;
+    setFilters(next);
+    // category and date push immediately; query only on submit
+    if (key !== "query") pushFilters(next);
   };
+
+  const handleSearch = () => pushFilters(filters);
 
   const resetFilters = () => {
     const next = { ...DEFAULT_FILTERS, query: filters.query };
     setFilters(next);
-    router.replace(
-      filters.query.trim()
-        ? `/${citySlug}/search?search=${encodeURIComponent(filters.query.trim())}`
-        : `/${citySlug}/search`
-    );
+    pushFilters(next);
+  };
+
+  const dateLabels: Record<string, string> = {
+    any: "Date",
+    today: "Today",
+    tomorrow: "Tomorrow",
+    weekend: "Weekend",
+    week: "This week",
   };
 
   return (
-    <header className="sticky top-0 z-[60] bg-white border-b border-gray-100 shadow-sm">
+    <header className="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center h-14 gap-3">
+
+        <div className="flex items-center h-14 gap-2">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-1 text-gray-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-all duration-100 shrink-0"
+            className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-all shrink-0"
             aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div className="flex-1 flex items-center h-10 px-4 rounded-full border border-gray-200 bg-gray-50 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 focus-within:bg-white transition-all duration-200">
+          <div className="flex-1 flex items-center h-10 px-3 rounded-full border border-gray-200 bg-gray-50/80 focus-within:border-indigo-400 focus-within:bg-white focus-within:shadow-sm transition-all duration-200">
+            <Search className="w-4 h-4 text-gray-400 shrink-0 mr-2" />
             <input
               ref={inputRef}
               type="text"
-              placeholder={`Search events in ${cityName}…`}
+              placeholder={`Search in ${cityName}…`}
               value={filters.query}
               onChange={(e) => setFilter("query", e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearch();
-              }}
-              className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
+              onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+              className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400 min-w-0"
             />
             {filters.query && (
               <button
@@ -224,7 +188,7 @@ export default function SearchNavbar() {
 
           <button
             onClick={handleSearch}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white transition-all duration-100 shrink-0 shadow-sm"
+            className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shrink-0 shadow-sm transition-all"
             aria-label="Search"
           >
             <Search className="w-4 h-4" />
@@ -235,37 +199,21 @@ export default function SearchNavbar() {
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all text-sm font-medium text-gray-600 shrink-0"
           >
             <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{cityName}</span>
+            <span className="max-w-[80px] truncate">{cityName}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 pt-0.5">
           <FilterDropdown
-            label={
-              filters.category === "all"
-                ? "Category"
-                : CATEGORIES.find((c) => c.id === filters.category)?.label ??
-                  filters.category
-            }
+            label={filters.category === "all" ? "Category" : (CATEGORIES.find((c) => c.id === filters.category)?.label ?? filters.category)}
             icon={<Tag className="w-3.5 h-3.5" />}
             active={filters.category !== "all"}
           >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Category
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              <Pill
-                active={filters.category === "all"}
-                onClick={() => setFilter("category", "all")}
-              >
-                All
-              </Pill>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Category</p>
+            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+              <Pill active={filters.category === "all"} onClick={() => setFilter("category", "all")}>All</Pill>
               {CATEGORIES.map((cat) => (
-                <Pill
-                  key={cat.id}
-                  active={filters.category === cat.id}
-                  onClick={() => setFilter("category", cat.id)}
-                >
+                <Pill key={cat.id} active={filters.category === cat.id} onClick={() => setFilter("category", cat.id)}>
                   {cat.icon} {cat.label}
                 </Pill>
               ))}
@@ -273,147 +221,15 @@ export default function SearchNavbar() {
           </FilterDropdown>
 
           <FilterDropdown
-            label={
-              filters.date === "any"
-                ? "Date"
-                : ({
-                    today: "Today",
-                    tomorrow: "Tomorrow",
-                    weekend: "Weekend",
-                    week: "This week",
-                    month: "This month",
-                  }[filters.date] ?? filters.date)
-            }
+            label={dateLabels[filters.date] ?? "Date"}
             icon={<Calendar className="w-3.5 h-3.5" />}
             active={filters.date !== "any"}
           >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              When
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">When</p>
             <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "any", label: "Any time" },
-                { id: "today", label: "Today" },
-                { id: "tomorrow", label: "Tomorrow" },
-                { id: "weekend", label: "Weekend" },
-                { id: "week", label: "This week" },
-                { id: "month", label: "This month" },
-              ].map((d) => (
-                <Pill
-                  key={d.id}
-                  active={filters.date === d.id}
-                  onClick={() => setFilter("date", d.id as DateFilter)}
-                >
-                  {d.label}
-                </Pill>
-              ))}
-            </div>
-          </FilterDropdown>
-
-          <FilterDropdown
-            label={
-              filters.price === "any"
-                ? "Price"
-                : ({
-                    free: "Free",
-                    under10: "< $10",
-                    under25: "< $25",
-                    under50: "< $50",
-                    paid: "Paid",
-                  }[filters.price] ?? filters.price)
-            }
-            icon={<DollarSign className="w-3.5 h-3.5" />}
-            active={filters.price !== "any"}
-          >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Price
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "any", label: "Any" },
-                { id: "free", label: "Free" },
-                { id: "under10", label: "Under $10" },
-                { id: "under25", label: "Under $25" },
-                { id: "under50", label: "Under $50" },
-                { id: "paid", label: "Paid" },
-              ].map((p) => (
-                <Pill
-                  key={p.id}
-                  active={filters.price === p.id}
-                  onClick={() => setFilter("price", p.id as PriceFilter)}
-                >
-                  {p.label}
-                </Pill>
-              ))}
-            </div>
-          </FilterDropdown>
-
-          <FilterDropdown
-            label={
-              filters.format === "any"
-                ? "Format"
-                : ({
-                    "in-person": "In-person",
-                    online: "Online",
-                    hybrid: "Hybrid",
-                  }[filters.format] ?? filters.format)
-            }
-            icon={<Users className="w-3.5 h-3.5" />}
-            active={filters.format !== "any"}
-          >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Format
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "any", label: "Any" },
-                { id: "in-person", label: "In-person" },
-                { id: "online", label: "Online" },
-                { id: "hybrid", label: "Hybrid" },
-              ].map((f) => (
-                <Pill
-                  key={f.id}
-                  active={filters.format === f.id}
-                  onClick={() => setFilter("format", f.id as FormatFilter)}
-                >
-                  {f.label}
-                </Pill>
-              ))}
-            </div>
-          </FilterDropdown>
-
-          <FilterDropdown
-            label={
-              ({
-                relevance: "Relevance",
-                "date-asc": "Earliest",
-                "date-desc": "Latest",
-                "price-asc": "Cheapest",
-                "price-desc": "Priciest",
-                popular: "Popular",
-              }[filters.sort] ?? "Sort")
-            }
-            icon={<Clock className="w-3.5 h-3.5" />}
-            active={filters.sort !== "relevance"}
-          >
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Sort by
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "relevance", label: "Relevance" },
-                { id: "date-asc", label: "Date ↑" },
-                { id: "date-desc", label: "Date ↓" },
-                { id: "price-asc", label: "Price ↑" },
-                { id: "price-desc", label: "Price ↓" },
-                { id: "popular", label: "Popular" },
-              ].map((s) => (
-                <Pill
-                  key={s.id}
-                  active={filters.sort === s.id}
-                  onClick={() => setFilter("sort", s.id as SortOption)}
-                >
-                  {s.label}
+              {(["any", "today", "tomorrow", "weekend", "week"] as DateFilter[]).map((d) => (
+                <Pill key={d} active={filters.date === d} onClick={() => setFilter("date", d)}>
+                  {dateLabels[d]}
                 </Pill>
               ))}
             </div>
@@ -422,9 +238,10 @@ export default function SearchNavbar() {
           {activeFilterCount > 0 && (
             <button
               onClick={resetFilters}
-              className="flex items-center gap-1 h-9 px-3 rounded-full border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors shrink-0"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-full border border-red-200 text-red-500 text-sm hover:bg-red-50 transition-colors shrink-0"
             >
               <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
             </button>
           )}
         </div>
