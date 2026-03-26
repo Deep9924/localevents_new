@@ -3,7 +3,7 @@ import { Sora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
-import Navbar from "@/components/Navbar";
+import RootNavbar from "@/components/RootNavbar";
 import { CityProvider } from "@/contexts/CityContext";
 
 const sora = Sora({ subsets: ["latin"] });
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={sora.className}>
         <Providers>
           <CityProvider>
-            <Navbar />
+            <RootNavbar />
             {children}
             <Toaster richColors position="top-right" />
           </CityProvider>
