@@ -1,4 +1,3 @@
-// src/components/RootNavbar.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,7 +9,6 @@ export default function RootNavbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const pathname = usePathname();
 
-  // Hide the full navbar on any search page
   if (pathname?.includes("/search")) return null;
 
   return (
