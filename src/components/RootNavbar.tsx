@@ -10,8 +10,8 @@ export default function RootNavbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const pathname = usePathname();
 
-  // Hide navbar on any /search route (e.g. /london/search)
-  if (pathname?.endsWith("/search")) return null;
+  // Hide the full navbar on any search page
+  if (pathname?.includes("/search")) return null;
 
   return (
     <Navbar
