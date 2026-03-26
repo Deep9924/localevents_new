@@ -1,5 +1,3 @@
-import RootNavbar from "@/components/RootNavbar";
-
 export default async function CityLayout({
   children,
   params,
@@ -8,10 +6,5 @@ export default async function CityLayout({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  return (
-    <>
-      <RootNavbar />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
