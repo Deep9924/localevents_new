@@ -20,39 +20,55 @@ export default function SearchPage() {
   const { citySlug, cityName } = useCity();
   const searchParams = useSearchParams();
 
+  // These only change when the URL changes (i.e. user pressed search or picked a filter)
   const query    = searchParams.get("search") ?? "";
   const category = searchParams.get("category") ?? "all";
   const date     = (searchParams.get("date") ?? undefined) as
-    | "all" | "today" | "tomorrow" | "weekend" | "week" | undefined;
+    | "today" | "tomorrow" | "weekend" | "week" | undefined;
 
-  const { data: categoryEvents = [] } = trpc.events.getByCity.useQuery(
-    { citySlug, category: category !== "all" ? category : undefined, search: query || undefined, date },
-    { enabled: !!citySlug }
-  );
+  const hasActiveSearch = query.trim().length > 0 || category !== "all" || !!date;
 
-  const { data: searchResults = [] } = trpc.events.search.useQuery(
-    { query, citySlug, category: category !== "all" ? category : undefined },
-    { enabled: query.trim().length > 0 }
-  );
-
+  // Always fetch for discovery view
   const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
     { citySlug },
     { enabled: !!citySlug }
   );
 
-  const visibleEvents   = query.trim().length > 0 ? searchResults : categoryEvents;
-  const hasActiveSearch = query.trim().length > 0 || category !== "all" || !!date;
+  // Only fetch when a category or date filter is active (no text query)
+  const { data: categoryEvents = [] } = trpc.events.getByCity.useQuery(
+    { citySlug, category: category !== "all" ? category : undefined, date },
+    { enabled: !!citySlug && (category !== "all" || !!date) && !query }
+  );
+
+  // Only fetch when user actually submitted a search query
+  const { data: searchResults = [] } = trpc.events.search.useQuery(
+    { query, citySlug, category: category !== "all" ? category : undefined },
+    { enabled: query.trim().length > 0 }
+  );
+
+  const visibleEvents =
+    query.trim().length > 0
+      ? searchResults
+      : category !== "all" || !!date
+        ? categoryEvents
+        : [];
 
   const popularEvents = useMemo(
-    () => [...featuredEvents].sort((a, b) => (b.interested ?? 0) - (a.interested ?? 0)).slice(0, 10),
+    () =>
+      [...featuredEvents]
+        .sort((a, b) => (b.interested ?? 0) - (a.interested ?? 0))
+        .slice(0, 10),
     [featuredEvents]
   );
 
-  const categoryPicks = useMemo(() =>
-    CATEGORIES.map((cat) => ({
-      ...cat,
-      events: featuredEvents.filter((e: any) => e.category === cat.id),
-    })).filter((g) => g.events.length > 0),
+  const categoryPicks = useMemo(
+    () =>
+      CATEGORIES.slice(1)
+        .map((cat) => ({
+          ...cat,
+          events: featuredEvents.filter((e: any) => e.category === cat.id),
+        }))
+        .filter((g) => g.events.length > 0),
     [featuredEvents]
   );
 
@@ -70,11 +86,15 @@ export default function SearchPage() {
       <SearchNavbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-10">
+
         {hasActiveSearch ? (
+          /* Results view */
           <section>
             <div className="mb-4">
               <h2 className="text-lg font-bold text-gray-900">
-                {query ? `Results for "${query}"` : "Filtered events"}
+                {query
+                  ? `Results for "${query}"`
+                  : `${CATEGORIES.find((c) => c.id === category)?.label ?? "Filtered"} events`}
               </h2>
               <p className="text-sm text-gray-500">
                 {visibleEvents.length} event{visibleEvents.length !== 1 ? "s" : ""} in {cityName}
@@ -91,16 +111,21 @@ export default function SearchPage() {
               <div className="py-24 text-center">
                 <p className="text-5xl mb-4">🔍</p>
                 <p className="font-semibold text-gray-700 text-lg">No events found</p>
-                <p className="text-sm text-gray-400 mt-1">Try different keywords or adjust filters</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Try different keywords or adjust filters
+                </p>
               </div>
             )}
           </section>
 
         ) : (
+          /* Discovery view */
           <>
             {popularEvents.length > 0 && (
               <section>
-                <h2 className="text-lg font-bold text-gray-900 mb-3">Popular in {cityName}</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-3">
+                  Popular in {cityName}
+                </h2>
                 <HorizontalRow>
                   {popularEvents.map((event: any) => (
                     <div key={event.id} className="shrink-0 w-64 sm:w-72">
@@ -128,11 +153,15 @@ export default function SearchPage() {
 
             {organizerGroups.length > 0 && (
               <section>
-                <h2 className="text-lg font-bold text-gray-900 mb-4">More from the same organizers</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-4">
+                  More from the same organizers
+                </h2>
                 <div className="space-y-6">
                   {organizerGroups.map(([organizer, list]) => (
                     <div key={organizer}>
-                      <p className="text-sm font-semibold text-gray-600 mb-2">{organizer}</p>
+                      <p className="text-sm font-semibold text-gray-600 mb-2">
+                        {organizer}
+                      </p>
                       <HorizontalRow>
                         {list.slice(0, 5).map((event: any) => (
                           <div key={event.id} className="shrink-0 w-64 sm:w-72">
@@ -150,4 +179,4 @@ export default function SearchPage() {
       </main>
     </div>
   );
-                  }
+}
