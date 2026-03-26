@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { useState } from "react";
 
 export default function RootNavbar() {
+  const pathname = usePathname();
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const pathname = usePathname();
 
   if (pathname?.includes("/search")) return null;
 
