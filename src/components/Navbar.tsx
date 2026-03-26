@@ -122,7 +122,7 @@ export default function Navbar({
     if (query.trim()) params.set("search", query.trim());
     params.set("category", activeCategory);
     params.set("focus", "1"); // signal SearchPage to auto-focus input
-    router.push(`/${citySlug}/search?${params.toString()}`);
+    router.push(`/${city}/search?${params.toString()}`);
     setMobileMenuOpen(false);
   };
 
