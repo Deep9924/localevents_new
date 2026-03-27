@@ -323,8 +323,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {isFree && (
                   <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>
                 )}
-                {/* Featured — strict boolean, never renders for falsy/0/null/undefined */}
-                {event.isFeatured === true && (
+                {/* Featured — only render when value is a positive number */}
+                {!!event.isFeatured && event.isFeatured !== 0 && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
                     <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
                   </span>
