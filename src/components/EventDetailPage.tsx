@@ -67,7 +67,7 @@ function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 /* ─── Share button — always click to open, outside click to close ─────────── */
-function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fullWidth?: boolean }) {
+function ShareButton({ eventTitle, fullWidth = false, className = "" }: { eventTitle: string; fullWidth?: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -97,11 +97,10 @@ function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fu
   }, [open]);
 
   return (
-    <div ref={ref} className={`relative ${fullWidth ? "w-full" : ""}`}>
+    <div ref={ref} className={`relative ${fullWidth ? "w-full" : ""} ${className}`}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors duration-150
-          ${fullWidth ? "w-full" : ""}
+        className={`flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors duration-150 w-full
           ${open ? "bg-gray-50 border-gray-300 text-gray-800" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800"}`}
       >
         <Share2 className="w-4 h-4" />Share
@@ -138,10 +137,12 @@ function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fu
 
 /* ─── Interested button — truly fixed size, text never causes reflow ─────── */
 function InterestedButton({ isInterested, onToggle, className = "" }: { isInterested: boolean; onToggle: () => void; className?: string }) {
+  // If className contains flex-1 we let the flex container size it, otherwise use fixed width
+  const hasFlexGrow = className.includes("flex-1") || className.includes("w-full");
   return (
     <button
       onClick={onToggle}
-      style={{ width: "9.5rem", minWidth: "9.5rem", maxWidth: "9.5rem" }}
+      style={hasFlexGrow ? undefined : { width: "9.5rem", minWidth: "9.5rem", maxWidth: "9.5rem" }}
       className={`relative flex items-center justify-center gap-2 h-10 rounded-xl border font-semibold text-sm transition-colors duration-150 select-none overflow-hidden
         ${isInterested
           ? "bg-indigo-700 border-indigo-700 text-white"
@@ -149,7 +150,6 @@ function InterestedButton({ isInterested, onToggle, className = "" }: { isIntere
         } ${className}`}
     >
       <Users className="w-4 h-4 shrink-0" />
-      {/* Both labels always rendered, visibility toggled — width never changes */}
       <span className={isInterested ? "block" : "hidden"}>Interested ✓</span>
       <span className={isInterested ? "hidden" : "block"}>I'm Interested</span>
     </button>
@@ -272,7 +272,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   );
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
 
       {/* Breadcrumb */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-3">
@@ -299,8 +299,25 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             {/* Title block */}
             <div className="mb-6">
-              {/* Organizer — topmost */}
-              <div className="flex items-center gap-2 flex-wrap mb-3">
+              {/* Badges row — featured, category, free — topmost */}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {!!event.isFeatured && event.isFeatured !== 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
+                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
+                  </span>
+                )}
+                <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full capitalize">{event.category}</span>
+                {isFree && (
+                  <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>
+                )}
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-gray-950 leading-tight mb-3" style={{ fontFamily: "'Sora', sans-serif" }}>
+                {event.title}
+              </h1>
+
+              {/* Organizer — below title */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {organizerName[0].toUpperCase()}
                 </div>
@@ -311,30 +328,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                   </span>
                 )}
               </div>
-
-              <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-gray-950 leading-tight mb-3" style={{ fontFamily: "'Sora', sans-serif" }}>
-                {event.title}
-              </h1>
-
-              {/* Badges row — category, free, featured — all below title */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full capitalize">{event.category}</span>
-                {isFree && (
-                  <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>
-                )}
-                {/* Featured — only render when value is a positive number */}
-                {!!event.isFeatured && event.isFeatured !== 0 && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
-                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
-                  </span>
-                )}
-              </div>
             </div>
 
-            {/* Quick actions — Interested + Share only (no Save) */}
-            <div className="flex items-center gap-2.5 mb-8">
-              <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} />
-              <ShareButton eventTitle={event.title} />
+            {/* Quick actions — full width row, evenly spaced */}
+            <div className="flex items-center gap-2.5 mb-8 w-full">
+              <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} className="flex-1" />
+              <ShareButton eventTitle={event.title} fullWidth={false} className="flex-1" />
             </div>
 
             {/* ── Continuous content ── */}
@@ -453,15 +452,17 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
 
 
-        {/* Similar events — full width below both columns */}
+        {/* Similar events — horizontal scroll */}
         {similarEvents.length > 0 && (
           <section className="mt-8 pt-8 border-t border-gray-100">
             <h2 className="text-base font-bold text-gray-900 mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
               More events like this ✨
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
               {similarEvents.map((e) => (
-                <EventCard key={e.id} event={e} citySlug={citySlug} />
+                <div key={e.id} className="shrink-0 w-[200px] sm:w-[220px] snap-start">
+                  <EventCard event={e} citySlug={citySlug} />
+                </div>
               ))}
             </div>
           </section>
@@ -469,6 +470,28 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
 
       <Footer />
+
+      {/* Mobile bottom bar — shown on small screens only */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] text-gray-400 leading-none mb-0.5">Tickets from</p>
+          <p className={`text-lg font-bold leading-tight ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
+        </div>
+        <button
+          onClick={handleSaveEvent}
+          className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${isSaved ? "border-indigo-200 bg-indigo-50" : "border-gray-200"}`}
+        >
+          <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
+        </button>
+        <a
+          href={ticketUrl ?? "#"}
+          target={ticketUrl ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          className="h-10 px-5 flex items-center gap-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-sm rounded-xl shrink-0 transition-colors"
+        >
+          <Ticket className="w-4 h-4" />Get Tickets
+        </a>
+      </div>
     </div>
   );
 }
