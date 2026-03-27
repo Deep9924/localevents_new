@@ -85,23 +85,10 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
     try {
       if (mode === "login") {
-        // Step 1: verify credentials — tRPC checks email + password hash
-        const result = await loginMutation.mutateAsync({ email, password });
+        // login mutation now sets the cookie server-side directly via next/headers
+        await loginMutation.mutateAsync({ email, password });
 
-        // Step 2: write the httpOnly session cookie
-        // The tRPC mutation above only returns data — it can't set cookies itself.
-        // We call the Next.js API route which does the actual Set-Cookie header.
-        const sessionRes = await fetch("/api/auth/set-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ openId: result.openId, name: result.name }),
-        });
-
-        if (!sessionRes.ok) {
-          throw new Error("Failed to establish session. Please try again.");
-        }
-
-        // Step 3: bust the React Query cache so useAuth re-runs auth.me with the new cookie
+        // Invalidate cache so useAuth re-fetches with the new cookie
         await utils.auth.me.invalidate();
 
         toast.success("Logged in successfully!");
