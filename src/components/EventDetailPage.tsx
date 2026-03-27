@@ -66,8 +66,8 @@ function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: s
   );
 }
 
-/* ─── Share button with hover dropdown ───────────────────────────────────── */
-function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fullWidth?: boolean }) {
+/* ─── Share button — desktop hover dropdown, mobile click dropdown ────────── */
+function ShareButton({ eventTitle, fullWidth = false, mobileClick = false }: { eventTitle: string; fullWidth?: boolean; mobileClick?: boolean }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -87,8 +87,25 @@ function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fu
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* silent */ }
   };
 
-  const onEnter = () => { if (leaveTimer.current) clearTimeout(leaveTimer.current); setOpen(true); };
-  const onLeave = () => { leaveTimer.current = setTimeout(() => setOpen(false), 180); };
+  const onEnter = () => {
+    if (mobileClick) return; // mobile uses click only
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    setOpen(true);
+  };
+  const onLeave = () => {
+    if (mobileClick) return;
+    leaveTimer.current = setTimeout(() => setOpen(false), 180);
+  };
+
+  // Close on outside click for mobile
+  useEffect(() => {
+    if (!mobileClick || !open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [mobileClick, open]);
 
   return (
     <div ref={ref} className={`relative ${fullWidth ? "w-full" : ""}`} onMouseEnter={onEnter} onMouseLeave={onLeave}>
@@ -102,7 +119,11 @@ function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fu
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full pt-1.5 z-50" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+        <div
+          className="absolute left-0 top-full pt-1.5 z-50"
+          onMouseEnter={onEnter}
+          onMouseLeave={onLeave}
+        >
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 w-52 overflow-hidden">
             {socials.map(({ label, icon: Icon, bg, href }) => (
               <a
@@ -130,18 +151,19 @@ function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fu
   );
 }
 
-/* ─── Minimal interested button — color change only ─────────────────────── */
+/* ─── Interested button — fixed min-width so toggling never shifts layout ─── */
 function InterestedButton({ isInterested, onToggle, className = "" }: { isInterested: boolean; onToggle: () => void; className?: string }) {
   return (
     <button
       onClick={onToggle}
+      style={{ minWidth: "9rem" }} // fixed width prevents layout shift
       className={`flex items-center justify-center gap-2 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors duration-150 select-none
         ${isInterested
           ? "bg-indigo-700 border-indigo-700 text-white"
           : "border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50"
         } ${className}`}
     >
-      <Users className="w-4 h-4" />
+      <Users className="w-4 h-4 shrink-0" />
       {isInterested ? "Interested ✓" : "I'm Interested"}
     </button>
   );
@@ -295,43 +317,36 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {event.title}
               </h1>
 
-              {/* Subtle meta — featured + category */}
+              {/* Category + Free badge */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                {event.isFeatured && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
-                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
-                  </span>
-                )}
                 <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full capitalize">{event.category}</span>
                 {isFree && <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>}
               </div>
 
-              {/* Organizer */}
-              <div className="flex items-center gap-2 text-sm">
+              {/* Organizer row + Featured badge (only if actually featured) */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {organizerName[0].toUpperCase()}
                 </div>
-                <span className="text-gray-600 font-medium">{organizerName}</span>
+                <span className="text-sm text-gray-600 font-medium">{organizerName}</span>
                 {isVerified && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
                     <BadgeCheck className="w-3 h-3 fill-indigo-600 text-white" />Verified
                   </span>
                 )}
+                {/* Featured — only shown when truthy */}
+                {event.isFeatured && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
+                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Quick actions */}
+            {/* Quick actions — Interested + Share only (no Save) */}
             <div className="flex items-center gap-2.5 mb-8">
               <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} />
               <ShareButton eventTitle={event.title} />
-              <button
-                onClick={handleSaveEvent}
-                className={`flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors
-                  ${isSaved ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
-              >
-                <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : ""}`} />
-                {isSaved ? "Saved" : "Save"}
-              </button>
             </div>
 
             {/* ── Continuous content ── */}
@@ -396,37 +411,11 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               )}
             </section>
 
-            <div className="border-t border-gray-100 mb-8" />
-
-            {/* Terms & Conditions */}
-            <section className="mb-8">
-              <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-1.5">
-                <FileText className="w-3 h-3" />Terms &amp; Conditions
-              </h2>
-              <div className="space-y-4">
-                {[
-                  { icon: CheckCircle2, color: "text-green-500", title: "Ticket Policy", body: "All ticket sales are final. No refunds or exchanges unless the event is cancelled or rescheduled by the organizer." },
-                  { icon: CheckCircle2, color: "text-green-500", title: "Entry Requirements", body: "Valid ID may be required. Tickets must be presented digitally or printed at the door." },
-                  { icon: AlertTriangle, color: "text-amber-500", title: "Age Restrictions", body: "Some events may have age restrictions. Please verify event details before purchasing tickets." },
-                  { icon: Info, color: "text-gray-400", title: "Event Changes", body: "The organizer reserves the right to make changes to the lineup or schedule. Ticket holders will be notified of any major changes." },
-                  { icon: Info, color: "text-gray-400", title: "Liability", body: "LocalEvents acts as a platform connecting event-goers with organizers and is not liable for the conduct of events listed on this site." },
-                ].map(({ icon: Icon, color, title, body }) => (
-                  <div key={title} className="flex items-start gap-3">
-                    <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${color}`} />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Event tags */}
+            {/* Event tags — moved up, before T&C */}
             {tags.length > 0 && (
               <>
                 <div className="border-t border-gray-100 mb-6" />
-                <section className="mb-2">
+                <section className="mb-8">
                   <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Event tags</h2>
                   <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
@@ -436,6 +425,35 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 </section>
               </>
             )}
+
+            {/* Terms & Conditions — card at the bottom */}
+            <div className="border-t border-gray-100 mb-8" />
+            <section className="mb-2">
+              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-gray-400" />
+                  <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Terms &amp; Conditions</h2>
+                </div>
+                <div className="px-5 py-4 space-y-4">
+                  {[
+                    { icon: CheckCircle2, color: "text-green-500", title: "Ticket Policy", body: "All ticket sales are final. No refunds or exchanges unless the event is cancelled or rescheduled by the organizer." },
+                    { icon: CheckCircle2, color: "text-green-500", title: "Entry Requirements", body: "Valid ID may be required. Tickets must be presented digitally or printed at the door." },
+                    { icon: AlertTriangle, color: "text-amber-500", title: "Age Restrictions", body: "Some events may have age restrictions. Please verify event details before purchasing tickets." },
+                    { icon: Info, color: "text-gray-400", title: "Event Changes", body: "The organizer reserves the right to make changes to the lineup or schedule. Ticket holders will be notified of any major changes." },
+                    { icon: Info, color: "text-gray-400", title: "Liability", body: "LocalEvents acts as a platform connecting event-goers with organizers and is not liable for the conduct of events listed on this site." },
+                  ].map(({ icon: Icon, color, title, body }) => (
+                    <div key={title} className="flex items-start gap-3">
+                      <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${color}`} />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
           </div>
 
           {/* ══ RIGHT sidebar ═══════════════════════════════════════════════ */}
@@ -468,6 +486,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           <p className="text-[11px] text-gray-400 leading-none mb-0.5">Tickets from</p>
           <p className={`text-lg font-bold leading-tight ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
         </div>
+        {/* Mobile share — click to open dropdown */}
+        <ShareButton eventTitle={event.title} mobileClick />
         <button
           onClick={handleSaveEvent}
           className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${isSaved ? "border-indigo-200 bg-indigo-50" : "border-gray-200"}`}
