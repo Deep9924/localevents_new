@@ -4,15 +4,39 @@ import { getDb } from "../db";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { SignJWT } from "jose";
+import { cookies } from "next/headers";
+
+const COOKIE_NAME = "session";
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
 
+async function createSessionCookie(openId: string, name: string) {
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
+  const token = await new SignJWT({ openId, name, appId: "localevents" })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setExpirationTime(Math.floor((Date.now() + ONE_YEAR_MS) / 1000))
+    .sign(secret);
+
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: ONE_YEAR_MS / 1000,
+    path: "/",
+  });
+}
+
 export const authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user ?? null),
 
-  logout: publicProcedure.mutation(({ ctx }) => {
+  logout: publicProcedure.mutation(async () => {
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, "", { maxAge: -1, path: "/" });
     return { success: true } as const;
   }),
 
@@ -65,11 +89,13 @@ export const authRouter = router({
 
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
 
-      // ✅ Return openId + name so the client can call set-session to write the cookie
+      // Set the session cookie directly — no separate API call needed
+      const openId = user.openId ?? `local-${user.id}`;
+      const name = user.name ?? user.email;
+      await createSessionCookie(openId, name);
+
       return {
         success: true,
-        openId: user.openId,
-        name: user.name ?? user.email,
         user: { id: user.id, email: user.email, name: user.name },
       };
     }),
