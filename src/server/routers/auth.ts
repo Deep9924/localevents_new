@@ -109,9 +109,9 @@ export const authRouter = router({
         .set({ lastSignedIn: new Date() })
         .where(eq(users.id, user.id));
 
-      // Type‑safe: openId and name are always strings
+      // Force name to be string (since `?? user.email` guarantees non-null)
       const openId: string = user.openId ?? `local-${user.id}`;
-      const name: string = user.name ?? user.email;
+      const name: string = (user.name ?? user.email) as string; // ✅ fixes the TS error
       await createSessionCookie(openId, name);
 
       return {
