@@ -21,14 +21,12 @@ interface PasswordStrength {
 
 function getPasswordStrength(password: string): PasswordStrength {
   let score = 0;
-  
   if (password.length >= 8) score++;
   if (password.length >= 12) score++;
   if (/[a-z]/.test(password)) score++;
   if (/[A-Z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
-
   if (score <= 2) return { score, label: "Weak", color: "text-red-500" };
   if (score <= 4) return { score, label: "Fair", color: "text-yellow-500" };
   return { score, label: "Strong", color: "text-green-500" };
@@ -52,60 +50,54 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation();
   const signupMutation = trpc.auth.signup.useMutation();
 
   const passwordStrength = getPasswordStrength(password);
 
   useEffect(() => {
-    // Load Google Sign-In script
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
   }, []);
 
   const handleGoogleSignIn = () => {
-    // For now, show a placeholder message
-    toast.info('Google Sign-In coming soon! Please use email/password for now.');
+    toast.info("Google Sign-In coming soon! Please use email/password for now.");
   };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-
     if (!email) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email";
-
     if (!password) newErrors.password = "Password is required";
     else {
       const passwordError = validatePassword(password);
       if (passwordError) newErrors.password = passwordError;
     }
-
     if (mode === "signup") {
       if (!name) newErrors.name = "Name is required";
       if (!confirmPassword) newErrors.confirmPassword = "Confirm password is required";
       else if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match";
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-
     setIsLoading(true);
 
     try {
       if (mode === "login") {
-        await loginMutation.mutateAsync({
-          email,
-          password,
-        });
+        await loginMutation.mutateAsync({ email, password });
+
+        // ✅ Invalidate the auth.me cache so useAuth re-fetches with the new cookie
+        await utils.auth.me.invalidate();
+
         toast.success("Logged in successfully!");
         setEmail("");
         setPassword("");
@@ -113,11 +105,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         onSuccess();
         onClose();
       } else {
-        await signupMutation.mutateAsync({
-          email,
-          password,
-          name,
-        });
+        await signupMutation.mutateAsync({ email, password, name });
         toast.success("Account created! Please log in.");
         setMode("login");
         setEmail("");
@@ -141,15 +129,20 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           <DialogTitle>LocalEvents</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(v) => {
-          setMode(v as "login" | "signup");
-          setErrors({});
-        }} className="w-full">
+        <Tabs
+          value={mode}
+          onValueChange={(v) => {
+            setMode(v as "login" | "signup");
+            setErrors({});
+          }}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
 
+          {/* ── Login tab ── */}
           <TabsContent value="login" className="space-y-4 mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -158,10 +151,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="email"
                   placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email) setErrors({ ...errors, email: "" });
-                  }}
+                  onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: "" }); }}
                   className={errors.email ? "border-red-500" : ""}
                 />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
@@ -173,38 +163,26 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors({ ...errors, password: "" });
-                  }}
+                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: "" }); }}
                   className={errors.password ? "border-red-500" : ""}
                 />
                 {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
               </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-indigo-700 hover:bg-indigo-800"
-                disabled={isLoading}
-              >
+              <Button type="submit" className="w-full bg-indigo-700 hover:bg-indigo-800" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
+                  <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
                   <span className="px-2 bg-white text-gray-500">Or continue with</span>
                 </div>
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleGoogleSignIn}
-              >
+              <Button type="button" variant="outline" className="w-full" onClick={handleGoogleSignIn}>
                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -216,6 +194,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </form>
           </TabsContent>
 
+          {/* ── Signup tab ── */}
           <TabsContent value="signup" className="space-y-4 mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -224,10 +203,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="text"
                   placeholder="John Doe"
                   value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (errors.name) setErrors({ ...errors, name: "" });
-                  }}
+                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({ ...errors, name: "" }); }}
                   className={errors.name ? "border-red-500" : ""}
                 />
                 {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
@@ -239,10 +215,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="email"
                   placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email) setErrors({ ...errors, email: "" });
-                  }}
+                  onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: "" }); }}
                   className={errors.email ? "border-red-500" : ""}
                 />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
@@ -254,10 +227,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors({ ...errors, password: "" });
-                  }}
+                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: "" }); }}
                   className={errors.password ? "border-red-500" : ""}
                 />
                 {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
@@ -266,51 +236,21 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   <div className="mt-2 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-600">Password strength:</span>
-                      <span className={`text-xs font-medium ${passwordStrength.color}`}>
-                        {passwordStrength.label}
-                      </span>
+                      <span className={`text-xs font-medium ${passwordStrength.color}`}>{passwordStrength.label}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        {password.length >= 8 ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                        <span>8+ characters</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/[A-Z]/.test(password) ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                        <span>Uppercase</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/[a-z]/.test(password) ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                        <span>Lowercase</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/[0-9]/.test(password) ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                        <span>Number</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/[^a-zA-Z0-9]/.test(password) ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                        <span>Special char</span>
-                      </div>
+                      {[
+                        { pass: password.length >= 8, label: "8+ characters" },
+                        { pass: /[A-Z]/.test(password), label: "Uppercase" },
+                        { pass: /[a-z]/.test(password), label: "Lowercase" },
+                        { pass: /[0-9]/.test(password), label: "Number" },
+                        { pass: /[^a-zA-Z0-9]/.test(password), label: "Special char" },
+                      ].map(({ pass, label }) => (
+                        <div key={label} className="flex items-center gap-1">
+                          {pass ? <Check className="w-4 h-4 text-green-500" /> : <X className="w-4 h-4 text-gray-300" />}
+                          <span>{label}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -322,22 +262,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                   type="password"
                   placeholder="••••••••"
                   value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: "" });
-                  }}
+                  onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: "" }); }}
                   className={errors.confirmPassword ? "border-red-500" : ""}
                 />
-                {errors.confirmPassword && (
-                  <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>
-                )}
+                {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
               </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-indigo-700 hover:bg-indigo-800"
-                disabled={isLoading}
-              >
+              <Button type="submit" className="w-full bg-indigo-700 hover:bg-indigo-800" disabled={isLoading}>
                 {isLoading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
