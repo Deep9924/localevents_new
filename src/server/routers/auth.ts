@@ -1,3 +1,4 @@
+// src/server/routers/auth.ts
 import { publicProcedure, router } from "../trpc";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -34,9 +35,13 @@ async function createSessionCookie(openId: string, name: string) {
 export const authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user ?? null),
 
-  logout: publicProcedure.mutation(async () => {
+  logout: publicProcedure.mutation(async (opts) => {
     const cookieStore = await cookies();
     cookieStore.set(COOKIE_NAME, "", { maxAge: -1, path: "/" });
+
+    // If you want to clear `ctx.user` immediately in the same req:
+    opts.ctx.user = null;
+
     return { success: true } as const;
   }),
 
@@ -109,8 +114,6 @@ export const authRouter = router({
         .set({ lastSignedIn: new Date() })
         .where(eq(users.id, user.id));
 
-      // Since `name` is nullable in the schema, but we always have an email fallback,
-      // we assert that the result is a string.
       const openId: string = user.openId ?? `local-${user.id}`;
       const name: string = (user.name ?? user.email) as string;
       await createSessionCookie(openId, name);
