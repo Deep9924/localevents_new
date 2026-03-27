@@ -109,9 +109,10 @@ export const authRouter = router({
         .set({ lastSignedIn: new Date() })
         .where(eq(users.id, user.id));
 
-      // Force name to be string (since `?? user.email` guarantees non-null)
+      // Since `name` is nullable in the schema, but we always have an email fallback,
+      // we assert that the result is a string.
       const openId: string = user.openId ?? `local-${user.id}`;
-      const name: string = (user.name ?? user.email) as string; // ✅ fixes the TS error
+      const name: string = (user.name ?? user.email) as string;
       await createSessionCookie(openId, name);
 
       return {
