@@ -66,12 +66,11 @@ function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: s
   );
 }
 
-/* ─── Share button — desktop hover dropdown, mobile click dropdown ────────── */
-function ShareButton({ eventTitle, fullWidth = false, mobileClick = false }: { eventTitle: string; fullWidth?: boolean; mobileClick?: boolean }) {
+/* ─── Share button — always click to open, outside click to close ─────────── */
+function ShareButton({ eventTitle, fullWidth = false }: { eventTitle: string; fullWidth?: boolean }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const url = typeof window !== "undefined" ? window.location.href : "";
   const enc = encodeURIComponent(url);
@@ -87,28 +86,18 @@ function ShareButton({ eventTitle, fullWidth = false, mobileClick = false }: { e
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* silent */ }
   };
 
-  const onEnter = () => {
-    if (mobileClick) return; // mobile uses click only
-    if (leaveTimer.current) clearTimeout(leaveTimer.current);
-    setOpen(true);
-  };
-  const onLeave = () => {
-    if (mobileClick) return;
-    leaveTimer.current = setTimeout(() => setOpen(false), 180);
-  };
-
-  // Close on outside click for mobile
+  // Close when clicking outside
   useEffect(() => {
-    if (!mobileClick || !open) return;
+    if (!open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [mobileClick, open]);
+  }, [open]);
 
   return (
-    <div ref={ref} className={`relative ${fullWidth ? "w-full" : ""}`} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <div ref={ref} className={`relative ${fullWidth ? "w-full" : ""}`}>
       <button
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors duration-150
@@ -119,11 +108,7 @@ function ShareButton({ eventTitle, fullWidth = false, mobileClick = false }: { e
       </button>
 
       {open && (
-        <div
-          className="absolute left-0 top-full pt-1.5 z-50"
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-        >
+        <div className="absolute left-0 top-full pt-1.5 z-50">
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 w-52 overflow-hidden">
             {socials.map(({ label, icon: Icon, bg, href }) => (
               <a
@@ -151,20 +136,22 @@ function ShareButton({ eventTitle, fullWidth = false, mobileClick = false }: { e
   );
 }
 
-/* ─── Interested button — fixed min-width so toggling never shifts layout ─── */
+/* ─── Interested button — truly fixed size, text never causes reflow ─────── */
 function InterestedButton({ isInterested, onToggle, className = "" }: { isInterested: boolean; onToggle: () => void; className?: string }) {
   return (
     <button
       onClick={onToggle}
-      style={{ minWidth: "9rem" }} // fixed width prevents layout shift
-      className={`flex items-center justify-center gap-2 h-10 px-4 rounded-xl border font-semibold text-sm transition-colors duration-150 select-none
+      style={{ width: "9.5rem", minWidth: "9.5rem", maxWidth: "9.5rem" }}
+      className={`relative flex items-center justify-center gap-2 h-10 rounded-xl border font-semibold text-sm transition-colors duration-150 select-none overflow-hidden
         ${isInterested
           ? "bg-indigo-700 border-indigo-700 text-white"
           : "border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50"
         } ${className}`}
     >
       <Users className="w-4 h-4 shrink-0" />
-      {isInterested ? "Interested ✓" : "I'm Interested"}
+      {/* Both labels always rendered, visibility toggled — width never changes */}
+      <span className={isInterested ? "block" : "hidden"}>Interested ✓</span>
+      <span className={isInterested ? "hidden" : "block"}>I'm Interested</span>
     </button>
   );
 }
@@ -313,18 +300,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             {/* Title block */}
             <div className="mb-6">
-              <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-gray-950 leading-tight mb-3" style={{ fontFamily: "'Sora', sans-serif" }}>
-                {event.title}
-              </h1>
-
-              {/* Category + Free badge */}
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full capitalize">{event.category}</span>
-                {isFree && <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>}
-              </div>
-
-              {/* Organizer row + Featured badge (only if actually featured) */}
-              <div className="flex items-center gap-2 flex-wrap">
+              {/* Organizer — topmost */}
+              <div className="flex items-center gap-2 flex-wrap mb-3">
                 <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {organizerName[0].toUpperCase()}
                 </div>
@@ -334,8 +311,20 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                     <BadgeCheck className="w-3 h-3 fill-indigo-600 text-white" />Verified
                   </span>
                 )}
-                {/* Featured — only shown when truthy */}
-                {event.isFeatured && (
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-gray-950 leading-tight mb-3" style={{ fontFamily: "'Sora', sans-serif" }}>
+                {event.title}
+              </h1>
+
+              {/* Badges row — category, free, featured — all below title */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full capitalize">{event.category}</span>
+                {isFree && (
+                  <span className="text-[11px] font-medium text-green-600 bg-green-50 border border-green-100 px-2.5 py-0.5 rounded-full">Free Entry</span>
+                )}
+                {/* Featured — strict boolean, never renders for falsy/0/null/undefined */}
+                {event.isFeatured === true && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
                     <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured
                   </span>
@@ -480,14 +469,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       <Footer />
 
-      {/* Mobile bottom bar */}
+      {/* Mobile bottom bar — Tickets from | Save | Get Tickets */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[11px] text-gray-400 leading-none mb-0.5">Tickets from</p>
           <p className={`text-lg font-bold leading-tight ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
         </div>
-        {/* Mobile share — click to open dropdown */}
-        <ShareButton eventTitle={event.title} mobileClick />
         <button
           onClick={handleSaveEvent}
           className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${isSaved ? "border-indigo-200 bg-indigo-50" : "border-gray-200"}`}
