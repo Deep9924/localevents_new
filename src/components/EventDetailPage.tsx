@@ -233,7 +233,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
   /* ── Sidebar component ──────────────────────────────────────────────────── */
   const Sidebar = () => (
-    <div className="sticky top-6 space-y-2">
+    <div className="space-y-2">
       <div className="pb-4 border-b border-gray-100">
         <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-1">Tickets from</p>
         <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
@@ -271,9 +271,8 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     </div>
   );
 
-  /* ── Main render ──────────────────────────────────────────────────────────*/
   return (
-    <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
+    <div className="min-h-screen bg-[#FAFAF8]">
 
       {/* Breadcrumb */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-3">
@@ -293,7 +292,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       {/* Page body */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        <div className="lg:grid lg:grid-cols-[1fr_300px] lg:gap-12 lg:items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 lg:gap-12 items-start">
 
           {/* ══ LEFT ════════════════════════════════════════════════════════ */}
           <div>
@@ -445,17 +444,14 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
           </div>
 
-          {/* ══ RIGHT sidebar — desktop ═════════════════════════════════════ */}
-          <div className="hidden lg:block">
+          {/* ══ RIGHT sidebar ═══════════════════════════════════════════════ */}
+          <div className="lg:sticky lg:top-6">
             <Sidebar />
           </div>
 
         </div>
 
-        {/* Sidebar for non-lg viewports (shown below content) */}
-        <div className="lg:hidden mt-8 pt-8 border-t border-gray-100">
-          <Sidebar />
-        </div>
+
 
         {/* Similar events — full width below both columns */}
         {similarEvents.length > 0 && (
@@ -473,28 +469,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
 
       <Footer />
-
-      {/* Mobile bottom bar — Tickets from | Save | Get Tickets */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-gray-400 leading-none mb-0.5">Tickets from</p>
-          <p className={`text-lg font-bold leading-tight ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
-        </div>
-        <button
-          onClick={handleSaveEvent}
-          className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${isSaved ? "border-indigo-200 bg-indigo-50" : "border-gray-200"}`}
-        >
-          <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
-        </button>
-        <a
-          href={ticketUrl ?? "#"}
-          target={ticketUrl ? "_blank" : undefined}
-          rel="noopener noreferrer"
-          className="h-10 px-5 flex items-center gap-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-sm rounded-xl shrink-0 transition-colors"
-        >
-          <Ticket className="w-4 h-4" />Get Tickets
-        </a>
-      </div>
     </div>
   );
 }
