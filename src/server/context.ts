@@ -18,17 +18,20 @@ export async function createContext(): Promise<TrpcContext> {
     const sessionCookie = cookieStore.get(COOKIE_NAME)?.value;
 
     if (sessionCookie) {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "");
+      const secret = new TextEncoder().encode(
+        process.env.JWT_SECRET ?? "fallback-secret"
+      );
       const { payload } = await jwtVerify(sessionCookie, secret, {
         algorithms: ["HS256"],
       });
 
-      const openId = payload.openId as string;
-      if (openId) {
+      const openId = payload.openId;
+      if (typeof openId === "string") {
         user = await getUserByOpenId(openId) ?? null;
       }
     }
-  } catch {
+  } catch (err) {
+    console.error("Failed to read session:", err);
     user = null;
   }
 
