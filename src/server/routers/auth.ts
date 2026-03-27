@@ -41,22 +41,30 @@ export const authRouter = router({
   }),
 
   signup: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      password: z.string()
-        .min(8, "Password must be at least 8 characters")
-        .regex(/[a-z]/, "Must contain lowercase letters")
-        .regex(/[A-Z]/, "Must contain uppercase letters")
-        .regex(/[0-9]/, "Must contain numbers")
-        .regex(/[^a-zA-Z0-9]/, "Must contain special characters"),
-      name: z.string().min(2),
-    }))
+    .input(
+      z.object({
+        email: z.string().email(),
+        password: z.string()
+          .min(8, "Password must be at least 8 characters")
+          .regex(/[a-z]/, "Must contain lowercase letters")
+          .regex(/[A-Z]/, "Must contain uppercase letters")
+          .regex(/[0-9]/, "Must contain numbers")
+          .regex(/[^a-zA-Z0-9]/, "Must contain special characters"),
+        name: z.string().min(2),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const existing = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      if (existing.length > 0) throw new Error("Email already registered");
+      const existing = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+
+      if (existing.length > 0)
+        throw new Error("Email already registered");
 
       await db.insert(users).values({
         email: input.email,
@@ -71,27 +79,39 @@ export const authRouter = router({
     }),
 
   login: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      password: z.string(),
-    }))
+    .input(
+      z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const result = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      if (result.length === 0) throw new Error("Invalid email or password");
+      const result = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+
+      if (result.length === 0)
+        throw new Error("Invalid email or password");
 
       const user = result[0];
+
       if (!user.passwordHash || hashPassword(input.password) !== user.passwordHash) {
         throw new Error("Invalid email or password");
       }
 
-      await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
+      await db
+        .update(users)
+        .set({ lastSignedIn: new Date() })
+        .where(eq(users.id, user.id));
 
-      // Set the session cookie directly — no separate API call needed
-      const openId = user.openId ?? `local-${user.id}`;
-      const name = user.name ?? user.email;
+      // Type‑safe: openId and name are always strings
+      const openId: string = user.openId ?? `local-${user.id}`;
+      const name: string = user.name ?? user.email;
       await createSessionCookie(openId, name);
 
       return {
