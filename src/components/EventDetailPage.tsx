@@ -445,11 +445,16 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
           </div>
 
-          {/* ══ RIGHT sidebar ═══════════════════════════════════════════════ */}
+          {/* ══ RIGHT sidebar — desktop ═════════════════════════════════════ */}
           <div className="hidden lg:block">
             <Sidebar />
           </div>
 
+        </div>
+
+        {/* Sidebar for non-lg viewports (shown below content) */}
+        <div className="lg:hidden mt-8 pt-8 border-t border-gray-100">
+          <Sidebar />
         </div>
 
         {/* Similar events — full width below both columns */}
