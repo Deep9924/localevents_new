@@ -13,13 +13,7 @@ interface AuthModalProps {
   onSuccess: () => void;
 }
 
-interface PasswordStrength {
-  score: number;
-  label: string;
-  color: string;
-}
-
-function getPasswordStrength(password: string): PasswordStrength {
+function getPasswordStrength(password: string) {
   let score = 0;
   if (password.length >= 8) score++;
   if (password.length >= 12) score++;
@@ -73,11 +67,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     if (!email) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email";
     if (!password) newErrors.password = "Password is required";
-    else {
+    if (mode === "signup") {
       const passwordError = validatePassword(password);
       if (passwordError) newErrors.password = passwordError;
-    }
-    if (mode === "signup") {
       if (!name) newErrors.name = "Name is required";
       if (!confirmPassword) newErrors.confirmPassword = "Confirm password is required";
       else if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match";
@@ -93,9 +85,23 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
     try {
       if (mode === "login") {
-        await loginMutation.mutateAsync({ email, password });
+        // Step 1: verify credentials — tRPC checks email + password hash
+        const result = await loginMutation.mutateAsync({ email, password });
 
-        // ✅ Invalidate the auth.me cache so useAuth re-fetches with the new cookie
+        // Step 2: write the httpOnly session cookie
+        // The tRPC mutation above only returns data — it can't set cookies itself.
+        // We call the Next.js API route which does the actual Set-Cookie header.
+        const sessionRes = await fetch("/api/auth/set-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ openId: result.openId, name: result.name }),
+        });
+
+        if (!sessionRes.ok) {
+          throw new Error("Failed to establish session. Please try again.");
+        }
+
+        // Step 3: bust the React Query cache so useAuth re-runs auth.me with the new cookie
         await utils.auth.me.invalidate();
 
         toast.success("Logged in successfully!");
@@ -104,6 +110,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         setErrors({});
         onSuccess();
         onClose();
+
       } else {
         await signupMutation.mutateAsync({ email, password, name });
         toast.success("Account created! Please log in.");
@@ -142,7 +149,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
 
-          {/* ── Login tab ── */}
+          {/* ── Login ── */}
           <TabsContent value="login" className="space-y-4 mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -194,7 +201,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </form>
           </TabsContent>
 
-          {/* ── Signup tab ── */}
+          {/* ── Signup ── */}
           <TabsContent value="signup" className="space-y-4 mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
