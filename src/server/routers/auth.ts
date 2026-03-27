@@ -65,8 +65,11 @@ export const authRouter = router({
 
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
 
+      // ✅ Return openId + name so the client can call set-session to write the cookie
       return {
         success: true,
+        openId: user.openId,
+        name: user.name ?? user.email,
         user: { id: user.id, email: user.email, name: user.name },
       };
     }),
