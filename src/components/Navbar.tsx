@@ -16,7 +16,7 @@ import {
   Calendar,
   Search,
 } from "lucide-react";
-import { CATEGORIES } from "@/lib/events-data";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,8 +58,9 @@ export default function Navbar({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeCategory = activeCategoryProp ?? internalCategory;
-  const visibleCategories = CATEGORIES.slice(0, 8);
-  const moreCategories = CATEGORIES.slice(8);
+  const { data: categoriesFromDb = [] } = trpc.events.getCategories.useQuery();
+  const visibleCategories = categoriesFromDb.slice(0, 8);
+  const moreCategories = categoriesFromDb.slice(8);
 
   const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
 
