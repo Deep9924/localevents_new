@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { CITIES } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { City } from "@/types/trpc";
 import { usePathname } from "next/navigation";
 
 interface CityContextType {
@@ -19,21 +20,22 @@ const CityContext = createContext<CityContextType>({
 export function CityProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [citySlug, setCitySlugState] = useState("toronto");
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
 
   // Sync city from URL on every navigation
   useEffect(() => {
     const segments = pathname.split("/").filter(Boolean);
     const slug = segments[0];
-    if (slug && CITIES.find((c) => c.slug === slug)) {
+    if (slug && cities.find((c: City) => c.slug === slug)) {
       setCitySlugState(slug);
     }
-  }, [pathname]);
+  }, [pathname, cities]);
 
   const setCitySlug = (slug: string) => {
     setCitySlugState(slug);
   };
 
-  const cityName = CITIES.find((c) => c.slug === citySlug)?.name ?? "Toronto";
+  const cityName = cities.find((c: City) => c.slug === citySlug)?.name ?? "Toronto";
 
   return (
     <CityContext.Provider value={{ citySlug, cityName, setCitySlug }}>
