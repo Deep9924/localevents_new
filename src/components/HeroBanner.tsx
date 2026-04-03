@@ -1,22 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, MapPin, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { trpc } from "@/lib/trpc";
+import { City } from "@/types/trpc";
+
 interface HeroBannerProps {
-  cityName: string;
-  province: string;
-  country: string;
+  citySlug: string;
   isDetecting: boolean;
   onDetectLocation: () => void;
 }
 
 export default function HeroBanner({
-  cityName,
-  province,
-  country,
+  citySlug,
   isDetecting,
   onDetectLocation,
 }: HeroBannerProps) {
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
+  const city = cities.find((c: City) => c.slug === citySlug);
+
+  const cityName = city?.name || "";
+  const province = city?.province || "";
+  const country = city?.country || "";
   const [joined, setJoined] = useState(false);
 
   const handleJoin = () => {

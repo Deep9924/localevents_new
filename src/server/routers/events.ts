@@ -6,6 +6,8 @@ import {
   getSimilarEvents,
   searchEvents,
   getDb,
+  getCitiesFromDb,
+  getCategoriesFromDb,
 } from "../db";
 import { events, cities, categories } from "../db/schema";
 import { sql, eq, and, like, or, gte, lte, desc } from "drizzle-orm";
@@ -19,15 +21,11 @@ const dateEnum = z.enum(["all", "today", "tomorrow", "weekend", "week"]);
 
 export const eventsRouter = router({
   getCities: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) return [] as typeof cities.$inferSelect[];
-    return db.select().from(cities).orderBy(cities.name);
+    return getCitiesFromDb();
   }),
 
   getCategories: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) return [] as typeof categories.$inferSelect[];
-    return db.select().from(categories).orderBy(categories.label);
+    return getCategoriesFromDb();
   }),
 
   getByCity: publicProcedure
@@ -35,69 +33,21 @@ export const eventsRouter = router({
       z.object({
         citySlug: z.string(),
         category: z.string().optional(),
-        date: dateEnum.optional(),
         search: z.string().optional(),
+        date: dateEnum.optional(),
+        price: z.string().optional(),
+        sort: z.string().optional(),
       })
     )
     .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return [];
-
-      const conditions = [eq(events.citySlug, input.citySlug)];
-
-      if (input.category && input.category !== "all") {
-        conditions.push(eq(events.category, input.category));
-      }
-
-      if (input.search) {
-        const searchPattern = `%${input.search}%`;
-        const searchCondition = or(
-          like(events.title, searchPattern),
-          like(events.venue, searchPattern),
-          like(events.description, searchPattern)
-        );
-        if (searchCondition) conditions.push(searchCondition);
-      }
-
-      if (input.date && input.date !== "all") {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayStr = today.toISOString().split("T")[0];
-
-        if (input.date === "today") {
-          conditions.push(eq(events.date, todayStr));
-        } else if (input.date === "tomorrow") {
-          const tomorrow = new Date(today);
-          tomorrow.setDate(today.getDate() + 1);
-          conditions.push(eq(events.date, tomorrow.toISOString().split("T")[0]));
-        } else if (input.date === "week") {
-          const nextWeek = new Date(today);
-          nextWeek.setDate(today.getDate() + 7);
-          const weekCondition = and(
-            gte(events.date, todayStr),
-            lte(events.date, nextWeek.toISOString().split("T")[0])
-          );
-          if (weekCondition) conditions.push(weekCondition);
-        } else if (input.date === "weekend") {
-          const dayOfWeek = today.getDay();
-          const daysToSat = (6 - dayOfWeek + 7) % 7;
-          const sat = new Date(today);
-          sat.setDate(today.getDate() + daysToSat);
-          const sun = new Date(sat);
-          sun.setDate(sat.getDate() + 1);
-          const weekendCondition = and(
-            gte(events.date, sat.toISOString().split("T")[0]),
-            lte(events.date, sun.toISOString().split("T")[0])
-          );
-          if (weekendCondition) conditions.push(weekendCondition);
-        }
-      }
-
-      return db
-        .select()
-        .from(events)
-        .where(and(...conditions))
-        .orderBy(desc(events.isFeatured), desc(events.createdAt));
+      return searchEvents(
+        input.search ?? "",
+        input.citySlug,
+        input.category ?? undefined,
+        input.date ?? undefined,
+        input.price ?? undefined,
+        input.sort ?? undefined,
+      );
     }),
 
   getBySlug: publicProcedure
@@ -127,10 +77,20 @@ export const eventsRouter = router({
         query: z.string(),
         category: z.string().nullable().optional(),
         citySlug: z.string().optional(),
+        date: dateEnum.optional(),
+        price: z.string().optional(),
+        sort: z.string().optional(),
       })
     )
     .query(async ({ input }) =>
-      searchEvents(input.query, input.citySlug, input.category ?? undefined)
+      searchEvents(
+        input.query,
+        input.citySlug,
+        input.category ?? undefined,
+        input.date ?? undefined,
+        input.price ?? undefined,
+        input.sort ?? undefined,
+      )
     ),
 
   getCountByCity: publicProcedure.query(async () => {

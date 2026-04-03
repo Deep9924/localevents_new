@@ -6,7 +6,7 @@ import SearchNavbar from "@/components/SearchNavbar";
 import EventCard from "@/components/EventCard";
 import { useCity } from "@/contexts/CityContext";
 import { trpc } from "@/lib/trpc";
-import { CATEGORIES } from "@/lib/events-data";
+
 
 function HorizontalRow({ children }: { children: React.ReactNode }) {
   return (
@@ -23,35 +23,26 @@ export default function SearchPage() {
   // These only change when the URL changes (i.e. user pressed search or picked a filter)
   const query    = searchParams.get("search") ?? "";
   const category = searchParams.get("category") ?? "all";
-  const date     = (searchParams.get("date") ?? undefined) as
-    | "today" | "tomorrow" | "weekend" | "week" | undefined;
+  const date     = (searchParams.get("date") ?? "any") as
+    | "any" | "today" | "tomorrow" | "weekend" | "week";
+  const price    = searchParams.get("price") ?? "any";
+  const sort     = searchParams.get("sort") ?? "relevance";
 
-  const hasActiveSearch = query.trim().length > 0 || category !== "all" || !!date;
+  const hasActiveSearch = query.trim().length > 0 || category !== "all" || date !== "any" || price !== "any" || sort !== "relevance";
 
-  // Always fetch for discovery view
-  const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
-    { citySlug },
+  const { data: allEvents = [] } = trpc.events.getByCity.useQuery(
+    { citySlug, category: category !== "all" ? category : undefined, date, search: query, price, sort },
     { enabled: !!citySlug }
   );
 
-  // Only fetch when a category or date filter is active (no text query)
-  const { data: categoryEvents = [] } = trpc.events.getByCity.useQuery(
-    { citySlug, category: category !== "all" ? category : undefined, date },
-    { enabled: !!citySlug && (category !== "all" || !!date) && !query }
+  const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
+    { citySlug },
+    { enabled: !!citySlug && !hasActiveSearch }
   );
 
-  // Only fetch when user actually submitted a search query
-  const { data: searchResults = [] } = trpc.events.search.useQuery(
-    { query, citySlug, category: category !== "all" ? category : undefined },
-    { enabled: query.trim().length > 0 }
-  );
+  const { data: categoriesFromDb = [] } = trpc.events.getCategories.useQuery();
 
-  const visibleEvents =
-    query.trim().length > 0
-      ? searchResults
-      : category !== "all" || !!date
-        ? categoryEvents
-        : [];
+  const visibleEvents = hasActiveSearch ? allEvents : [];
 
   const popularEvents = useMemo(
     () =>
@@ -63,13 +54,14 @@ export default function SearchPage() {
 
   const categoryPicks = useMemo(
     () =>
-      CATEGORIES.slice(1)
+      categoriesFromDb
+        .filter(cat => cat.id !== "all")
         .map((cat) => ({
           ...cat,
-          events: featuredEvents.filter((e: any) => e.category === cat.id),
+          events: featuredEvents.filter((e) => e.category === cat.id),
         }))
         .filter((g) => g.events.length > 0),
-    [featuredEvents]
+    [featuredEvents, categoriesFromDb]
   );
 
   const organizerGroups = useMemo(() => {
@@ -94,7 +86,7 @@ export default function SearchPage() {
               <h2 className="text-lg font-bold text-gray-900">
                 {query
                   ? `Results for "${query}"`
-                  : `${CATEGORIES.find((c) => c.id === category)?.label ?? "Filtered"} events`}
+                  : `${categoriesFromDb.find((c) => c.id === category)?.label ?? "Filtered"} events`}
               </h2>
               <p className="text-sm text-gray-500">
                 {visibleEvents.length} event{visibleEvents.length !== 1 ? "s" : ""} in {cityName}

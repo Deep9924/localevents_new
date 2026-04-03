@@ -3,8 +3,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, Search, Navigation, LocateFixed } from "lucide-react";
-import { CITIES } from "@/lib/events-data";
 import { trpc } from "@/lib/trpc";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type City = RouterOutput["events"]["getCities"][number];
 
 interface CityPickerModalProps {
   open: boolean;
@@ -47,7 +51,7 @@ export default function CityPickerModal({
   eventCounts = {},
 }: CityPickerModalProps) {
   const [query, setQuery] = useState("");
-  const [nearbyCities, setNearbyCities] = useState<typeof CITIES>(CITIES.slice(0, 6));
+  const [nearbyCities, setNearbyCities] = useState<City[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [locating, setLocating] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -62,6 +66,7 @@ export default function CityPickerModal({
     enabled: open,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: citiesFromDb = [] } = trpc.events.getCities.useQuery();
 
   useEffect(() => {
     if (open) {
@@ -114,7 +119,7 @@ export default function CityPickerModal({
       const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
       const data = await res.json();
       if (data.latitude && data.longitude) {
-        const sorted = [...CITIES]
+        const sorted = [...citiesFromDb]
           .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
           .sort((a, b) => a.dist - b.dist)
           .slice(0, 6);
@@ -133,7 +138,7 @@ export default function CityPickerModal({
       const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
       const data = await res.json();
       if (data.latitude && data.longitude) {
-        const closest = [...CITIES]
+        const closest = [...citiesFromDb]
           .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
           .sort((a, b) => a.dist - b.dist)[0];
         if (closest) onSelect(closest.slug);
@@ -154,12 +159,18 @@ export default function CityPickerModal({
 
   const filtered = isSearching
     ? [
-        ...CITIES.filter((c) => c.name.toLowerCase().startsWith(q)),
-        ...CITIES.filter((c) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)),
+        ...citiesFromDb.filter((c) => c.name.toLowerCase().startsWith(q)),
+        ...citiesFromDb.filter((c) => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q)),
       ]
     : [];
 
   const nearbyGrid = nearbyCities.filter((c) => c.slug !== currentCitySlug).slice(0, 6);
+
+  useEffect(() => {
+    if (citiesFromDb.length > 0 && nearbyCities.length === 0) {
+      setNearbyCities(citiesFromDb.slice(0, 6));
+    }
+  }, [citiesFromDb, nearbyCities.length]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && filtered.length > 0) {

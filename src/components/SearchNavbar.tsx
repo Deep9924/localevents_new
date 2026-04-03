@@ -7,7 +7,7 @@ import {
   ArrowLeft, Search, X, ChevronDown,
   Calendar, Tag, RotateCcw, DollarSign, ArrowUpDown,
 } from "lucide-react";
-import { CATEGORIES } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
 import { useCity } from "@/contexts/CityContext";
 import { createPortal } from "react-dom";
 
@@ -120,6 +120,7 @@ function FilterDropdown({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SearchNavbar() {
+  const { data: categoriesFromDb = [] } = trpc.events.getCategories.useQuery();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { citySlug, cityName } = useCity();
@@ -175,7 +176,7 @@ export default function SearchNavbar() {
   };
 
   const activeChips: { label: string; clear: () => void }[] = [
-    ...(category !== "all"    ? [{ label: CATEGORIES.find(c => c.id === category)?.label ?? category, clear: () => handleCategoryChange("all") }] : []),
+    ...(category !== "all"    ? [{ label: categoriesFromDb.find(c => c.id === category)?.label ?? category, clear: () => handleCategoryChange("all") }] : []),
     ...(date !== "any"        ? [{ label: dateLabels[date],   clear: () => handleDateChange("any") }] : []),
     ...(price !== "any"       ? [{ label: priceLabels[price], clear: () => handlePriceChange("any") }] : []),
     ...(sort !== "relevance"  ? [{ label: sortLabels[sort],   clear: () => handleSortChange("relevance") }] : []),
@@ -237,13 +238,13 @@ export default function SearchNavbar() {
 
           {/* Category */}
           <FilterDropdown
-            label={category === "all" ? "Category" : CATEGORIES.find(c => c.id === category)?.label ?? "Category"}
+            label={category === "all" ? "Category" : categoriesFromDb.find(c => c.id === category)?.label ?? "Category"}
             icon={<Tag className="w-3 h-3" />}
             active={category !== "all"}
           >
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2.5 pt-1 pb-1.5">Category</p>
             <Option active={category === "all"} onClick={() => handleCategoryChange("all")}>All categories</Option>
-            {CATEGORIES.filter(c => c.id !== "all").map(cat => (
+            {categoriesFromDb.filter(c => c.id !== "all").map(cat => (
               <Option key={cat.id} active={category === cat.id} onClick={() => handleCategoryChange(cat.id)}>
                 {cat.icon} {cat.label}
               </Option>

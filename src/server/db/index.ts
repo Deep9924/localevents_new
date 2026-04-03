@@ -1,7 +1,7 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, like, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { events as eventsTable, users, savedEvents, organizers } from "./schema";
+import { events as eventsTable, users, savedEvents, organizers, cities as citiesTable, categories as categoriesTable } from "./schema";
 import type { InsertUser } from "./schema";
 
 type Db = ReturnType<typeof drizzle> | null;
@@ -223,20 +223,103 @@ export async function getOrganizerEvents(organizerId: number, limit = 5) {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 
-export async function searchEvents(query: string, citySlug?: string, category?: string) {
+export async function searchEvents(
+  query: string,
+  citySlug?: string,
+  category?: string,
+  dateFilter?: string,
+  priceFilter?: string,
+  sortOption?: string,
+) {
   const db = await getDb();
   if (!db) return [];
-  const result = await db.select().from(eventsTable);
-  return result
-    .filter((event: typeof eventsTable.$inferSelect) => {
-      if (
-        query &&
-        !event.title.toLowerCase().includes(query.toLowerCase()) &&
-        !event.venue.toLowerCase().includes(query.toLowerCase())
-      ) return false;
-      if (citySlug && event.citySlug !== citySlug) return false;
-      if (category && event.category !== category) return false;
-      return true;
-    })
-    .slice(0, 20);
+
+  const conditions: any[] = [];
+
+  if (query) {
+    const searchPattern = `%${query.toLowerCase()}%`;
+    conditions.push(sql`LOWER(${eventsTable.title}) LIKE ${searchPattern} OR LOWER(${eventsTable.description}) LIKE ${searchPattern} OR LOWER(${eventsTable.venue}) LIKE ${searchPattern}`);
+  }
+  if (citySlug) {
+    conditions.push(eq(eventsTable.citySlug, citySlug));
+  }
+  if (category && category !== "all") {
+    conditions.push(eq(eventsTable.category, category));
+  }
+
+  // Date filtering
+  if (dateFilter && dateFilter !== "any") {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
+    if (dateFilter === "today") {
+      conditions.push(eq(eventsTable.date, todayStr));
+    } else if (dateFilter === "tomorrow") {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      conditions.push(eq(eventsTable.date, tomorrow.toISOString().split("T")[0]));
+    } else if (dateFilter === "week") {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      conditions.push(gte(eventsTable.date, todayStr), lte(eventsTable.date, nextWeek.toISOString().split("T")[0]));
+    } else if (dateFilter === "weekend") {
+      // This is more complex as it requires checking day of week, might be better handled client-side or with a more advanced SQL function
+      // For now, we'll leave it as a client-side filter if not directly supported by Drizzle/SQL
+    }
+  }
+
+  // Price filtering
+  if (priceFilter && priceFilter !== "any") {
+    if (priceFilter === "free") {
+      conditions.push(eq(eventsTable.price, "Free"));
+    } else if (priceFilter === "under20") {
+      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 0 AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) < 20`);
+    } else if (priceFilter === "20to50") {
+      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) >= 20 AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) <= 50`);
+    } else if (priceFilter === "50plus") {
+      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 50`);
+    }
+  }
+
+  let orderByClause: any = desc(eventsTable.isFeatured);
+  if (sortOption) {
+    switch (sortOption) {
+      case "date-asc":
+        orderByClause = eventsTable.date;
+        break;
+      case "date-desc":
+        orderByClause = desc(eventsTable.date);
+        break;
+      case "price-asc":
+        orderByClause = sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) ASC`;
+        break;
+      case "price-desc":
+        orderByClause = sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) DESC`;
+        break;
+      case "relevance":
+      default:
+        orderByClause = desc(eventsTable.isFeatured);
+        break;
+    }
+  }
+
+  return db
+    .select()
+    .from(eventsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(orderByClause)
+    .limit(20);
+}
+
+export async function getCitiesFromDb() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(citiesTable).orderBy(citiesTable.name);
+}
+
+export async function getCategoriesFromDb() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(categoriesTable).orderBy(categoriesTable.label);
 }

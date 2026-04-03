@@ -1,5 +1,9 @@
 // Design: Civic Warmth — Reusable event grid component
-import { Event } from "@/lib/events-data";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type Event = RouterOutput["events"]["getByCity"][number];
 import EventCard from "./EventCard";
 
 interface EventGridProps {

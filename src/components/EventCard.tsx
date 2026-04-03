@@ -3,14 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, MapPin, Users, Bookmark, BookmarkCheck } from "lucide-react";
-import { Event } from "@/lib/events-data";
-import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/hooks/useAuth";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+import { useBookmark } from "@/hooks/useBookmark";
+import { toast } from "sonner";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type Event = RouterOutput["events"]["getByCity"][number];
 
 interface EventCardProps {
   event: Event;
-  size?: "normal" | "large";
   citySlug?: string;
   onBookmarkToggle?: (isSaved: boolean) => void;
   hideBookmark?: boolean;
@@ -18,50 +21,19 @@ interface EventCardProps {
 
 export default function EventCard({ 
   event, 
-  size = "normal", 
   citySlug = "toronto",
   onBookmarkToggle,
   hideBookmark = false
 }: EventCardProps) {
   const router = useRouter();
-  const { user } = useAuth();
   const [imgError, setImgError] = useState(false);
-
-  const { data: isSaved = false } = trpc.savedEvents.isSaved.useQuery(
-    { eventId: event.id },
-    { enabled: !!user && !hideBookmark }
-  );
-  
-  const saveEventMutation = trpc.savedEvents.save.useMutation();
-  const unsaveEventMutation = trpc.savedEvents.unsave.useMutation();
+  const { isSaved, handleBookmarkToggle } = useBookmark(event);
 
   const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (!user) {
-      toast.error("Please sign in to save events");
-      return;
-    }
-
-    try {
-      if (isSaved) {
-        await unsaveEventMutation.mutateAsync({ eventId: event.id });
-        toast.success("Removed from saved events");
-        onBookmarkToggle?.(false);
-      } else {
-        await saveEventMutation.mutateAsync({
-          eventId: event.id,
-          eventTitle: event.title,
-          eventDate: event.date,
-          eventCity: citySlug,
-        });
-        toast.success("Event saved!");
-        onBookmarkToggle?.(true);
-      }
-    } catch {
-      toast.error("Failed to save event");
-    }
+    await handleBookmarkToggle();
+    onBookmarkToggle?.(isSaved);
   };
 
   const handleCardClick = () => {

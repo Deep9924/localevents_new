@@ -3,18 +3,15 @@
 
 import { useState } from "react";
 import { Navigation, Loader2 } from "lucide-react";
-import { Event } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type Event = RouterOutput["events"]["getByCity"][number];
+type City = RouterOutput["events"]["getCities"][number];
 import { MapView } from "@/components/Map";
 
-// Local interface matching what the DB actually returns
-interface City {
-  slug: string;
-  name: string;
-  province: string | null;
-  country: string | null;
-  lat: number | null;
-  lng: number | null;
-}
 
 interface MapSectionProps {
   city: City;
@@ -25,8 +22,8 @@ export default function MapSection({ city, events }: MapSectionProps) {
   const [mapReady, setMapReady] = useState(false);
   const [activeRadius, setActiveRadius] = useState(10);
 
-  const cityLat = city.lat ?? 0;
-  const cityLng = city.lng ?? 0;
+  const cityLat = city.lat || 0;
+  const cityLng = city.lng || 0;
 
   const handleMapReady = (map: google.maps.Map) => {
     setMapReady(true);

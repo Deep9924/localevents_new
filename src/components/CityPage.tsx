@@ -15,13 +15,7 @@ import { useEventFilters } from "@/hooks/useEventFilters";
 import LocationDetectBanner from "@/components/LocationDetectBanner";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
-import type { AppRouter } from "@/server/routers";
-import type { inferRouterOutputs } from "@trpc/server";
-
-type RouterOutputs = inferRouterOutputs<AppRouter>;
-type City = RouterOutputs["events"]["getCities"][number];
-type Category = RouterOutputs["events"]["getCategories"][number];
-type Event = RouterOutputs["events"]["getByCity"][number];
+import { City, Category, Event } from "@/types/trpc";
 
 interface CityPageProps {
   citySlug?: string;
@@ -106,9 +100,7 @@ export default function CityPage({ citySlug }: CityPageProps) {
       )}
 
       <HeroBanner
-        cityName={effectiveCity.name}
-        province={effectiveCity.province || ""}
-        country={effectiveCity.country || ""}
+        citySlug={effectiveSlug}
         isDetecting={isDetecting}
         onDetectLocation={detectLocation}
       />

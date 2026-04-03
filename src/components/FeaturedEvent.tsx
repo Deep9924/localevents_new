@@ -3,7 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Ticket, ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
-import { Event } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+import { useBookmark } from "@/hooks/useBookmark";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type Event = RouterOutput["events"]["getByCity"][number];
 import { toast } from "sonner";
 
 interface FeaturedEventProps {
@@ -20,7 +26,7 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
   const [direction, setDirection] = useState<"left" | "right">("right");
   const [animating, setAnimating] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const { isSaved, handleBookmarkToggle } = useBookmark(active);
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -105,14 +111,14 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
         <div className="relative overflow-hidden" style={{ minHeight: 270 }}>
           {prev !== null && (
             <div className={`absolute inset-0 flex items-center gap-12 pointer-events-none ${direction === "left" ? "exit-to-left" : "exit-to-right"}`}>
-              <DesktopCard ev={allEvents[prev]} citySlug={citySlug} saved={saved} setSaved={setSaved} goTo={goTo} imgError={false} setImgError={() => {}} />
+              <DesktopCard ev={allEvents[prev]} citySlug={citySlug} goTo={goTo} imgError={false} setImgError={() => {}} />
             </div>
           )}
           <div
             className={`flex items-center gap-12 cursor-pointer group ${animating ? (direction === "left" ? "enter-from-right" : "enter-from-left") : ""}`}
             onClick={() => goTo(`/${citySlug}/${active.slug}`)}
           >
-            <DesktopCard ev={active} citySlug={citySlug} saved={saved} setSaved={setSaved} goTo={goTo} imgError={imgError} setImgError={setImgError} />
+            <DesktopCard ev={active} citySlug={citySlug} goTo={goTo} imgError={imgError} setImgError={setImgError} />
           </div>
         </div>
         {hasMultiple && (
@@ -150,10 +156,10 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" /> Editor's pick
                 </span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); toast.success("Event saved!"); }}
+                  onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(); }}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center"
                 >
-                  <Bookmark className="w-4 h-4 text-gray-400" />
+                  <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
                 </button>
               </div>
               <div className="pt-3 space-y-1">
@@ -176,12 +182,12 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
   );
 }
 
-function DesktopCard({ ev, citySlug, saved, setSaved, goTo, imgError, setImgError }: {
-  ev: Event; citySlug: string; saved: boolean;
-  setSaved: (fn: (s: boolean) => boolean) => void;
+function DesktopCard({ ev, citySlug, goTo, imgError, setImgError }: {
+  ev: Event; citySlug: string;
   goTo: (url: string) => void;
   imgError: boolean; setImgError: (v: boolean) => void;
 }) {
+  const { isSaved, handleBookmarkToggle } = useBookmark(ev);
   return (
     <>
       <div className="w-[520px] shrink-0 rounded-2xl overflow-hidden shadow-md relative" style={{ height: 270 }}>
@@ -193,10 +199,10 @@ function DesktopCard({ ev, citySlug, saved, setSaved, goTo, imgError, setImgErro
           </div>
         )}
         <button
-          onClick={(e) => { e.stopPropagation(); setSaved((s) => !s); toast.success(saved ? "Removed from saved" : "Event saved!"); }}
+          onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(); }}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center hover:bg-white transition"
         >
-          <Bookmark className={`w-4 h-4 ${saved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
+          <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
         </button>
       </div>
       <div className="flex-1 flex flex-col min-w-0" style={{ height: 270 }}>

@@ -1,5 +1,9 @@
 // src/components/EventSection.tsx
-import { Event } from "@/lib/events-data";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type Event = RouterOutput["events"]["getByCity"][number];
 import EventCard from "./EventCard";
 import SectionHeader from "./SectionHeader";
 
