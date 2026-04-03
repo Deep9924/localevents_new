@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, MapPin, Plus, User, Menu, X, LogOut, Settings } from "lucide-react";
-import { CITIES } from "@/lib/events-data";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,7 @@ export default function EventDetailNavbar({ cityName, citySlug }: EventDetailNav
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
 
-  const resolvedCityName = CITIES.find((c) => c.slug === citySlug)?.name ?? cityName;
+  const resolvedCityName = cityName;
 
   const handleLogout = async () => {
     try {

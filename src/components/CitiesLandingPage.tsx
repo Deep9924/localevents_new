@@ -3,12 +3,14 @@
 
 import { useRouter } from "next/navigation";
 import { MapPin, ArrowRight } from "lucide-react";
-import { CITIES } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { City } from "@/types/trpc";
 import { useIPGeolocation } from "@/hooks/useIPGeolocation";
 
 export default function CitiesLandingPage() {
   const router = useRouter();
   const { city: detectedCity } = useIPGeolocation();
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-amber-50">
@@ -18,7 +20,7 @@ export default function CitiesLandingPage() {
           <p className="text-lg text-indigo-700 max-w-2xl mx-auto">Find concerts, meetups, festivals, and more in your city.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CITIES.map((city) => (
+          {cities.map((city: City) => (
             <button key={city.slug} onClick={() => router.push(`/${city.slug}`)}
               className={`group bg-white rounded-lg border p-6 transition-all hover:shadow-lg hover:scale-105 text-left ${detectedCity?.slug === city.slug ? "border-indigo-500 bg-indigo-50 ring-2 ring-indigo-300" : "border-indigo-100 hover:border-indigo-300"}`}>
               <div className="flex items-start justify-between mb-3">

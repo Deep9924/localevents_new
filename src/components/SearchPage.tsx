@@ -5,7 +5,7 @@ import SearchNavbar from "@/components/SearchNavbar";
 import EventCard from "@/components/EventCard";
 import { useCity } from "@/contexts/CityContext";
 import { trpc } from "@/lib/trpc";
-import { CATEGORIES } from "@/lib/events-data";
+import { Category } from "@/types/trpc";
 
 export default function SearchPage() {
   const { citySlug, cityName } = useCity();
@@ -59,13 +59,14 @@ export default function SearchPage() {
     return [...map.entries()].filter(([, arr]) => arr.length > 1).slice(0, 3);
   }, [featuredEvents]);
 
+  const { data: categories = [] } = trpc.events.getCategories.useQuery();
   const categoryPicks = useMemo(() => {
-    const top = CATEGORIES.slice(0, 6);
-    return top.map((cat) => ({
+    const top = categories.slice(0, 6);
+    return top.map((cat: Category) => ({
       ...cat,
       events: featuredEvents.filter((e: any) => e.category === cat.id).slice(0, 3),
     }));
-  }, [featuredEvents]);
+  }, [featuredEvents, categories]);
 
   const hasActiveSearch = query.trim().length > 0 || category !== "all";
 

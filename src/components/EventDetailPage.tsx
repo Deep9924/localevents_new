@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Footer from "@/components/Footer";
-import { CITIES } from "@/lib/events-data";
+import { City } from "@/types/trpc";
 import CalendarButton from "@/components/CalendarButton";
 import EventCard from "@/components/EventCard";
 
@@ -193,11 +193,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     } catch { /* silent */ }
   };
 
-  const city = CITIES.find((c) => c.slug === citySlug);
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
+  const city = cities.find((c: City) => c.slug === citySlug);
 
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
-  if (!city) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="City not found" action={<Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to Home</Button>} />;
-  if (!event) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="Event not found" action={<Button onClick={() => router.push(`/${citySlug}`)} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to {city.name}</Button>} />;
+  if (!city && cities.length > 0) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="City not found" action={<Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to Home</Button>} />;
+  if (!event && !eventLoading) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="Event not found" action={<Button onClick={() => router.push(`/${citySlug}`)} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to {city?.name ?? "City"}</Button>} />;
 
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
