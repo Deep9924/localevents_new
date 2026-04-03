@@ -1,11 +1,12 @@
+// src/hooks/useIPGeolocation.ts
 // Design: Civic Warmth — IP-based geolocation (no permission needed)
 "use client";
 
 import { useState, useEffect } from "react";
-import { CITIES, City } from "@/lib/events-data";
+import { City } from "@/types/trpc";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371; // Earth radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -18,11 +19,11 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 }
 
-function findNearestCity(lat: number, lng: number): City {
-  let nearest = CITIES[0];
+function findNearestCity(lat: number, lng: number, cities: City[]): City {
+  let nearest = cities[0];
   let minDist = Infinity;
 
-  for (const city of CITIES) {
+  for (const city of cities) {
     const dist = haversineDistance(lat, lng, city.lat, city.lng);
     if (dist < minDist) {
       minDist = dist;
@@ -33,17 +34,18 @@ function findNearestCity(lat: number, lng: number): City {
   return nearest;
 }
 
-export function useIPGeolocation() {
+export function useIPGeolocation(cities: City[]) {
   const [city, setCity] = useState<City | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!cities.length) return;
+
     const detectLocation = async () => {
       try {
-        // Using ipapi.co - free IP geolocation service (no API key needed)
         const response = await fetch("https://ipapi.co/json/");
-        
+
         if (!response.ok) {
           throw new Error("Failed to detect location");
         }
@@ -52,7 +54,7 @@ export function useIPGeolocation() {
         const { latitude, longitude } = data;
 
         if (latitude && longitude) {
-          const nearest = findNearestCity(latitude, longitude);
+          const nearest = findNearestCity(latitude, longitude, cities);
           setCity(nearest);
           setError(null);
         } else {
@@ -61,15 +63,14 @@ export function useIPGeolocation() {
       } catch (err) {
         console.warn("IP geolocation failed:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
-        // Fallback to first city
-        setCity(CITIES[0]);
+        setCity(cities[0]);
       } finally {
         setIsLoading(false);
       }
     };
 
     detectLocation();
-  }, []);
+  }, [cities]);
 
   return { city, isLoading, error };
 }
