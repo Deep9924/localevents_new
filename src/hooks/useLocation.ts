@@ -1,8 +1,9 @@
+// src/hooks/useLocation.ts
 // Design: Civic Warmth — Geolocation hook for dynamic city detection using IP-based location
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CITIES, City } from "@/lib/events-data";
+import { City } from "@/types/trpc";
 import { getUserCity, saveCityPreference } from "@/lib/geolocation";
 
 export interface LocationState {
@@ -14,16 +15,7 @@ export interface LocationState {
   hasDetectionAttempted: boolean;
 }
 
-const DEFAULT_CITY: City = {
-  slug: "toronto",
-  name: "Toronto",
-  province: "Ontario",
-  country: "Canada",
-  lat: 43.6532,
-  lng: -79.3832,
-};
-
-export function useLocation(urlCitySlug?: string) {
+export function useLocation(urlCitySlug?: string, cities: City[] = []) {
   const [state, setState] = useState<LocationState>({
     city: null,
     citySlug: urlCitySlug || "toronto",
@@ -34,51 +26,43 @@ export function useLocation(urlCitySlug?: string) {
   });
 
   const detectLocation = useCallback(async () => {
+    if (!cities.length) return;
+
     setState((prev) => ({ ...prev, isDetecting: true, error: null }));
 
     try {
-      // Use IP-based geolocation (no permission required)
-      const detectedSlug = await getUserCity();
-      const found = CITIES.find((c) => c.slug === detectedSlug);
+      const detectedSlug = await getUserCity(cities);
+      const found = cities.find((c) => c.slug === detectedSlug);
+      const fallback = cities[0] ?? null;
 
-      if (found) {
-        setState({
-          city: found,
-          citySlug: found.slug,
-          isDetecting: false,
-          error: null,
-          permissionDenied: false,
-          hasDetectionAttempted: true,
-        });
-        saveCityPreference(found.slug);
-      } else {
-        // Fallback to default city
-        setState({
-          city: DEFAULT_CITY,
-          citySlug: DEFAULT_CITY.slug,
-          isDetecting: false,
-          error: null,
-          permissionDenied: false,
-          hasDetectionAttempted: true,
-        });
-      }
-    } catch (error) {
-      // Fallback to default city on error
       setState({
-        city: DEFAULT_CITY,
-        citySlug: DEFAULT_CITY.slug,
+        city: found ?? fallback,
+        citySlug: found?.slug ?? fallback?.slug ?? "toronto",
+        isDetecting: false,
+        error: null,
+        permissionDenied: false,
+        hasDetectionAttempted: true,
+      });
+
+      if (found) saveCityPreference(found.slug);
+    } catch {
+      const fallback = cities[0] ?? null;
+      setState({
+        city: fallback,
+        citySlug: fallback?.slug ?? "toronto",
         isDetecting: false,
         error: "Could not detect location",
         permissionDenied: false,
         hasDetectionAttempted: true,
       });
     }
-  }, []);
+  }, [cities]);
 
   useEffect(() => {
+    if (!cities.length) return;
+
     if (urlCitySlug) {
-      // URL has a city slug — use it directly
-      const found = CITIES.find((c) => c.slug === urlCitySlug);
+      const found = cities.find((c) => c.slug === urlCitySlug);
       setState({
         city: found || null,
         citySlug: urlCitySlug,
@@ -87,15 +71,11 @@ export function useLocation(urlCitySlug?: string) {
         permissionDenied: false,
         hasDetectionAttempted: true,
       });
-      // Save the user's choice
-      if (found) {
-        saveCityPreference(found.slug);
-      }
+      if (found) saveCityPreference(found.slug);
     } else {
-      // No URL city — detect from IP geolocation
       detectLocation();
     }
-  }, [urlCitySlug, detectLocation]);
+  }, [urlCitySlug, cities, detectLocation]);
 
   return { ...state, detectLocation };
 }
