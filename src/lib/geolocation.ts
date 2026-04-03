@@ -1,20 +1,22 @@
-import { CITIES } from "./events-data";
-
+// src/lib/geolocation.ts
 const GEOLOCATION_CACHE_KEY = "localevents_city";
 const GEOLOCATION_TIMESTAMP_KEY = "localevents_city_timestamp";
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CitySlugMatch {
+  slug: string;
+  name: string;
+}
 
 /**
  * Get city slug from IP address using free IP geolocation API
  * This is the primary method - no user permission required
  */
-export async function detectCityFromIP(): Promise<string | null> {
+export async function detectCityFromIP(cities: CitySlugMatch[]): Promise<string | null> {
   try {
-    // Fetch IP geolocation data (primary method)
     const response = await fetch("https://ipapi.co/json/", {
       method: "GET",
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000), // 5 second timeout
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -25,13 +27,11 @@ export async function detectCityFromIP(): Promise<string | null> {
     const city = data.city?.toLowerCase() || null;
 
     if (city) {
-      // Try to find matching city in our CITIES list
-      const matchedCity = CITIES.find(
+      const matchedCity = cities.find(
         (c) => c.slug === city || c.name.toLowerCase() === city
       );
 
       if (matchedCity) {
-        // Cache the result for future use
         localStorage.setItem(GEOLOCATION_CACHE_KEY, matchedCity.slug);
         localStorage.setItem(GEOLOCATION_TIMESTAMP_KEY, Date.now().toString());
         return matchedCity.slug;
@@ -51,10 +51,9 @@ export async function detectCityFromIP(): Promise<string | null> {
  * 2. Fall back to localStorage saved preference
  * 3. Default to Toronto
  */
-export async function getUserCity(): Promise<string> {
+export async function getUserCity(cities: CitySlugMatch[]): Promise<string> {
   try {
-    // Primary: Try to detect from IP first
-    const detectedCity = await detectCityFromIP();
+    const detectedCity = await detectCityFromIP(cities);
     if (detectedCity) {
       return detectedCity;
     }
@@ -62,15 +61,11 @@ export async function getUserCity(): Promise<string> {
     console.warn("IP detection error:", error);
   }
 
-  // Fallback: Check if user has saved a city preference
   const savedCity = localStorage.getItem(GEOLOCATION_CACHE_KEY);
   if (savedCity) {
-    console.log("Using saved city preference:", savedCity);
     return savedCity;
   }
 
-  // Last resort: Default to Toronto
-  console.log("Defaulting to Toronto");
   return "toronto";
 }
 
