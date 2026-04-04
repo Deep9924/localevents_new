@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CITIES, City } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { City } from "@/types/trpc";
 import { getUserCity, saveCityPreference } from "@/lib/geolocation";
 
 export interface LocationState {
@@ -33,13 +34,16 @@ export function useLocation(urlCitySlug?: string) {
     hasDetectionAttempted: !!urlCitySlug,
   });
 
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
+
   const detectLocation = useCallback(async () => {
+    if (cities.length === 0) return;
     setState((prev) => ({ ...prev, isDetecting: true, error: null }));
 
     try {
       // Use IP-based geolocation (no permission required)
       const detectedSlug = await getUserCity();
-      const found = CITIES.find((c) => c.slug === detectedSlug);
+      const found = cities.find((c: City) => c.slug === detectedSlug);
 
       if (found) {
         setState({
@@ -73,12 +77,14 @@ export function useLocation(urlCitySlug?: string) {
         hasDetectionAttempted: true,
       });
     }
-  }, []);
+  }, [cities]);
 
   useEffect(() => {
+    if (cities.length === 0) return;
+
     if (urlCitySlug) {
       // URL has a city slug — use it directly
-      const found = CITIES.find((c) => c.slug === urlCitySlug);
+      const found = cities.find((c: City) => c.slug === urlCitySlug);
       setState({
         city: found || null,
         citySlug: urlCitySlug,
@@ -95,7 +101,7 @@ export function useLocation(urlCitySlug?: string) {
       // No URL city — detect from IP geolocation
       detectLocation();
     }
-  }, [urlCitySlug, detectLocation]);
+  }, [urlCitySlug, detectLocation, cities]);
 
   return { ...state, detectLocation };
 }

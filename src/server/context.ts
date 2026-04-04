@@ -1,7 +1,7 @@
 // src/server/context.ts
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { getUserByOpenId } from "./db";
+import { getUserByOpenId } from "./db/index";
 import type { User } from "./db/schema";
 
 const COOKIE_NAME = "session";

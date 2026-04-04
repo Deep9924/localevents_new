@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CITIES, City } from "@/lib/events-data";
+import { trpc } from "@/lib/trpc";
+import { City } from "@/types/trpc";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371; // Earth radius in km
@@ -18,11 +19,12 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 }
 
-function findNearestCity(lat: number, lng: number): City {
-  let nearest = CITIES[0];
+function findNearestCity(lat: number, lng: number, cities: City[]): City | null {
+  if (cities.length === 0) return null;
+  let nearest = cities[0];
   let minDist = Infinity;
 
-  for (const city of CITIES) {
+  for (const city of cities) {
     const dist = haversineDistance(lat, lng, city.lat, city.lng);
     if (dist < minDist) {
       minDist = dist;
@@ -37,8 +39,11 @@ export function useIPGeolocation() {
   const [city, setCity] = useState<City | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
 
   useEffect(() => {
+    if (cities.length === 0) return;
+
     const detectLocation = async () => {
       try {
         // Using ipapi.co - free IP geolocation service (no API key needed)
@@ -52,7 +57,7 @@ export function useIPGeolocation() {
         const { latitude, longitude } = data;
 
         if (latitude && longitude) {
-          const nearest = findNearestCity(latitude, longitude);
+          const nearest = findNearestCity(latitude, longitude, cities);
           setCity(nearest);
           setError(null);
         } else {
@@ -62,14 +67,14 @@ export function useIPGeolocation() {
         console.warn("IP geolocation failed:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
         // Fallback to first city
-        setCity(CITIES[0]);
+        setCity(cities[0] || null);
       } finally {
         setIsLoading(false);
       }
     };
 
     detectLocation();
-  }, []);
+  }, [cities]);
 
   return { city, isLoading, error };
 }

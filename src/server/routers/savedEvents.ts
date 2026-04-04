@@ -1,6 +1,6 @@
 import { protectedProcedure, router } from "../trpc";
 import { z } from "zod";
-import { saveEvent, unsaveEvent, getUserSavedEvents, isEventSaved } from "../db";
+import { saveEvent, unsaveEvent, getUserSavedEvents, isEventSaved } from "../db/index";
 
 export const savedEventsRouter = router({
   save: protectedProcedure

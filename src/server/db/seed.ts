@@ -1,5 +1,6 @@
 import { db } from "./index";
 import { cities, categories } from "./schema";
+import { sql } from "drizzle-orm";
 
 async function seed() {
   console.log("🌱 Seeding cities...");
@@ -17,7 +18,7 @@ async function seed() {
     { slug: "los-angeles", name: "Los Angeles", province: "California", country: "USA", lat: 34.0522, lng: -118.2437 },
     { slug: "chicago", name: "Chicago", province: "Illinois", country: "USA", lat: 41.8781, lng: -87.6298 },
     { slug: "london", name: "London", province: "England", country: "UK", lat: 51.5074, lng: -0.1278 },
-  ]).onDuplicateKeyUpdate({ set: { name: cities.name } });
+  ]).onDuplicateKeyUpdate({ set: { name: sql`values(name)` } });
 
   console.log("🌱 Seeding categories...");
   await db.insert(categories).values([
@@ -37,7 +38,7 @@ async function seed() {
     { id: "sports", label: "Sports", icon: "⚽" },
     { id: "kids", label: "Kids", icon: "🧸" },
     { id: "business", label: "Business", icon: "💼" },
-  ]).onDuplicateKeyUpdate({ set: { label: categories.label } });
+  ]).onDuplicateKeyUpdate({ set: { label: sql`values(label)` } });
 
   console.log("✅ Seeding completed!");
 }

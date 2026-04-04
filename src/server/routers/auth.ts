@@ -1,7 +1,7 @@
 // src/server/routers/auth.ts
 import { publicProcedure, router } from "../trpc";
 import { z } from "zod";
-import { getDb } from "../db";
+import { getDb } from "../db/index";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";

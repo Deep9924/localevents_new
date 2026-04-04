@@ -1,4 +1,4 @@
-import { CITIES } from "./events-data";
+
 
 const GEOLOCATION_CACHE_KEY = "localevents_city";
 const GEOLOCATION_TIMESTAMP_KEY = "localevents_city_timestamp";
@@ -22,20 +22,13 @@ export async function detectCityFromIP(): Promise<string | null> {
     }
 
     const data = await response.json();
-    const city = data.city?.toLowerCase() || null;
+    const citySlug = data.city?.toLowerCase() || null;
 
-    if (city) {
-      // Try to find matching city in our CITIES list
-      const matchedCity = CITIES.find(
-        (c) => c.slug === city || c.name.toLowerCase() === city
-      );
-
-      if (matchedCity) {
-        // Cache the result for future use
-        localStorage.setItem(GEOLOCATION_CACHE_KEY, matchedCity.slug);
-        localStorage.setItem(GEOLOCATION_TIMESTAMP_KEY, Date.now().toString());
-        return matchedCity.slug;
-      }
+    if (citySlug) {
+      // Cache the result for future use
+      localStorage.setItem(GEOLOCATION_CACHE_KEY, citySlug);
+      localStorage.setItem(GEOLOCATION_TIMESTAMP_KEY, Date.now().toString());
+      return citySlug;
     }
 
     return null;
