@@ -26,11 +26,12 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
   const [direction, setDirection] = useState<"left" | "right">("right");
   const [animating, setAnimating] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const active = allEvents[current];
   const { isSaved, handleBookmarkToggle } = useBookmark(active);
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const active = allEvents[current];
+  
 
   const goTo = (url: string) => {
     router.push(url);
