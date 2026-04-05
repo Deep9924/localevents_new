@@ -1,7 +1,7 @@
-// src/components/CityPage.tsx
 "use client";
 
-import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useEffect } from "react";
 import HeroBanner from "@/components/HeroBanner";
 import CategoryScroll from "@/components/CategoryScroll";
 import FeaturedEvent from "@/components/FeaturedEvent";
@@ -22,9 +22,26 @@ interface CityPageProps {
 }
 
 export default function CityPage({ citySlug }: CityPageProps) {
-  const { city, citySlug: detectedSlug, isDetecting, detectLocation, permissionDenied } = useLocation(citySlug);
+  const {
+    city,
+    citySlug: detectedSlug,
+    isDetecting,
+    detectLocation,
+    permissionDenied,
+  } = useLocation(citySlug);
 
-  const effectiveSlug = citySlug || detectedSlug || "toronto";
+  const router = useRouter();
+
+  // If we have an explicit citySlug from the URL, use it immediately.
+  // If not, wait for detection to finish. If detection finishes with nothing,
+  // redirect to the cities landing page instead of defaulting to Toronto.
+  const effectiveSlug = citySlug || (!isDetecting ? detectedSlug || null : null);
+
+  useEffect(() => {
+    if (!citySlug && !isDetecting && !detectedSlug) {
+      router.replace("/");
+    }
+  }, [citySlug, isDetecting, detectedSlug, router]);
 
   const {
     activeCategory,
@@ -34,25 +51,29 @@ export default function CityPage({ citySlug }: CityPageProps) {
     handleDateChange,
     handleSearchChange,
     clearFilters,
-  } = useEventFilters(effectiveSlug);
+  } = useEventFilters(effectiveSlug ?? "");
 
   const { data: cities = [], isLoading: citiesLoading } = trpc.events.getCities.useQuery();
   const { data: categories = [] } = trpc.events.getCategories.useQuery();
 
-  const effectiveCity = city || cities.find((c: City) => c.slug === effectiveSlug) || cities[0];
+  const effectiveCity =
+    city ||
+    (effectiveSlug ? cities.find((c: City) => c.slug === effectiveSlug) : undefined) ||
+    cities[0];
 
-  const { data: filteredEvents = [], isLoading: eventsLoading } = trpc.events.getByCity.useQuery(
-    {
-      citySlug: effectiveSlug,
-      category: activeCategory,
-      date: dateFilter,
-      search: searchQuery,
-    },
-    { enabled: !!effectiveSlug }
-  );
+  const { data: filteredEvents = [], isLoading: eventsLoading } =
+    trpc.events.getByCity.useQuery(
+      {
+        citySlug: effectiveSlug ?? "",
+        category: activeCategory,
+        date: dateFilter,
+        search: searchQuery,
+      },
+      { enabled: !!effectiveSlug }
+    );
 
   const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
-    { citySlug: effectiveSlug },
+    { citySlug: effectiveSlug ?? "" },
     { enabled: !!effectiveSlug }
   );
 
@@ -64,16 +85,30 @@ export default function CityPage({ citySlug }: CityPageProps) {
     return grouped;
   }, [filteredEvents, categories]);
 
-  const categoriesToShow = activeCategory === "all"
-    ? categories
-    : categories.filter((c: Category) => c.id === activeCategory);
+  const categoriesToShow =
+    activeCategory === "all"
+      ? categories
+      : categories.filter((c: Category) => c.id === activeCategory);
+
+  // Still detecting location on first visit — show a subtle full-screen loader
+  // instead of flashing Toronto content
+  if (!effectiveSlug || (isDetecting && !citySlug)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <p className="text-gray-500 text-sm">Finding events near you…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (citiesLoading || eventsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-          <p className="text-gray-600">Loading events...</p>
+          <p className="text-gray-600 text-sm">Loading events…</p>
         </div>
       </div>
     );
@@ -95,7 +130,11 @@ export default function CityPage({ citySlug }: CityPageProps) {
 
       {featuredEvents.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-          <FeaturedEvent event={featuredEvents[0]} events={featuredEvents} citySlug={effectiveSlug} />
+          <FeaturedEvent
+            event={featuredEvents[0]}
+            events={featuredEvents}
+            citySlug={effectiveSlug}
+          />
         </section>
       )}
 
@@ -116,8 +155,13 @@ export default function CityPage({ citySlug }: CityPageProps) {
       {(searchQuery || activeCategory !== "all" || dateFilter !== "all") && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-1 flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-500">
-            Showing <span className="font-semibold text-indigo-700">{filteredEvents.length}</span> events
-            {searchQuery && <> for <span className="font-semibold">"{searchQuery}"</span></>}
+            Showing{" "}
+            <span className="font-semibold text-indigo-700">{filteredEvents.length}</span> events
+            {searchQuery && (
+              <>
+                {" "}for <span className="font-semibold">"{searchQuery}"</span>
+              </>
+            )}
           </span>
           <button
             onClick={clearFilters}
@@ -147,7 +191,9 @@ export default function CityPage({ citySlug }: CityPageProps) {
           <div className="py-16 text-center">
             <p className="text-2xl mb-2">🎟️</p>
             <p className="text-gray-500 font-medium">No events found</p>
-            <p className="text-sm text-gray-400 mt-1">Try a different search or clear your filters</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Try a different search or clear your filters
+            </p>
           </div>
         )}
       </div>
