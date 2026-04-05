@@ -31,7 +31,7 @@ export default function SearchPage() {
   const hasActiveSearch = query.trim().length > 0 || category !== "all" || date !== "any" || price !== "any" || sort !== "relevance";
 
   const { data: allEvents = [] } = trpc.events.getByCity.useQuery(
-    { citySlug, category: category !== "all" ? category : undefined, date, search: query, price, sort },
+    { citySlug, category: category !== "all" ? category : undefined, date: date === "any" ? undefined : date as "all" | "today" | "tomorrow" | "week" | "weekend", search: query, price, sort },
     { enabled: !!citySlug }
   );
 
