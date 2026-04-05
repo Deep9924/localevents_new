@@ -1,7 +1,7 @@
 // src/components/CityPickerModal.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, Search, Navigation, LocateFixed } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { AppRouter } from "@/server/routers/root";
@@ -68,6 +68,28 @@ export default function CityPickerModal({
   });
   const { data: citiesFromDb = [] } = trpc.events.getCities.useQuery();
 
+  // Stable detect nearby using useCallback so it can be safely used in effects
+  const detectNearby = useCallback(async (cities: City[]) => {
+    if (!cities.length) return;
+    setDetecting(true);
+    try {
+      const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        const sorted = [...cities]
+          .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, 6);
+        setNearbyCities(sorted);
+      }
+    } catch {
+      // keep defaults
+    } finally {
+      setDetecting(false);
+    }
+  }, []);
+
+  // Animate open/close
   useEffect(() => {
     if (open) {
       setVisible(true);
@@ -79,15 +101,25 @@ export default function CityPickerModal({
     }
   }, [open]);
 
+  // Reset state and detect nearby when modal opens
   useEffect(() => {
     if (!open) return;
     setQuery("");
     setShowSuggestions(false);
     setActiveCity(null);
     setTimeout(() => inputRef.current?.focus(), 60);
-    detectNearby();
-  }, [open]);
+    detectNearby(citiesFromDb);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // intentionally omit citiesFromDb — seeded separately below
 
+  // Seed nearby cities once citiesFromDb loads (if not yet set by IP detection)
+  useEffect(() => {
+    if (citiesFromDb.length > 0 && nearbyCities.length === 0) {
+      setNearbyCities(citiesFromDb.slice(0, 6));
+    }
+  }, [citiesFromDb, nearbyCities.length]);
+
+  // Lock body scroll when open
   useEffect(() => {
     if (open) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
@@ -103,6 +135,7 @@ export default function CityPickerModal({
     };
   }, [open]);
 
+  // Close suggestions on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
@@ -112,25 +145,6 @@ export default function CityPickerModal({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const detectNearby = async () => {
-    setDetecting(true);
-    try {
-      const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
-      const data = await res.json();
-      if (data.latitude && data.longitude) {
-        const sorted = [...citiesFromDb]
-          .map((c) => ({ ...c, dist: haversine(data.latitude, data.longitude, c.lat, c.lng) }))
-          .sort((a, b) => a.dist - b.dist)
-          .slice(0, 6);
-        setNearbyCities(sorted);
-      }
-    } catch {
-      // keep defaults
-    } finally {
-      setDetecting(false);
-    }
-  };
 
   const handleLocateMe = async () => {
     setLocating(true);
@@ -165,12 +179,6 @@ export default function CityPickerModal({
     : [];
 
   const nearbyGrid = nearbyCities.filter((c) => c.slug !== currentCitySlug).slice(0, 6);
-
-  useEffect(() => {
-    if (citiesFromDb.length > 0 && nearbyCities.length === 0) {
-      setNearbyCities(citiesFromDb.slice(0, 6));
-    }
-  }, [citiesFromDb, nearbyCities.length]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && filtered.length > 0) {
