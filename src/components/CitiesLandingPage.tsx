@@ -16,11 +16,13 @@ export default function CitiesLandingPage() {
   // Separate detected city from the rest
   const otherCities = cities.filter((c: City) => c.slug !== detectedCity?.slug);
 
-  // Group remaining cities by province
-  const grouped = otherCities.reduce<Record<string, City[]>>((acc, city: City) => {
-    const key = city.province ?? "Other";
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(city);
+  // Group by country → province
+  const grouped = otherCities.reduce<Record<string, Record<string, City[]>>>((acc, city: City) => {
+    const country = city.country ?? "Other";
+    const province = city.province ?? "Other";
+    if (!acc[country]) acc[country] = {};
+    if (!acc[country][province]) acc[country][province] = [];
+    acc[country][province].push(city);
     return acc;
   }, {});
 
@@ -48,11 +50,11 @@ export default function CitiesLandingPage() {
             </p>
             <button
               onClick={() => router.push(`/${detectedCity.slug}`)}
-              className="w-full group bg-white rounded-xl border-2 border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200 p-5 transition-all hover:shadow-lg hover:scale-[1.005] text-left flex items-center justify-between"
+              className="w-full group bg-white rounded-xl border-2 border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200 px-4 py-3 transition-all hover:shadow-md hover:scale-[1.005] text-left flex items-center justify-between"
             >
               <div>
                 <h3
-                  className="text-xl font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors"
+                  className="text-base font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors"
                   style={{ fontFamily: "'Sora', sans-serif" }}
                 >
                   {detectedCity.name}
@@ -71,36 +73,43 @@ export default function CitiesLandingPage() {
           </div>
         )}
 
-        {/* Remaining cities grouped by province */}
-        {Object.entries(grouped).map(([province, provinceCities]) => (
-          <div key={province} className="mb-8">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
-              {province}
+        {/* Remaining cities grouped by country → province */}
+        {Object.entries(grouped).map(([country, provinces]) => (
+          <div key={country} className="mb-8">
+            <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-4">
+              {country}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {provinceCities.map((city: City) => (
-                <button
-                  key={city.slug}
-                  onClick={() => router.push(`/${city.slug}`)}
-                  className="group bg-white rounded-xl border border-indigo-100 hover:border-indigo-300 p-4 transition-all hover:shadow-md hover:scale-[1.02] text-left flex items-center justify-between"
-                >
-                  <div>
-                    <h3
-                      className="text-base font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors"
-                      style={{ fontFamily: "'Sora', sans-serif" }}
+            {Object.entries(provinces).map(([province, provinceCities]) => (
+              <div key={province} className="mb-4">
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2 pl-0.5">
+                  {province}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {provinceCities.map((city: City) => (
+                    <button
+                      key={city.slug}
+                      onClick={() => router.push(`/${city.slug}`)}
+                      className="group bg-white rounded-lg border border-indigo-100 hover:border-indigo-300 px-3 py-2.5 transition-all hover:shadow-sm hover:scale-[1.02] text-left flex items-center justify-between gap-2"
                     >
-                      {city.name}
-                    </h3>
-                    {cityCounts[city.slug] !== undefined && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {cityCounts[city.slug]} events
-                      </p>
-                    )}
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-indigo-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all shrink-0" />
-                </button>
-              ))}
-            </div>
+                      <div className="min-w-0">
+                        <h3
+                          className="text-sm font-semibold text-indigo-900 group-hover:text-indigo-600 transition-colors truncate"
+                          style={{ fontFamily: "'Sora', sans-serif" }}
+                        >
+                          {city.name}
+                        </h3>
+                        {cityCounts[city.slug] !== undefined && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {cityCounts[city.slug]} events
+                          </p>
+                        )}
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-indigo-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
 
