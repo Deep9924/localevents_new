@@ -64,7 +64,15 @@ export default function CitiesLandingPage() {
         )}
 
         {/* Cities by country */}
-        {Object.entries(byCountry).map(([country, countryCities]) => (
+        {Object.entries(byCountry)
+          .sort(([a], [b]) => {
+            if (a === "Canada") return -1;
+            if (b === "Canada") return 1;
+            if (a === "United States" || a === "US" || a === "USA") return -1;
+            if (b === "United States" || b === "US" || b === "USA") return 1;
+            return a.localeCompare(b);
+          })
+          .map(([country, countryCities]) => (
           <div key={country} className="mb-8">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{country}</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
@@ -72,13 +80,13 @@ export default function CitiesLandingPage() {
                 <button
                   key={city.slug}
                   onClick={() => router.push(`/${city.slug}`)}
-                  className="group bg-white rounded-xl border border-gray-100 hover:border-indigo-200 p-3.5 transition-all hover:shadow-sm text-left flex items-start justify-between gap-2"
+                  className="group bg-white rounded-xl border border-gray-200 hover:border-indigo-300 shadow-sm p-3.5 transition-all hover:shadow-md text-left flex items-start justify-between gap-2"
                 >
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-indigo-900 group-hover:text-indigo-600 transition-colors truncate" style={{ fontFamily: "'Sora', sans-serif" }}>
+                    <h3 className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors truncate" style={{ fontFamily: "'Sora', sans-serif" }}>
                       {city.name}
                     </h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">{city.province}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">{city.province}</p>
                     {cityCounts[city.slug] !== undefined && (
                       <p className="text-[11px] text-gray-300 mt-0.5">{cityCounts[city.slug]} events</p>
                     )}
