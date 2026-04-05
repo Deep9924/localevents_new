@@ -22,6 +22,14 @@ interface EventDetailPageProps {
   eventSlug?: string;
 }
 
+type CalendarEventType = {
+  title: string;
+  description: string | null;
+  date: string;
+  time: string;
+  venue: string;
+};
+
 /* ─── Error state ─────────────────────────────────────────────────────────── */
 function ErrorState({ icon, title, action }: { icon?: React.ReactNode; title: string; action: React.ReactNode }) {
   return (
@@ -154,6 +162,67 @@ function InterestedButton({ isInterested, onToggle, className = "" }: { isIntere
   );
 }
 
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+function Sidebar({
+  isFree,
+  displayPrice,
+  ticketUrl,
+  calendarEvent,
+  isInterested,
+  onToggleInterested,
+  isSaved,
+  onSave,
+  eventTitle,
+}: {
+  isFree: boolean;
+  displayPrice: string | null;
+  ticketUrl: string | undefined;
+  calendarEvent: CalendarEventType;
+  isInterested: boolean;
+  onToggleInterested: () => void;
+  isSaved: boolean;
+  onSave: () => void;
+  eventTitle: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="pb-4 border-b border-gray-100">
+        <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-1">Tickets from</p>
+        <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
+        {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>}
+      </div>
+
+      <a
+        href={ticketUrl ?? "#"}
+        target={ticketUrl ? "_blank" : undefined}
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl transition-colors text-sm"
+      >
+        <Ticket className="w-4 h-4" />Get Tickets
+        {ticketUrl && <ExternalLink className="w-3 h-3 opacity-60" />}
+      </a>
+
+      <div className="[&>button]:w-full [&>a]:w-full">
+        <CalendarButton event={calendarEvent} />
+      </div>
+
+      <InterestedButton isInterested={isInterested} onToggle={onToggleInterested} className="w-full" />
+      <ShareButton eventTitle={eventTitle} fullWidth />
+
+      <button
+        onClick={onSave}
+        className={`w-full flex items-center justify-center gap-2 h-10 rounded-xl border font-semibold text-sm transition-colors
+          ${isSaved ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+      >
+        <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : ""}`} />
+        {isSaved ? "Saved" : "Save for later"}
+      </button>
+
+      <p className="text-center text-[11px] text-gray-300 pt-1">Secure checkout · LocalEvents</p>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPageProps) {
   const router = useRouter();
@@ -217,7 +286,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
     return str.split(",").map((t) => t.trim()).filter(isValidTag);
   })();
 
-  const calendarEvent = {
+  const calendarEvent: CalendarEventType = {
     title: event.title,
     description: event.description ?? null,
     date: typeof event.date === "string" ? event.date : (event.date as Date).toLocaleDateString("en-CA"),
@@ -228,45 +297,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const dateParts = event.date?.split(" ") ?? [];
   const dateDay = dateParts[1] ?? "";
   const dateMonth = dateParts[2] ?? "";
-
-  /* ── Sidebar ────────────────────────────────────────────────────────────── */
-  const Sidebar = () => (
-    <div className="space-y-2">
-      <div className="pb-4 border-b border-gray-100">
-        <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-1">Tickets from</p>
-        <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-gray-900"}`}>{displayPrice}</p>
-        {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>}
-      </div>
-
-      <a
-        href={ticketUrl ?? "#"}
-        target={ticketUrl ? "_blank" : undefined}
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl transition-colors text-sm"
-      >
-        <Ticket className="w-4 h-4" />Get Tickets
-        {ticketUrl && <ExternalLink className="w-3 h-3 opacity-60" />}
-      </a>
-
-      <div className="[&>button]:w-full [&>a]:w-full">
-        <CalendarButton event={calendarEvent} />
-      </div>
-
-      <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} className="w-full" />
-      <ShareButton eventTitle={event.title} fullWidth />
-
-      <button
-        onClick={handleSaveEvent}
-        className={`w-full flex items-center justify-center gap-2 h-10 rounded-xl border font-semibold text-sm transition-colors
-          ${isSaved ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
-      >
-        <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : ""}`} />
-        {isSaved ? "Saved" : "Save for later"}
-      </button>
-
-      <p className="text-center text-[11px] text-gray-300 pt-1">Secure checkout · LocalEvents</p>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
@@ -426,7 +456,17 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
           {/* ══ RIGHT sidebar ═══════════════════════════════════════════════ */}
           <div className="lg:sticky lg:top-6">
-            <Sidebar />
+            <Sidebar
+              isFree={isFree}
+              displayPrice={displayPrice}
+              ticketUrl={ticketUrl}
+              calendarEvent={calendarEvent}
+              isInterested={isInterested}
+              onToggleInterested={() => setIsInterested((v) => !v)}
+              isSaved={isSaved}
+              onSave={handleSaveEvent}
+              eventTitle={event.title}
+            />
           </div>
 
         </div>
