@@ -23,7 +23,7 @@ export default function Home() {
   const router = useRouter();
   const { citySlug, setCitySlug } = useCity();
   const { data: cities = [] } = trpc.events.getCities.useQuery();
-  const { city: detectedCity, loading: detecting } = useIPGeolocation();
+  const { city: detectedCity, isLoading: detecting } = useIPGeolocation();
 
   useEffect(() => {
     // If the user already has a city selected (from context/localStorage), go there
@@ -63,4 +63,4 @@ export default function Home() {
       </div>
     </div>
   );
-      }
+}
