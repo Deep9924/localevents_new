@@ -66,7 +66,7 @@ function HighlightRow({ icon: Icon, label }: { icon: React.ElementType; label: s
   );
 }
 
-/* ─── Share button — always click to open, outside click to close ─────────── */
+/* ─── Share button ────────────────────────────────────────────────────────── */
 function ShareButton({ eventTitle, fullWidth = false, className = "" }: { eventTitle: string; fullWidth?: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -86,7 +86,6 @@ function ShareButton({ eventTitle, fullWidth = false, className = "" }: { eventT
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* silent */ }
   };
 
-  // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -135,9 +134,8 @@ function ShareButton({ eventTitle, fullWidth = false, className = "" }: { eventT
   );
 }
 
-/* ─── Interested button — truly fixed size, text never causes reflow ─────── */
+/* ─── Interested button ───────────────────────────────────────────────────── */
 function InterestedButton({ isInterested, onToggle, className = "" }: { isInterested: boolean; onToggle: () => void; className?: string }) {
-  // If className contains flex-1 we let the flex container size it, otherwise use fixed width
   const hasFlexGrow = className.includes("flex-1") || className.includes("w-full");
   return (
     <button
@@ -197,9 +195,9 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const city = cities.find((c: City) => c.slug === citySlug);
 
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
-  if (!city && cities.length > 0) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="City not found" action={<Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to Home</Button>} />;
-  if (!event) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="Event not found" action={<Button onClick={() => router.push(`/${citySlug}`)} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to {city?.name ?? "City"}</Button>} />;
-  
+  if (!city) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="City not found" action={<Button onClick={() => router.push("/")} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to Home</Button>} />;
+  if (!event) return <ErrorState icon={<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />} title="Event not found" action={<Button onClick={() => router.push(`/${citySlug}`)} className="bg-indigo-700 hover:bg-indigo-800"><ArrowLeft className="w-4 h-4 mr-2" />Back to {city.name}</Button>} />;
+
   const isFree = event.price === "Free" || event.price === null;
   const displayPrice = isFree ? "Free" : event.price;
   const interestedCount = typeof event.interested === "number" && event.interested > 0 ? event.interested : null;
@@ -207,7 +205,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const organizerName = (event as any).organizerName ?? "LocalEvents Team";
   const ticketUrl = (event as any).ticketUrl as string | undefined;
 
-  // Clean tags — strip bare numbers ("0", "1" etc)
   const isValidTag = (t: string) => t.trim().length > 0 && !/^\d+$/.test(t.trim());
   const tags: string[] = (() => {
     const raw = event.tags;
@@ -232,7 +229,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const dateDay = dateParts[1] ?? "";
   const dateMonth = dateParts[2] ?? "";
 
-  /* ── Sidebar component ──────────────────────────────────────────────────── */
+  /* ── Sidebar ────────────────────────────────────────────────────────────── */
   const Sidebar = () => (
     <div className="space-y-2">
       <div className="pb-4 border-b border-gray-100">
@@ -256,7 +253,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
       </div>
 
       <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} className="w-full" />
-
       <ShareButton eventTitle={event.title} fullWidth />
 
       <button
@@ -275,12 +271,10 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   return (
     <div className="min-h-screen bg-[#FAFAF8] pb-24 lg:pb-0">
 
-      {/* Breadcrumb */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-3">
         <Breadcrumb citySlug={citySlug!} cityName={city.name} eventTitle={event.title} />
       </div>
 
-      {/* Hero — 16:9 */}
       <div className="w-full bg-gray-100" style={{ aspectRatio: "16/9", maxHeight: 480, overflow: "hidden" }}>
         {!imgError && event.image ? (
           <img src={event.image} alt={event.title} className="w-full h-full object-cover object-center block" onError={() => setImgError(true)} />
@@ -291,16 +285,12 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         )}
       </div>
 
-      {/* Page body */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 lg:gap-12 items-start">
 
           {/* ══ LEFT ════════════════════════════════════════════════════════ */}
           <div>
-
-            {/* Title block */}
             <div className="mb-6">
-              {/* Badges row — featured, category, free — topmost */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 {!!event.isFeatured && event.isFeatured !== 0 && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
@@ -317,7 +307,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 {event.title}
               </h1>
 
-              {/* Organizer — below title */}
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {organizerName[0].toUpperCase()}
@@ -331,15 +320,11 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               </div>
             </div>
 
-            {/* Quick actions — full width row, evenly spaced */}
             <div className="flex items-center gap-2.5 mb-8 w-full">
               <InterestedButton isInterested={isInterested} onToggle={() => setIsInterested((v) => !v)} className="flex-1" />
               <ShareButton eventTitle={event.title} fullWidth={false} className="flex-1" />
             </div>
 
-            {/* ── Continuous content ── */}
-
-            {/* Quick highlights */}
             <section className="mb-8">
               <HighlightRow icon={Calendar} label={event.date} />
               <HighlightRow icon={Clock} label={event.time} />
@@ -350,7 +335,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             <div className="border-t border-gray-100 mb-8" />
 
-            {/* Date & Location */}
             <section className="mb-8">
               <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-5">Date &amp; Location</h2>
 
@@ -389,7 +373,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
             <div className="border-t border-gray-100 mb-8" />
 
-            {/* About */}
             <section className="mb-8">
               <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">About the event</h2>
               {event.description ? (
@@ -399,7 +382,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               )}
             </section>
 
-            {/* Event tags — moved up, before T&C */}
             {tags.length > 0 && (
               <>
                 <div className="border-t border-gray-100 mb-6" />
@@ -414,7 +396,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               </>
             )}
 
-            {/* Terms & Conditions — card at the bottom */}
             <div className="border-t border-gray-100 mb-8" />
             <section className="mb-2">
               <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -441,7 +422,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
                 </div>
               </div>
             </section>
-
           </div>
 
           {/* ══ RIGHT sidebar ═══════════════════════════════════════════════ */}
@@ -451,9 +431,6 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
         </div>
 
-
-
-        {/* Similar events — horizontal scroll */}
         {similarEvents.length > 0 && (
           <section className="mt-8 pt-8 border-t border-gray-100">
             <h2 className="text-base font-bold text-gray-900 mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
@@ -472,7 +449,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
 
       <Footer />
 
-      {/* Mobile bottom bar — shown on small screens only */}
+      {/* Mobile bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[11px] text-gray-400 leading-none mb-0.5">Tickets from</p>
