@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useIPGeolocation } from "@/hooks/useIPGeolocation";
@@ -21,22 +21,19 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
 
 export default function Home() {
   const router = useRouter();
-  const { citySlug, setCitySlug } = useCity();
+  const { setCitySlug } = useCity();
   const { data: cities = [] } = trpc.events.getCities.useQuery();
   const { city: detectedCity, isLoading: detecting } = useIPGeolocation();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
-    // If the user already has a city selected (from context/localStorage), go there
-    if (citySlug) {
-      router.replace(`/${citySlug}`);
-      return;
-    }
+    // Wait until both IP detection and cities list are ready
+    if (detecting || cities.length === 0 || hasRedirected.current) return;
 
-    // Still waiting for IP detection or cities to load — keep showing spinner
-    if (detecting || cities.length === 0) return;
+    hasRedirected.current = true;
 
-    // IP detection returned coordinates — find nearest city
     if (detectedCity?.lat && detectedCity?.lng) {
+      // Find nearest city to detected coordinates
       const nearest = [...cities]
         .map((c) => ({
           ...c,
@@ -51,9 +48,9 @@ export default function Home() {
       }
     }
 
-    // Detection finished but couldn't resolve a city — go to city picker
+    // Detection finished but no coordinates — go to city picker
     router.replace("/cities");
-  }, [citySlug, detectedCity, detecting, cities, router, setCitySlug]);
+  }, [detecting, cities, detectedCity, router, setCitySlug]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
