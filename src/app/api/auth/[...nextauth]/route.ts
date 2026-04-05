@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { upsertUser } from "@/server/db/index";
 
 const authOptions = NextAuth({
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
