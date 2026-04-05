@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/Providers";
+import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
 import RootNavbar from "@/components/RootNavbar";
 import { CityProvider } from "@/contexts/CityContext";
