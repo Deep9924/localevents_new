@@ -1,7 +1,5 @@
-// src/app/page.tsx
-// Root redirects to /toronto by default (geolocation handled client-side)
-import { redirect } from "next/navigation";
+import CitiesLandingPage from "@/components/CitiesLandingPage";
 
 export default function Home() {
-  redirect("/toronto");
+  return <CitiesLandingPage />;
 }
