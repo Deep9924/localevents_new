@@ -64,6 +64,9 @@ export default function Navbar({
 
   const { data: cityCounts = {} } = trpc.events.getCountByCity.useQuery();
 
+  // Logo href — go to current city if known, else cities picker
+  const logoHref = citySlug ? `/${citySlug}` : "/cities";
+
   useEffect(() => {
     if (mobileMenuOpen) {
       setMenuMounted(true);
@@ -126,7 +129,8 @@ export default function Navbar({
     try {
       await logout();
       utils.auth.me.invalidate();
-      router.push("/");
+      // After logout, go to city if known, else cities picker
+      router.push(citySlug ? `/${citySlug}` : "/cities");
     } catch (e) {
       console.error(e);
     }
@@ -166,7 +170,9 @@ export default function Navbar({
       <header className="sticky top-0 z-50 bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center h-16 gap-3">
-            <Link href="/" className="flex items-center gap-2 shrink-0">
+
+            {/* Logo — goes to current city or /cities if none set */}
+            <Link href={logoHref} className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center shadow-sm">
                 <span className="text-white font-bold text-sm">LE</span>
               </div>
@@ -446,4 +452,4 @@ export default function Navbar({
       </header>
     </>
   );
-}
+                  }
