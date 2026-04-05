@@ -4,39 +4,41 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 import { trpc } from "@/lib/trpc";
-import { City } from "@/types/trpc";
 import { useCity } from "@/contexts/CityContext";
+import { AppRouter } from "@/server/routers/root";
+import { inferRouterOutputs } from "@trpc/server";
+
+type RouterOutput = inferRouterOutputs<AppRouter>;
+type City = RouterOutput["events"]["getCities"][number];
 
 interface HeroBannerProps {
   citySlug: string;
-  // kept for backwards-compat but no longer required
+  // kept for backwards-compat; no longer used internally
   isDetecting?: boolean;
   onDetectLocation?: () => void;
 }
 
-/** Haversine great-circle distance in km */
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) *
       Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
+      Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function HeroBanner({
   citySlug,
-  isDetecting: _isDetectingProp,
-  onDetectLocation: _onDetectLocationProp,
 }: HeroBannerProps) {
   const router = useRouter();
   const { setCitySlug } = useCity();
-  const { data: cities = [] } = trpc.events.getCities.useQuery();
 
+  const { data: cities = [] } = trpc.events.getCities.useQuery();
   const city = cities.find((c: City) => c.slug === citySlug);
+
   const cityName = city?.name ?? "";
   const province = city?.province ?? "";
   const country = city?.country ?? "";
@@ -49,69 +51,44 @@ export default function HeroBanner({
     toast.success(`You're now following events in ${cityName}!`);
   };
 
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error("Geolocation is not supported by your browser.");
-      return;
-    }
-
+  const handleDetectLocation = async () => {
     setIsDetecting(true);
+    try {
+      const res = await fetch("https://ipapi.co/json/", {
+        signal: AbortSignal.timeout(4000),
+      });
+      const data = await res.json();
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
+      if (!data.latitude || !data.longitude) {
+        toast.error("Could not determine your location.");
+        return;
+      }
 
-        // Find the closest city that has lat/lng coordinates
-        const citiesWithCoords = (cities as City[]).filter(
-          (c) => typeof c.lat === "number" && typeof c.lng === "number"
-        );
+      const closest = [...(cities as City[])]
+        .map((c) => ({
+          ...c,
+          dist: haversine(data.latitude, data.longitude, c.lat, c.lng),
+        }))
+        .sort((a, b) => a.dist - b.dist)[0];
 
-        if (citiesWithCoords.length === 0) {
-          toast.error("No cities with location data found.");
-          setIsDetecting(false);
-          return;
-        }
+      if (!closest) {
+        toast.error("No cities found near you.");
+        return;
+      }
 
-        let nearest = citiesWithCoords[0];
-        let minDist = haversineKm(latitude, longitude, nearest.lat!, nearest.lng!);
+      if (closest.slug === citySlug) {
+        toast.success(`You're already viewing events in ${closest.name}!`);
+        return;
+      }
 
-        for (const c of citiesWithCoords.slice(1)) {
-          const dist = haversineKm(latitude, longitude, c.lat!, c.lng!);
-          if (dist < minDist) {
-            minDist = dist;
-            nearest = c;
-          }
-        }
-
-        setIsDetecting(false);
-
-        if (nearest.slug === citySlug) {
-          toast.success(`You're already viewing events in ${nearest.name}!`);
-          return;
-        }
-
-        toast.success(`Switched to ${nearest.name} — closest city to you.`);
-        setCitySlug(nearest.slug);
-        router.push(`/${nearest.slug}`);
-      },
-      (err) => {
-        setIsDetecting(false);
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            toast.error("Location permission denied. Please allow access and try again.");
-            break;
-          case err.POSITION_UNAVAILABLE:
-            toast.error("Your location is currently unavailable.");
-            break;
-          case err.TIMEOUT:
-            toast.error("Location request timed out. Please try again.");
-            break;
-          default:
-            toast.error("Could not detect your location.");
-        }
-      },
-      { timeout: 10_000, maximumAge: 60_000 }
-    );
+      toast.success(`Switched to ${closest.name} — closest city to you.`);
+      setCitySlug(closest.slug);
+      router.push(`/${closest.slug}`);
+    } catch {
+      toast.error("Could not detect your location. Please try again.");
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   return (
@@ -133,13 +110,11 @@ export default function HeroBanner({
           <div className="relative px-6 py-8 sm:py-10">
             <div className="max-w-2xl space-y-4">
               {/* Location row */}
-              <div className="flex items-center gap-3 text-xs sm:text-sm text-slate-200/80 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4" />
-                  <span style={{ fontFamily: "'Sora', sans-serif" }}>
-                    {province}, {country}
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-200/80">
+                <MapPin className="w-4 h-4" />
+                <span style={{ fontFamily: "'Sora', sans-serif" }}>
+                  {province}, {country}
+                </span>
               </div>
 
               {/* Heading */}
