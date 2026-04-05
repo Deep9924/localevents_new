@@ -1,9 +1,9 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { upsertUser, getUserByOpenId } from "@/server/db/index";
+import { upsertUser } from "@/server/db/index";
 
-const { handlers, auth } = NextAuth({
+const authOptions = NextAuth({
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -23,14 +23,12 @@ const { handlers, auth } = NextAuth({
       return true;
     },
     async session({ session, token }) {
-      // Attach openId and DB user id to session
       if (token.sub) {
         session.user.id = token.sub;
       }
       return session;
     },
     async jwt({ token, account }) {
-      // Store provider account id on first sign-in
       if (account?.providerAccountId) {
         token.openId = account.providerAccountId;
       }
@@ -42,5 +40,6 @@ const { handlers, auth } = NextAuth({
   },
 });
 
-export { handlers as GET, handlers as POST };
-export { auth };
+export const GET = authOptions.handlers.GET;
+export const POST = authOptions.handlers.POST;
+export const auth = authOptions.auth;
