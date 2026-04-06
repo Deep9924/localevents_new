@@ -1,7 +1,9 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { upsertUser } from "@/server/db/index";
+import { upsertUser, getDb } from "@/server/db/index";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -12,11 +14,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
-      if (!user.id) return false;
+    async signIn({ user, account }) {
+      const openId = account?.providerAccountId ?? user.id;
+      if (!openId || !user.email) return false;
+
       try {
+        const db = await getDb();
+        if (!db) return false;
+
+        // Check if email already exists with a different login method
+        const existing = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, user.email))
+          .limit(1);
+
+        if (existing.length > 0 && existing[0].loginMethod !== "google") {
+          // Account exists with email/password — block Google sign-in
+          console.warn(`Blocked Google sign-in for email-registered account: ${user.email}`);
+          return "/api/auth/error?error=OAuthAccountNotLinked";
+        }
+
         await upsertUser({
-          openId: user.id,
+          openId,
           name: user.name ?? null,
           email: user.email ?? null,
           loginMethod: "google",
@@ -28,17 +48,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async session({ session, token }) {
-      if (token.sub) {
-        session.user.id = token.sub;
-      }
-      return session;
-    },
+
     async jwt({ token, account }) {
       if (account?.providerAccountId) {
         token.openId = account.providerAccountId;
       }
       return token;
+    },
+
+    async session({ session, token }) {
+      if (token.openId) {
+        session.user.id = token.openId as string;
+      } else if (token.sub) {
+        session.user.id = token.sub;
+      }
+      return session;
     },
   },
   pages: {

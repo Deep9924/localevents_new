@@ -1,3 +1,5 @@
+import { CityInitializer } from "@/components/CityInitializer";
+
 export default async function CityLayout({
   children,
   params,
@@ -6,5 +8,11 @@ export default async function CityLayout({
   params: Promise<{ city: string }>;
 }) {
   const { city } = await params;
-  return <>{children}</>;
+
+  return (
+    <>
+      <CityInitializer city={city} />
+      {children}
+    </>
+  );
 }

@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { signIn } from "next-auth/react";
-import { Check, X } from "lucide-react";
+import { Check, X, ArrowLeft, Loader2 } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
+
+// ── Types ──────────────────────────────────────────────────────────────────
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,283 +18,407 @@ interface AuthModalProps {
   onSuccess: () => void;
 }
 
+type Step = "initial" | "login" | "signup" | "google-only";
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const PASSWORD_RULES = [
+  { test: (p: string) => p.length >= 8,           label: "8+ characters" },
+  { test: (p: string) => /[A-Z]/.test(p),         label: "Uppercase"     },
+  { test: (p: string) => /[a-z]/.test(p),         label: "Lowercase"     },
+  { test: (p: string) => /[0-9]/.test(p),         label: "Number"        },
+  { test: (p: string) => /[^a-zA-Z0-9]/.test(p),  label: "Special char"  },
+] as const;
+
+const STEP_TITLES: Record<Step, string> = {
+  "initial":     "Sign in to LocalEvents",
+  "login":       "Welcome back",
+  "signup":      "Create your account",
+  "google-only": "Use Google to sign in",
+};
+
 function getPasswordStrength(password: string) {
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
-  if (score <= 2) return { score, label: "Weak", color: "text-red-500" };
-  if (score <= 4) return { score, label: "Fair", color: "text-yellow-500" };
-  return { score, label: "Strong", color: "text-green-500" };
+  const passed = PASSWORD_RULES.filter((r) => r.test(password)).length;
+  const score  = passed + (password.length >= 12 ? 1 : 0);
+  if (score <= 2) return { label: "Weak",   color: "text-rose-400"   };
+  if (score <= 4) return { label: "Fair",   color: "text-amber-400"  };
+  return           { label: "Strong", color: "text-emerald-500" };
 }
 
-function validatePassword(password: string): string | null {
-  if (password.length < 8) return "Password must be at least 8 characters";
-  if (!/[a-z]/.test(password)) return "Password must contain lowercase letters";
-  if (!/[A-Z]/.test(password)) return "Password must contain uppercase letters";
-  if (!/[0-9]/.test(password)) return "Password must contain numbers";
-  if (!/[^a-zA-Z0-9]/.test(password)) return "Password must contain special characters (!@#$%^&*)";
-  return null;
+// ── Login API helper ───────────────────────────────────────────────────────
+
+async function loginViaApi(email: string, password: string) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new Error(error ?? "Invalid password");
+  }
 }
+
+// ── Shared primitives ──────────────────────────────────────────────────────
+
+function FormError({ message }: { message: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-rose-400">{message}</p>;
+}
+
+function EmailBadge({ email }: { email: string }) {
+  return (
+    <p className="truncate rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
+      {email}
+    </p>
+  );
+}
+
+function OrDivider() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1 bg-zinc-100" />
+      <span className="text-xs text-zinc-400">or</span>
+      <div className="h-px flex-1 bg-zinc-100" />
+    </div>
+  );
+}
+
+function GoogleButton({ isLoading, onClick, label = "Continue with Google" }: {
+  isLoading: boolean;
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-10 w-full border-zinc-200 text-sm font-normal text-zinc-700 hover:bg-zinc-100"
+      onClick={onClick}
+      disabled={isLoading}
+    >
+      {isLoading
+        ? <Loader2 className="mr-2 h-4 w-4 animate-spin text-zinc-400" />
+        : <FcGoogle  className="mr-2 h-4 w-4" />
+      }
+      {label}
+    </Button>
+  );
+}
+
+function PrimaryButton({ isLoading, onClick, label }: {
+  isLoading: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <Button
+      className="h-10 w-full bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-700"
+      onClick={onClick}
+      disabled={isLoading}
+    >
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
+    </Button>
+  );
+}
+
+function PasswordRequirements({ password }: { password: string }) {
+  const strength = getPasswordStrength(password);
+  return (
+    <div className="rounded-md bg-zinc-50 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-400">Strength</span>
+        <span className={`text-xs font-medium ${strength.color}`}>{strength.label}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {PASSWORD_RULES.map(({ test, label }) => (
+          <div key={label} className="flex items-center gap-1.5 text-xs text-zinc-500">
+            {test(password)
+              ? <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+              : <X     className="h-3 w-3 shrink-0 text-zinc-200"    />
+            }
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Step views ─────────────────────────────────────────────────────────────
+
+function InitialStep({ email, error, isLoading, isGoogleLoading, onEmailChange, onContinue, onGoogleSignIn }: {
+  email: string;
+  error: string;
+  isLoading: boolean;
+  isGoogleLoading: boolean;
+  onEmailChange: (v: string) => void;
+  onContinue: () => void;
+  onGoogleSignIn: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <GoogleButton isLoading={isGoogleLoading} onClick={onGoogleSignIn} />
+      <OrDivider />
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => onEmailChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onContinue()}
+            className={`h-10 text-sm ${error ? "border-rose-300 focus-visible:ring-rose-200" : ""}`}
+          />
+          <FormError message={error} />
+        </div>
+        <PrimaryButton isLoading={isLoading} onClick={onContinue} label="Continue" />
+      </div>
+    </div>
+  );
+}
+
+function LoginStep({ email, password, error, isLoading, onPasswordChange, onLogin }: {
+  email: string;
+  password: string;
+  error: string;
+  isLoading: boolean;
+  onPasswordChange: (v: string) => void;
+  onLogin: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <EmailBadge email={email} />
+      <div className="space-y-1.5">
+        <Input
+          type="password"
+          placeholder="Password"
+          value={password}
+          autoFocus
+          onChange={(e) => onPasswordChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onLogin()}
+          className={`h-10 text-sm ${error ? "border-rose-300 focus-visible:ring-rose-200" : ""}`}
+        />
+        <FormError message={error} />
+      </div>
+      <PrimaryButton isLoading={isLoading} onClick={onLogin} label="Sign In" />
+    </div>
+  );
+}
+
+function SignupStep({ email, name, password, confirmPassword, error, isLoading,
+  onNameChange, onPasswordChange, onConfirmChange, onSignup }: {
+  email: string;
+  name: string;
+  password: string;
+  confirmPassword: string;
+  error: string;
+  isLoading: boolean;
+  onNameChange: (v: string) => void;
+  onPasswordChange: (v: string) => void;
+  onConfirmChange: (v: string) => void;
+  onSignup: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <EmailBadge email={email} />
+      <Input
+        type="text"
+        placeholder="Full name"
+        value={name}
+        autoFocus
+        className="h-10 text-sm"
+        onChange={(e) => onNameChange(e.target.value)}
+      />
+      <div className="space-y-2">
+        <Input
+          type="password"
+          placeholder="Create a password"
+          value={password}
+          className="h-10 text-sm"
+          onChange={(e) => onPasswordChange(e.target.value)}
+        />
+        {password && <PasswordRequirements password={password} />}
+      </div>
+      <Input
+        type="password"
+        placeholder="Confirm password"
+        value={confirmPassword}
+        className="h-10 text-sm"
+        onChange={(e) => onConfirmChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSignup()}
+      />
+      <FormError message={error} />
+      <PrimaryButton isLoading={isLoading} onClick={onSignup} label="Create Account" />
+    </div>
+  );
+}
+
+function GoogleOnlyStep({ isGoogleLoading, onGoogleSignIn }: {
+  isGoogleLoading: boolean;
+  onGoogleSignIn: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-500">
+        This email is linked to a Google account. Please sign in with Google to continue.
+      </p>
+      <GoogleButton
+        isLoading={isGoogleLoading}
+        onClick={onGoogleSignIn}
+        label="Sign in with Google"
+      />
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [step, setStep]                  = useState<Step>("initial");
+  const [email, setEmail]                = useState("");
+  const [password, setPassword]          = useState("");
+  const [confirmPassword, setConfirm]    = useState("");
+  const [name, setName]                  = useState("");
+  const [isLoading, setIsLoading]        = useState(false);
+  const [isGoogleLoading, setGoogleLoad] = useState(false);
+  const [error, setError]                = useState("");
 
-  const utils = trpc.useUtils();
-  const loginMutation = trpc.auth.login.useMutation();
+  const checkEmail     = trpc.auth.checkEmail.useMutation();
   const signupMutation = trpc.auth.signup.useMutation();
 
-  const passwordStrength = getPasswordStrength(password);
+  const clearError = () => setError("");
+
+  const reset = () => {
+    setStep("initial");
+    setEmail(""); setPassword(""); setConfirm(""); setName(""); clearError();
+  };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  // Cookie is set by /api/auth/login route handler — reload picks it up
+  const finish = () => {
+    handleClose();
+    setTimeout(() => window.location.reload(), 100);
+  };
 
   const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
+    setGoogleLoad(true);
     try {
-      // Use standard redirect flow for Google sign-in to ensure proper state handling
       await signIn("google", { callbackUrl: window.location.href });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Google sign-in failed. Please try again.";
-      toast.error(errorMessage);
-      console.error("[Google SignIn Error]", error);
-      setIsGoogleLoading(false);
+    } catch {
+      toast.error("Google sign-in failed. Please try again.");
+      setGoogleLoad(false);
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!email) newErrors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email";
-    if (!password) newErrors.password = "Password is required";
-    if (mode === "signup") {
-      const passwordError = validatePassword(password);
-      if (passwordError) newErrors.password = passwordError;
-      if (!name) newErrors.name = "Name is required";
-      if (!confirmPassword) newErrors.confirmPassword = "Confirm password is required";
-      else if (password !== confirmPassword) newErrors.confirmPassword = "Passwords do not match";
+  const handleEmailContinue = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address");
+      return;
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
     setIsLoading(true);
-
+    clearError();
     try {
-      if (mode === "login") {
-        await loginMutation.mutateAsync({ email, password });
-        await utils.auth.me.invalidate();
-        toast.success("Logged in successfully!");
-        setEmail("");
-        setPassword("");
-        setErrors({});
-        onSuccess();
-        onClose();
-      } else {
-        await signupMutation.mutateAsync({ email, password, name });
-        toast.success("Account created! Please log in.");
-        setMode("login");
-        setEmail("");
-        setPassword("");
-        setConfirmPassword("");
-        setName("");
-        setErrors({});
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An error occurred";
-      toast.error(errorMessage);
+      const result = await checkEmail.mutateAsync({ email });
+      if (!result.exists)                       setStep("signup");
+      else if (result.loginMethod === "google") setStep("google-only");
+      else                                      setStep("login");
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const GoogleButton = () => (
-    <Button
-      type="button"
-      variant="outline"
-      className="w-full"
-      onClick={handleGoogleSignIn}
-      disabled={isGoogleLoading}
-    >
-      {isGoogleLoading ? (
-        <span className="w-4 h-4 mr-2 border-2 border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
-      ) : (
-        <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-          <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-        </svg>
-      )}
-      {isGoogleLoading ? "Signing in..." : "Continue with Google"}
-    </Button>
-  );
+  const handleLogin = async () => {
+    if (!password) { setError("Please enter your password"); return; }
+    setIsLoading(true);
+    clearError();
+    try {
+      await loginViaApi(email, password);
+      finish();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid password");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!name)                                           { setError("Please enter your name"); return; }
+    if (!PASSWORD_RULES.every((r) => r.test(password))) { setError("Please meet all password requirements"); return; }
+    if (password !== confirmPassword)                    { setError("Passwords do not match"); return; }
+    setIsLoading(true);
+    clearError();
+    try {
+      await signupMutation.mutateAsync({ email, password, name });
+      await loginViaApi(email, password);
+      finish();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create account");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[420px]">
-        <DialogHeader>
-          <DialogTitle>LocalEvents</DialogTitle>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[380px]">
+        <DialogHeader className="pb-1">
+          <div className="flex items-center gap-2">
+            {step !== "initial" && (
+              <button
+                onClick={reset}
+                className="rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            <DialogTitle className="text-base font-semibold text-zinc-900">
+              {STEP_TITLES[step]}
+            </DialogTitle>
+          </div>
         </DialogHeader>
 
-        <Tabs
-          value={mode}
-          onValueChange={(v) => {
-            setMode(v as "login" | "signup");
-            setErrors({});
-          }}
-          className="w-full"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+        <div className="space-y-5 pt-1">
+          {step === "initial" && (
+            <InitialStep
+              email={email} error={error}
+              isLoading={isLoading} isGoogleLoading={isGoogleLoading}
+              onEmailChange={(v) => { setEmail(v); clearError(); }}
+              onContinue={handleEmailContinue}
+              onGoogleSignIn={handleGoogleSignIn}
+            />
+          )}
+          {step === "login" && (
+            <LoginStep
+              email={email} password={password} error={error} isLoading={isLoading}
+              onPasswordChange={(v) => { setPassword(v); clearError(); }}
+              onLogin={handleLogin}
+            />
+          )}
+          {step === "signup" && (
+            <SignupStep
+              email={email} name={name} password={password}
+              confirmPassword={confirmPassword} error={error} isLoading={isLoading}
+              onNameChange={(v)     => { setName(v);    clearError(); }}
+              onPasswordChange={(v) => { setPassword(v); clearError(); }}
+              onConfirmChange={(v)  => { setConfirm(v); clearError(); }}
+              onSignup={handleSignup}
+            />
+          )}
+          {step === "google-only" && (
+            <GoogleOnlyStep isGoogleLoading={isGoogleLoading} onGoogleSignIn={handleGoogleSignIn} />
+          )}
 
-          {/* ── Login ── */}
-          <TabsContent value="login" className="space-y-4 mt-4">
-            <GoogleButton />
-
-            <div className="relative my-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-400">or sign in with email</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Email</label>
-                <Input
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: "" }); }}
-                  className={errors.email ? "border-red-500" : ""}
-                />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: "" }); }}
-                  className={errors.password ? "border-red-500" : ""}
-                />
-                {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
-              </div>
-
-              <Button type="submit" className="w-full bg-indigo-700 hover:bg-indigo-800" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          {/* ── Signup ── */}
-          <TabsContent value="signup" className="space-y-4 mt-4">
-            <GoogleButton />
-
-            <div className="relative my-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-400">or sign up with email</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Full Name</label>
-                <Input
-                  type="text"
-                  placeholder="John Doe"
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({ ...errors, name: "" }); }}
-                  className={errors.name ? "border-red-500" : ""}
-                />
-                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">Email</label>
-                <Input
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: "" }); }}
-                  className={errors.email ? "border-red-500" : ""}
-                />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: "" }); }}
-                  className={errors.password ? "border-red-500" : ""}
-                />
-                {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
-
-                {password && (
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">Password strength:</span>
-                      <span className={`text-xs font-medium ${passwordStrength.color}`}>{passwordStrength.label}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {[
-                        { pass: password.length >= 8, label: "8+ characters" },
-                        { pass: /[A-Z]/.test(password), label: "Uppercase" },
-                        { pass: /[a-z]/.test(password), label: "Lowercase" },
-                        { pass: /[0-9]/.test(password), label: "Number" },
-                        { pass: /[^a-zA-Z0-9]/.test(password), label: "Special char" },
-                      ].map(({ pass, label }) => (
-                        <div key={label} className="flex items-center gap-1">
-                          {pass ? <Check className="w-4 h-4 text-green-500" /> : <X className="w-4 h-4 text-gray-300" />}
-                          <span>{label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">Confirm Password</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: "" }); }}
-                  className={errors.confirmPassword ? "border-red-500" : ""}
-                />
-                {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
-              </div>
-
-              <Button type="submit" className="w-full bg-indigo-700 hover:bg-indigo-800" disabled={isLoading}>
-                {isLoading ? "Creating account..." : "Create Account"}
-              </Button>
-            </form>
-          </TabsContent>
-        </Tabs>
+          <p className="text-center text-xs text-zinc-400">
+            By continuing, you agree to our{" "}
+            <span className="cursor-pointer underline underline-offset-2 hover:text-zinc-600">Terms</span>
+            {" & "}
+            <span className="cursor-pointer underline underline-offset-2 hover:text-zinc-600">Privacy Policy</span>
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );

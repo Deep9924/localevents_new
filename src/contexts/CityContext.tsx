@@ -1,44 +1,56 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { trpc } from "@/lib/trpc";
-import { City } from "@/types/trpc";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+
+function slugToName(slug: string) {
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 interface CityContextType {
-  citySlug: string;
+  citySlug: string | null;
   cityName: string;
   setCitySlug: (slug: string) => void;
 }
 
 const CityContext = createContext<CityContextType>({
-  citySlug: "toronto",
-  cityName: "Toronto",
+  citySlug:    null,
+  cityName:    "",
   setCitySlug: () => {},
 });
 
-export function CityProvider({ children }: { children: ReactNode }) {
+export function CityProvider({
+  initialCity = null,
+  children,
+}: {
+  initialCity?: string | null;
+  children: ReactNode;
+}) {
+  const [citySlug, setCitySlugState] = useState<string | null>(initialCity);
+  const router   = useRouter();
   const pathname = usePathname();
-  const [citySlug, setCitySlugState] = useState("toronto");
-  const { data: cities = [] } = trpc.events.getCities.useQuery();
 
-  // Sync city from URL on every navigation
+  // First-time visitor with no detected city — send to /cities picker
   useEffect(() => {
-    const segments = pathname.split("/").filter(Boolean);
-    const slug = segments[0];
-    if (slug && cities.find((c: City) => c.slug === slug)) {
-      setCitySlugState(slug);
+    if (!citySlug && pathname !== "/cities") {
+      router.replace("/cities");
     }
-  }, [pathname, cities]);
+  }, [citySlug, pathname]);
 
   const setCitySlug = (slug: string) => {
     setCitySlugState(slug);
+    document.cookie = `city=${slug}; path=/; max-age=${60 * 60 * 24 * 365}`;
   };
 
-  const cityName = cities.find((c: City) => c.slug === citySlug)?.name ?? "Toronto";
-
   return (
-    <CityContext.Provider value={{ citySlug, cityName, setCitySlug }}>
+    <CityContext.Provider value={{
+      citySlug,
+      cityName:    citySlug ? slugToName(citySlug) : "",
+      setCitySlug,
+    }}>
       {children}
     </CityContext.Provider>
   );

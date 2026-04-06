@@ -12,29 +12,35 @@ export type TrpcContext = {
 export async function createContext(): Promise<TrpcContext> {
   let user: User | null = null;
 
+  // 1. Try NextAuth session — isolated so failures don't block the fallback
   try {
-    // 1. Try NextAuth session
     const session = await auth();
     const openId = session?.user?.id;
     if (openId) {
       user = (await getUserByOpenId(openId)) ?? null;
     }
+  } catch {
+    // NextAuth misconfigured or unavailable — continue to cookie fallback
+  }
 
-    // 2. Fallback to legacy session cookie if NextAuth fails
-    if (!user) {
+  // 2. Cookie fallback — only runs if NextAuth didn't find a user
+  if (!user) {
+    try {
       const cookieStore = await cookies();
       const token = cookieStore.get("session")?.value;
+      console.log("Cookie token found:", !!token);
       if (token) {
         const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
         const { payload } = await jwtVerify(token, secret);
+        console.log("JWT payload:", payload);
         if (payload.openId) {
           user = (await getUserByOpenId(payload.openId as string)) ?? null;
+          console.log("User found:", !!user);
         }
       }
+    } catch (err) {
+      console.error("Cookie read error:", err);
     }
-  } catch (err) {
-    console.error("Failed to read session:", err);
-    user = null;
   }
 
   return { user };

@@ -321,7 +321,10 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
           {/* ══ LEFT ════════════════════════════════════════════════════════ */}
           <div>
             <div className="mb-6">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
+              
+
+	
+<div className="flex flex-wrap items-center gap-2 mb-3">
                 {!!event.isFeatured && event.isFeatured !== 0 && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full">
                     <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />Featured

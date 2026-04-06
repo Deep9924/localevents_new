@@ -1,34 +1,34 @@
-// src/hooks/useAuth.ts
 "use client";
 
-import { useSession, signIn, signOut } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
+import type { User } from "@/server/db/schema";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
+  initialUser?: User | null;
 };
 
 export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false } = options ?? {};
+  const { redirectOnUnauthenticated = false, initialUser } = options ?? {};
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const utils = trpc.useUtils();
+  const utils  = trpc.useUtils();
 
-  const loading = status === "loading";
-  const isAuthenticated = status === "authenticated";
-
-  // Still pull the full DB user via tRPC so the rest of the app gets
-  // the same User shape it always expected (role, id, etc.)
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    enabled: isAuthenticated,
-    retry: false,
+    initialData:          initialUser ?? undefined,
+    retry:                false,
     refetchOnWindowFocus: false,
   });
 
+  const user            = meQuery.data ?? null;
+  const isAuthenticated = !!user;
+  const loading         = meQuery.isLoading && !initialUser;
+
   const logout = useCallback(async () => {
-    await signOut({ redirect: false });
+    await fetch("/api/auth/login", { method: "DELETE" }); // clears custom session cookie
+    await signOut({ redirect: false });                    // clears NextAuth session
     await utils.auth.me.invalidate();
     router.push("/toronto");
   }, [utils, router]);
@@ -37,15 +37,13 @@ export function useAuth(options?: UseAuthOptions) {
     signIn("google");
   }, []);
 
-  const user = meQuery.data ?? null;
-
   if (redirectOnUnauthenticated && !loading && !isAuthenticated) {
     router.push("/toronto");
   }
 
   return {
     user,
-    loading: loading || (isAuthenticated && meQuery.isLoading),
+    loading,
     isAuthenticated,
     logout,
     loginWithGoogle,

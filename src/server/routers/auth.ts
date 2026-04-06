@@ -1,5 +1,6 @@
 // src/server/routers/auth.ts
 import { publicProcedure, router } from "../trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDb } from "../db/index";
 import { users } from "../db/schema";
@@ -21,7 +22,6 @@ async function createSessionCookie(openId: string, name: string) {
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setExpirationTime(Math.floor((Date.now() + ONE_YEAR_MS) / 1000))
     .sign(secret);
-
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
@@ -35,13 +35,24 @@ async function createSessionCookie(openId: string, name: string) {
 export const authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user ?? null),
 
+  checkEmail: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const result = await db
+        .select({ loginMethod: users.loginMethod })
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+      if (result.length === 0) return { exists: false, loginMethod: null };
+      return { exists: true, loginMethod: result[0].loginMethod };
+    }),
+
   logout: publicProcedure.mutation(async (opts) => {
     const cookieStore = await cookies();
     cookieStore.set(COOKIE_NAME, "", { maxAge: -1, path: "/" });
-
-    // If you want to clear `ctx.user` immediately in the same req:
     opts.ctx.user = null;
-
     return { success: true } as const;
   }),
 
@@ -68,14 +79,26 @@ export const authRouter = router({
         .where(eq(users.email, input.email))
         .limit(1);
 
-      if (existing.length > 0)
-        throw new Error("Email already registered");
+      if (existing.length > 0) {
+        const existingUser = existing[0];
+        if (existingUser.loginMethod === "google") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This email is registered with Google. Please sign in with Google.",
+          });
+        }
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Email already registered.",
+        });
+      }
 
       await db.insert(users).values({
         email: input.email,
         name: input.name,
         passwordHash: hashPassword(input.password),
         openId: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        loginMethod: "email",
         lastSignedIn: new Date(),
         role: "user",
       });
@@ -100,13 +123,28 @@ export const authRouter = router({
         .where(eq(users.email, input.email))
         .limit(1);
 
-      if (result.length === 0)
-        throw new Error("Invalid email or password");
+      if (result.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid email or password.",
+        });
+      }
 
       const user = result[0];
 
+      // Block email login if account was created with Google
+      if (user.loginMethod === "google") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This account uses Google sign-in. Please sign in with Google.",
+        });
+      }
+
       if (!user.passwordHash || hashPassword(input.password) !== user.passwordHash) {
-        throw new Error("Invalid email or password");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid email or password.",
+        });
       }
 
       await db

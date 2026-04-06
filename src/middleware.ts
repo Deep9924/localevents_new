@@ -17,9 +17,12 @@ export function middleware(request: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  // Expose pathname to server components via header
+  const res = NextResponse.next();
+  res.headers.set("x-pathname", pathname);
+  return res;
 }
 
 export const config = {
-  matcher: ["/api/auth/:path*"],
+  matcher: ["/((?!_next|favicon.ico).*)"], // expanded to cover all routes
 };
