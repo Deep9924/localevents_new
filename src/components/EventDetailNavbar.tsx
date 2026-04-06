@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import AuthModal from "./AuthModal";
+import { trpc } from "@/lib/trpc";
 
 interface EventDetailNavbarProps {
   cityName: string;
@@ -25,6 +27,8 @@ export default function EventDetailNavbar({ cityName, citySlug }: EventDetailNav
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const utils = trpc.useUtils();
 
   const resolvedCityName = cityName;
 
@@ -88,6 +92,11 @@ export default function EventDetailNavbar({ cityName, citySlug }: EventDetailNav
               Create Event
             </button>
 
+            <AuthModal
+              isOpen={authModalOpen}
+              onClose={() => setAuthModalOpen(false)}
+              onSuccess={() => utils.auth.me.invalidate()}
+            />
             {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -119,7 +128,7 @@ export default function EventDetailNavbar({ cityName, citySlug }: EventDetailNav
               </DropdownMenu>
             ) : (
               <button
-                onClick={() => router.push("/login")}
+                onClick={() => setAuthModalOpen(true)}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-700 transition-colors"
               >
                 <User className="w-4 h-4" /> Sign in
@@ -179,7 +188,7 @@ export default function EventDetailNavbar({ cityName, citySlug }: EventDetailNav
               </DropdownMenu>
             ) : (
               <button
-                onClick={() => router.push("/login")}
+                onClick={() => setAuthModalOpen(true)}
                 className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
               >
                 <User className="w-3.5 h-3.5" /> Sign in

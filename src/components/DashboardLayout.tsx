@@ -28,6 +28,8 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import AuthModal from "./AuthModal";
+import { trpc } from "@/lib/trpc";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Page 1", path: "/" },
@@ -49,8 +51,10 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const { loading, user } = useAuth();
   const router = useRouter();
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -63,6 +67,11 @@ export default function DashboardLayout({
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={() => utils.auth.me.invalidate()}
+        />
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
             <h1 className="text-2xl font-semibold tracking-tight text-center">
@@ -74,7 +83,7 @@ export default function DashboardLayout({
             </p>
           </div>
           <Button
-            onClick={() => router.push("/login")}
+            onClick={() => setAuthModalOpen(true)}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
