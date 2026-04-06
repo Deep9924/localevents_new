@@ -4,14 +4,15 @@ import { upsertUser } from "@/server/db/index";
 
 const authOptions = NextAuth({
   trustHost: true,
+  secret: process.env.AUTH_SECRET,
   pages: {
     signIn: "/", // Redirect to home page instead of non-existent /login page
-    error: "/", // Redirect errors to home page
+    error: "/auth-error", // Redirect errors to a specific error page
   },
   providers: [
     Google({
-      clientId: process.env.AUTH_GOOGLE_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
       issuer: "https://accounts.google.com",
     }),
   ],
