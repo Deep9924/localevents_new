@@ -22,11 +22,11 @@ You need to have a Google Cloud project with OAuth 2.0 credentials configured. F
 3. Choose **Web application**
 4. Add the following **Authorized JavaScript origins**:
    - `http://localhost:3000` (for local development)
-   - `https://yourdomain.com` (for production)
+   - `https://eventprise.duckdns.org` (for production)
 
 5. Add the following **Authorized redirect URIs**:
    - `http://localhost:3000/api/auth/callback/google` (for local development)
-   - `https://yourdomain.com/api/auth/callback/google` (for production)
+   - `https://eventprise.duckdns.org/api/auth/callback/google` (for production)
 
 6. Copy your **Client ID** and **Client Secret**
 
@@ -43,14 +43,17 @@ JWT_SECRET=your-random-secret-key-here
 
 # NextAuth Configuration (generate a random string for AUTH_SECRET)
 AUTH_SECRET=your-random-nextauth-secret-here
-AUTH_URL=http://localhost:3000
+AUTH_URL=https://eventprise.duckdns.org
 
 # Google OAuth Configuration (from Google Cloud Console)
 AUTH_GOOGLE_ID=your-google-client-id-here
 AUTH_GOOGLE_SECRET=your-google-client-secret-here
 
 # Node Environment
-NODE_ENV=development
+NODE_ENV=production
+
+# Trust Host (required for production behind proxy)
+AUTH_TRUST_HOST=true
 
 # Optional: Owner ID for admin role assignment
 OWNER_OPEN_ID=your-google-account-id-for-admin-access
@@ -93,22 +96,22 @@ openssl rand -hex 32
 
 This typically indicates one of the following issues:
 
-1. **Missing environment variables**: Ensure `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are set
-2. **Incorrect redirect URIs**: Verify the redirect URIs in Google Cloud Console match your application URLs
-3. **Database connection issues**: Ensure `DATABASE_URL` is correct and the database is accessible
-4. **Missing `/login` page**: The app redirects to home page (`/`) on auth errors instead of `/login`
+1. **Missing environment variables**: Ensure `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are set.
+2. **Incorrect redirect URIs**: Verify the redirect URIs in Google Cloud Console match your application URLs. For production, it must be `https://eventprise.duckdns.org/api/auth/callback/google`.
+3. **Database connection issues**: Ensure `DATABASE_URL` is correct and the database is accessible.
+4. **Missing `/login` page**: The app redirects to home page (`/`) on auth errors instead of `/login`.
 
 ### Session Not Persisting
 
-- Check that `AUTH_SECRET` is set and consistent across deployments
-- Verify cookies are being sent with requests (check browser DevTools > Application > Cookies)
-- Ensure `trustHost: true` is set in NextAuth configuration
+- Check that `AUTH_SECRET` is set and consistent across deployments.
+- Verify cookies are being sent with requests (check browser DevTools > Application > Cookies).
+- Ensure `trustHost: true` is set in NextAuth configuration.
 
 ### User Data Not Saved
 
-- Check database connection in `DATABASE_URL`
-- Verify the `users` table exists with the correct schema
-- Check server logs for database errors
+- Check database connection in `DATABASE_URL`.
+- Verify the `users` table exists with the correct schema.
+- Check server logs for database errors.
 
 ## Testing Locally
 
@@ -129,21 +132,21 @@ This typically indicates one of the following issues:
 
 For production deployment:
 
-1. Update `AUTH_URL` to your production domain
-2. Add your production domain to Google Cloud Console authorized origins and redirect URIs
-3. Use a strong, randomly generated `AUTH_SECRET`
-4. Ensure `NODE_ENV=production` is set
-5. Use a production database URL
-6. Consider using environment variable management tools (e.g., Vercel, AWS Secrets Manager)
+1. Update `AUTH_URL` to your production domain (`https://eventprise.duckdns.org`).
+2. Add your production domain to Google Cloud Console authorized origins and redirect URIs.
+3. Use a strong, randomly generated `AUTH_SECRET`.
+4. Ensure `NODE_ENV=production` is set.
+5. Use a production database URL.
+6. Ensure `AUTH_TRUST_HOST=true` is set in your environment.
 
 ## Security Considerations
 
-- **Never commit `.env.local`** to version control
-- **Rotate `AUTH_SECRET`** periodically
-- **Use HTTPS** in production (required by Google OAuth)
-- **Validate user input** on the backend
-- **Implement rate limiting** on auth endpoints
-- **Monitor authentication logs** for suspicious activity
+- **Never commit `.env.local`** to version control.
+- **Rotate `AUTH_SECRET`** periodically.
+- **Use HTTPS** in production (required by Google OAuth).
+- **Validate user input** on the backend.
+- **Implement rate limiting** on auth endpoints.
+- **Monitor authentication logs** for suspicious activity.
 
 ## Additional Resources
 

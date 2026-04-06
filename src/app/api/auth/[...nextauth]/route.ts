@@ -23,6 +23,7 @@ const authOptions = NextAuth({
       if (!openId) return false;
       
       try {
+        console.log("[Auth] Upserting user:", { openId, email: user.email });
         await upsertUser({
           openId: openId,
           name: user.name ?? null,
@@ -30,9 +31,12 @@ const authOptions = NextAuth({
           loginMethod: "google",
           lastSignedIn: new Date(),
         });
+        console.log("[Auth] User upserted successfully");
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
+        // Return true anyway to allow login even if DB update fails temporarily, 
+        // or return false to block. NextAuth v5 handles this via the error page.
         return false;
       }
     },
