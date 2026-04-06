@@ -13,6 +13,11 @@ const authOptions = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
+      console.log("[Auth] signIn callback triggered", { 
+        provider: account?.provider,
+        email: user.email 
+      });
+      
       const openId = account?.providerAccountId || user.id;
       if (!openId) return false;
       
@@ -27,6 +32,7 @@ const authOptions = NextAuth({
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
+        // Return true to allow login even if DB update fails temporarily
         return true;
       }
     },
