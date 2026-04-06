@@ -57,12 +57,24 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
-      await signIn("google", { callbackUrl: window.location.href });
-      await utils.auth.me.invalidate();
-      onSuccess();
-      onClose();
-    } catch {
-      toast.error("Google sign-in failed. Please try again.");
+      const result = await signIn("google", { callbackUrl: window.location.href, redirect: false });
+      
+      if (result?.error) {
+        toast.error(`Google sign-in failed: ${result.error}`);
+        return;
+      }
+      
+      if (result?.ok) {
+        // Invalidate the auth cache to fetch the new session
+        await utils.auth.me.invalidate();
+        toast.success("Successfully signed in with Google!");
+        onSuccess();
+        onClose();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Google sign-in failed. Please try again.";
+      toast.error(errorMessage);
+      console.error("[Google SignIn Error]", error);
     } finally {
       setIsGoogleLoading(false);
     }
