@@ -42,7 +42,9 @@ const authOptions = NextAuth({
     },
     async session({ session, token }) {
       // Set the user ID from the JWT token
-      if (token.sub) {
+      if (token.openId) {
+        session.user.id = token.openId as string;
+      } else if (token.sub) {
         session.user.id = token.sub;
       }
       return session;
