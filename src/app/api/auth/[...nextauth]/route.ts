@@ -43,8 +43,6 @@ const authOptions = NextAuth({
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
-        // In production, we might want to allow login even if DB update fails
-        // but for debugging, we return false to see the error page
         return false;
       }
     },
@@ -66,11 +64,8 @@ const authOptions = NextAuth({
       return token;
     },
     async redirect({ url, baseUrl }) {
-      // Log redirects to debug production URL issues
       console.log("[Auth] Redirecting:", { url, baseUrl });
-      // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allows callback URLs on the same origin
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
@@ -80,8 +75,8 @@ const authOptions = NextAuth({
     maxAge: 30 * 24 * 60 * 60,
   },
   logger: {
-    error(code, metadata) {
-      console.error("[Auth Error]", code, metadata);
+    error(error) {
+      console.error("[Auth Error]", error);
     },
     warn(code) {
       console.warn("[Auth Warning]", code);
