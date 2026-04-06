@@ -2,10 +2,15 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { upsertUser } from "@/server/db/index";
 
+// Ensure AUTH_URL is correctly set for NextAuth v5
+if (!process.env.AUTH_URL && process.env.NEXTAUTH_URL) {
+  process.env.AUTH_URL = process.env.NEXTAUTH_URL;
+}
+
 const authOptions = NextAuth({
   trustHost: true,
   secret: process.env.AUTH_SECRET,
-  debug: process.env.NODE_ENV !== "production", // Enable debug logs in dev
+  // Use standard pages
   pages: {
     signIn: "/",
     error: "/auth-error",
@@ -14,24 +19,17 @@ const authOptions = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      // Standard issuer for Google
       issuer: "https://accounts.google.com",
     }),
   ],
   callbacks: {
     async signIn({ user, account }) {
-      console.log("[Auth] signIn callback triggered", { 
-        provider: account?.provider,
-        email: user.email 
-      });
-      
+      // Use the Google provider's account ID as the openId
       const openId = account?.providerAccountId || user.id;
-      if (!openId) {
-        console.error("[Auth] No openId found in signIn callback");
-        return false;
-      }
+      if (!openId) return false;
       
       try {
-        console.log("[Auth] Upserting user:", { openId, email: user.email });
         await upsertUser({
           openId: openId,
           name: user.name ?? null,
@@ -39,14 +37,15 @@ const authOptions = NextAuth({
           loginMethod: "google",
           lastSignedIn: new Date(),
         });
-        console.log("[Auth] User upserted successfully");
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
-        return false;
+        // Return true to allow login even if DB update fails temporarily
+        return true;
       }
     },
     async session({ session, token }) {
+      // Set the user ID from the JWT token
       if (token.openId) {
         session.user.id = token.openId as string;
       } else if (token.sub) {
@@ -55,16 +54,18 @@ const authOptions = NextAuth({
       return session;
     },
     async jwt({ token, account, user }) {
+      // Store the provider account ID in the JWT token
       if (account?.providerAccountId) {
         token.openId = account.providerAccountId;
       }
+      // Fallback to user.id if available
       if (!token.openId && user?.id) {
         token.openId = user.id;
       }
       return token;
     },
     async redirect({ url, baseUrl }) {
-      console.log("[Auth] Redirecting:", { url, baseUrl });
+      // Robust redirect handling for production
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
@@ -72,18 +73,7 @@ const authOptions = NextAuth({
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
-  },
-  logger: {
-    error(error) {
-      console.error("[Auth Error]", error);
-    },
-    warn(code) {
-      console.warn("[Auth Warning]", code);
-    },
-    debug(code, metadata) {
-      console.log("[Auth Debug]", code, metadata);
-    },
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 });
 
