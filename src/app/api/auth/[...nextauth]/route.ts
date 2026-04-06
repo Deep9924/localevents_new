@@ -5,9 +5,10 @@ import { upsertUser } from "@/server/db/index";
 const authOptions = NextAuth({
   trustHost: true,
   secret: process.env.AUTH_SECRET,
+  debug: process.env.NODE_ENV !== "production", // Enable debug logs in dev
   pages: {
-    signIn: "/", // Redirect to home page instead of non-existent /login page
-    error: "/auth-error", // Redirect errors to a specific error page
+    signIn: "/",
+    error: "/auth-error",
   },
   providers: [
     Google({
@@ -18,9 +19,16 @@ const authOptions = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // Use the Google provider's account ID as the openId
+      console.log("[Auth] signIn callback triggered", { 
+        provider: account?.provider,
+        email: user.email 
+      });
+      
       const openId = account?.providerAccountId || user.id;
-      if (!openId) return false;
+      if (!openId) {
+        console.error("[Auth] No openId found in signIn callback");
+        return false;
+      }
       
       try {
         console.log("[Auth] Upserting user:", { openId, email: user.email });
@@ -35,13 +43,12 @@ const authOptions = NextAuth({
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
-        // Return true anyway to allow login even if DB update fails temporarily, 
-        // or return false to block. NextAuth v5 handles this via the error page.
+        // In production, we might want to allow login even if DB update fails
+        // but for debugging, we return false to see the error page
         return false;
       }
     },
     async session({ session, token }) {
-      // Set the user ID from the JWT token
       if (token.openId) {
         session.user.id = token.openId as string;
       } else if (token.sub) {
@@ -50,23 +57,38 @@ const authOptions = NextAuth({
       return session;
     },
     async jwt({ token, account, user }) {
-      // Store the provider account ID in the JWT token
       if (account?.providerAccountId) {
         token.openId = account.providerAccountId;
       }
-      // Fallback to user.id if available
       if (!token.openId && user?.id) {
         token.openId = user.id;
       }
       return token;
     },
+    async redirect({ url, baseUrl }) {
+      // Log redirects to debug production URL issues
+      console.log("[Auth] Redirecting:", { url, baseUrl });
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
-  jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+  logger: {
+    error(code, metadata) {
+      console.error("[Auth Error]", code, metadata);
+    },
+    warn(code) {
+      console.warn("[Auth Warning]", code);
+    },
+    debug(code, metadata) {
+      console.log("[Auth Debug]", code, metadata);
+    },
   },
 });
 
