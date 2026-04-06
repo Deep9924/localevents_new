@@ -2,11 +2,6 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { upsertUser } from "@/server/db/index";
 
-// Ensure AUTH_URL is correctly set for NextAuth v5
-if (!process.env.AUTH_URL && process.env.NEXTAUTH_URL) {
-  process.env.AUTH_URL = process.env.NEXTAUTH_URL;
-}
-
 const authOptions = NextAuth({
   trustHost: true,
   secret: process.env.AUTH_SECRET,
@@ -19,17 +14,32 @@ const authOptions = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      // Standard issuer for Google
-      issuer: "https://accounts.google.com",
+      // Explicitly set the authorization endpoint to ensure correct redirect
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
     }),
   ],
   callbacks: {
     async signIn({ user, account }) {
+      console.log("[Auth] signIn callback triggered", { 
+        provider: account?.provider,
+        email: user.email 
+      });
+      
       // Use the Google provider's account ID as the openId
       const openId = account?.providerAccountId || user.id;
-      if (!openId) return false;
+      if (!openId) {
+        console.error("[Auth] No openId found in signIn callback");
+        return false;
+      }
       
       try {
+        console.log("[Auth] Upserting user:", { openId, email: user.email });
         await upsertUser({
           openId: openId,
           name: user.name ?? null,
@@ -37,10 +47,12 @@ const authOptions = NextAuth({
           loginMethod: "google",
           lastSignedIn: new Date(),
         });
+        console.log("[Auth] User upserted successfully");
         return true;
       } catch (error) {
         console.error("[Auth] Failed to upsert user:", error);
         // Return true to allow login even if DB update fails temporarily
+        // This prevents the redirect to /api/auth/error if it's just a DB issue
         return true;
       }
     },
@@ -66,6 +78,7 @@ const authOptions = NextAuth({
     },
     async redirect({ url, baseUrl }) {
       // Robust redirect handling for production
+      console.log("[Auth] Redirecting:", { url, baseUrl });
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
@@ -75,6 +88,8 @@ const authOptions = NextAuth({
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  // Add debug logging for production to catch the exact error
+  debug: true,
 });
 
 export const GET = authOptions.handlers.GET;
