@@ -38,6 +38,9 @@ interface NavbarProps {
   onSearchChange?: (q: string) => void;
 }
 
+
+
+
 export default function Navbar({
   activeCategory: activeCategoryProp,
   onCategoryChange,
