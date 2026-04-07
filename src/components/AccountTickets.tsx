@@ -71,7 +71,7 @@ function QrPanel({
   };
 
   return (
-    <div className="px-4 pb-4 pt-2 sm:px-5">
+    <div className="border-t border-slate-100 bg-slate-50/60 px-4 pb-5 pt-4 sm:px-5">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -82,31 +82,35 @@ function QrPanel({
           return (
             <div
               key={i}
-              className="flex w-full min-w-full snap-center flex-col items-center py-1"
+              className="flex w-full min-w-full snap-center flex-col items-center"
             >
-              <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80">
-                <QRCode
-                  value={codeValue}
-                  size={160}
-                  bgColor="#f8fafc"
-                  fgColor="#0f172a"
-                />
-              </div>
-              <p className="mt-2.5 font-mono text-[11px] tracking-widest text-slate-400">
-                {codeValue}
-              </p>
-              {totalTickets > 1 && (
-                <p className="mt-1 text-[11px] text-slate-400">
-                  {i + 1} / {totalTickets}
+              {/* QR container with decorative notch effect */}
+              <div className="relative w-full max-w-[240px] rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+                {/* Ticket count badge */}
+                {totalTickets > 1 && (
+                  <span className="absolute right-3 top-3 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                    {i + 1}/{totalTickets}
+                  </span>
+                )}
+                <div className="flex justify-center">
+                  <QRCode
+                    value={codeValue}
+                    size={168}
+                    bgColor="#ffffff"
+                    fgColor="#0f172a"
+                  />
+                </div>
+                <p className="mt-3 text-center font-mono text-[11px] tracking-widest text-slate-400">
+                  {codeValue}
                 </p>
-              )}
+              </div>
             </div>
           );
         })}
       </div>
 
       {totalTickets > 1 && (
-        <div className="mt-2.5 flex justify-center gap-1.5">
+        <div className="mt-3 flex justify-center gap-1.5">
           {Array.from({ length: totalTickets }).map((_, i) => (
             <button
               key={i}
@@ -124,6 +128,10 @@ function QrPanel({
           ))}
         </div>
       )}
+
+      <p className="mt-3 text-center text-[11px] text-slate-400">
+        Present this QR code at the venue entrance
+      </p>
     </div>
   );
 }
@@ -135,45 +143,41 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
     (ticket as Record<string, unknown>).totalPrice ??
     (event.price ? event.price.replace(/[^0-9.]/g, "") : "0");
   const priceNum = parseFloat(String(rawPrice));
+  const unitLabel = isNaN(priceNum) || priceNum === 0 ? "Free" : event.price ?? "Free";
+  const totalLabel = isNaN(priceNum) || priceNum === 0 ? "Free" : `CAD ${priceNum.toFixed(2)}`;
 
   return (
-    <div className="px-4 pb-4 pt-2 sm:px-5">
-      <div className="space-y-2 rounded-xl bg-slate-50 p-3">
-        <div className="flex items-center justify-between text-xs">
+    <div className="border-t border-slate-100 bg-slate-50/60 px-4 pb-5 pt-4 sm:px-5">
+      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        {/* Line items */}
+        <div className="flex items-center justify-between px-4 py-3 text-xs">
           <span className="text-slate-500">
-            {event.price ?? "Free"} × {count}{" "}
-            {count === 1 ? "ticket" : "tickets"}
+            {unitLabel} × {count} {count === 1 ? "ticket" : "tickets"}
           </span>
-          <span className="font-medium text-slate-700">
-            {isNaN(priceNum) || priceNum === 0
-              ? event.price ?? "Free"
-              : `CAD ${priceNum.toFixed(2)}`}
-          </span>
+          <span className="font-medium text-slate-700">{totalLabel}</span>
         </div>
 
-        <div className="border-t border-slate-200 pt-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-700">Total paid</span>
-            <span className="font-semibold text-slate-900">
-              {isNaN(priceNum) || priceNum === 0
-                ? "Free"
-                : `CAD ${priceNum.toFixed(2)}`}
-            </span>
-          </div>
+        {/* Total */}
+        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs">
+          <span className="font-semibold text-slate-700">Total paid</span>
+          <span className="font-semibold text-slate-900">{totalLabel}</span>
         </div>
 
-        <div className="border-t border-slate-200 pt-2 text-xs text-slate-400">
-          <div className="flex items-center justify-between">
+        {/* Meta */}
+        <div className="space-y-2 border-t border-slate-100 px-4 py-3">
+          <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span>Order ID</span>
-            <span className="font-mono">#{String(ticket.id).toUpperCase()}</span>
+            <span className="font-mono text-slate-500">
+              #{String(ticket.id).toUpperCase()}
+            </span>
           </div>
           {(() => {
             const createdAt = (ticket as Record<string, unknown>).createdAt;
             if (!createdAt) return null;
             return (
-              <div className="mt-1 flex items-center justify-between">
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span>Purchased</span>
-                <span>
+                <span className="text-slate-500">
                   {new Date(String(createdAt)).toLocaleDateString("en-CA", {
                     year: "numeric",
                     month: "short",
@@ -314,17 +318,18 @@ export default function AccountTickets() {
                 <Card
                   key={ticket.id}
                   className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
-                    isPast ? "opacity-75" : ""
+                    isPast ? "opacity-70" : ""
                   }`}
                 >
-                  {/* Clickable event info */}
+                  {/* Event info row */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
                     }
-                    className="flex w-full gap-4 p-4 text-left transition-colors hover:bg-slate-50 sm:p-5"
+                    className="flex w-full gap-4 p-4 text-left transition-colors hover:bg-slate-50/70 sm:p-5"
                   >
-                    <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                    {/* Thumbnail */}
+                    <div className="h-[76px] w-[76px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-100">
                       <img
                         src={event.image || "/placeholder-event.jpg"}
                         alt={event.title}
@@ -333,14 +338,18 @@ export default function AccountTickets() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      {/* Title row */}
-                      <h3 className="truncate text-sm font-semibold text-slate-900">
+                      {/* Title */}
+                      <h3 className="truncate text-sm font-semibold leading-snug text-slate-900">
                         {event.title}
                       </h3>
 
-                      {/* City · category */}
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {event.city} · {event.category}
+                      {/* Date */}
+                      <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        {formatDate(event.date)}
+                        <span className="mx-0.5 text-slate-300">·</span>
+                        <Clock className="h-3 w-3 shrink-0" />
+                        {formatTime(event.time)}
                       </p>
 
                       {/* Venue */}
@@ -349,32 +358,26 @@ export default function AccountTickets() {
                         <span className="truncate">{event.venue ?? event.city}</span>
                       </p>
 
-                      {/* Price below venue */}
-                      {event.price && (
-                        <p className="mt-1 text-xs font-semibold text-slate-700">
-                          {event.price}
-                        </p>
-                      )}
-
-                      {/* Date · time */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          {formatDate(event.date)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {formatTime(event.time)}
+                      {/* Price + ticket count row */}
+                      <div className="mt-1.5 flex items-center gap-3">
+                        {event.price && (
+                          <span className="text-xs font-semibold text-slate-700">
+                            {event.price}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                          <Ticket className="h-3 w-3 shrink-0" />
+                          {count} {count === 1 ? "ticket" : "tickets"}
                         </span>
                       </div>
                     </div>
                   </button>
 
-                  {/* Action bar — compact, no top line */}
-                  <div className="grid grid-cols-2 gap-1 px-4 pb-3 sm:px-5">
+                  {/* Action bar */}
+                  <div className="grid grid-cols-2 gap-1 border-t border-slate-100 px-3 py-2 sm:px-4">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
                         openPanel === "payment"
                           ? "bg-slate-100 text-slate-900"
                           : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -383,7 +386,7 @@ export default function AccountTickets() {
                       <CreditCard className="h-3.5 w-3.5" />
                       Payment
                       <ChevronDown
-                        className={`h-3 w-3 transition-transform ${
+                        className={`h-3 w-3 transition-transform duration-200 ${
                           openPanel === "payment" ? "rotate-180" : ""
                         }`}
                       />
@@ -391,7 +394,7 @@ export default function AccountTickets() {
 
                     <button
                       onClick={() => togglePanel(ticket.id, "qr")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
                         openPanel === "qr"
                           ? "bg-slate-100 text-slate-900"
                           : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -400,14 +403,14 @@ export default function AccountTickets() {
                       <QrCode className="h-3.5 w-3.5" />
                       QR Code
                       <ChevronDown
-                        className={`h-3 w-3 transition-transform ${
+                        className={`h-3 w-3 transition-transform duration-200 ${
                           openPanel === "qr" ? "rotate-180" : ""
                         }`}
                       />
                     </button>
                   </div>
 
-                  {/* Dropdown panels */}
+                  {/* Panels */}
                   {openPanel === "qr" && (
                     <QrPanel totalTickets={count} ticketCode={ticketCode} />
                   )}
