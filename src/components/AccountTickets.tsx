@@ -23,7 +23,6 @@ import { formatDate, formatTime } from "@/lib/utils";
 import type { AppRouter } from "@/server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
 import { QRCodeSVG } from "qrcode.react";
-// jsPDF is imported dynamically to avoid SSR issues
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 
@@ -34,6 +33,23 @@ type TicketWithNonNullEvent = TicketWithEvent & {
 };
 
 type FilterType = "upcoming" | "past";
+
+// Moved outside component to avoid TDZ error when bundler minifies
+const parseEventDate = (dateStr: string, timeStr?: string): Date => {
+  let eventDate: Date;
+  if (dateStr.includes(",")) {
+    const currentYear = new Date().getFullYear();
+    eventDate = new Date(`${dateStr}, ${currentYear} ${timeStr || "00:00"}`);
+  } else {
+    eventDate = new Date(`${dateStr}T${timeStr || "00:00"}`);
+  }
+
+  if (isNaN(eventDate.getTime())) {
+    console.warn("Invalid date:", dateStr);
+    return new Date();
+  }
+  return eventDate;
+};
 
 export default function AccountTickets() {
   const { user, loading: authLoading, isAuthenticated } = useAuth({
@@ -59,7 +75,6 @@ export default function AccountTickets() {
         item.event !== null
     );
 
-    // Show all tickets in upcoming tab (since seed data is all future dates)
     if (filterType === "upcoming") {
       return validTickets.sort(
         (a: TicketWithNonNullEvent, b: TicketWithNonNullEvent) => {
@@ -70,7 +85,6 @@ export default function AccountTickets() {
       );
     }
 
-    // Filter past events
     let filtered = validTickets.filter((item: TicketWithNonNullEvent) => {
       const eventDate = parseEventDate(item.event.date, item.event.time);
       return eventDate < now;
@@ -85,22 +99,6 @@ export default function AccountTickets() {
     );
   }, [tickets, filterType]);
 
-  const parseEventDate = (dateStr: string, timeStr?: string): Date => {
-    let eventDate: Date;
-    if (dateStr.includes(",")) {
-      const currentYear = new Date().getFullYear();
-      eventDate = new Date(`${dateStr}, ${currentYear} ${timeStr || "00:00"}`);
-    } else {
-      eventDate = new Date(`${dateStr}T${timeStr || "00:00"}`);
-    }
-
-    if (isNaN(eventDate.getTime())) {
-      console.warn("Invalid date:", dateStr);
-      return new Date();
-    }
-    return eventDate;
-  };
-
   const downloadTicket = async (ticket: TicketWithNonNullEvent) => {
     const element = ticketRefs.current[ticket.id];
     if (!element) {
@@ -110,7 +108,7 @@ export default function AccountTickets() {
 
     try {
       toast.info("Generating your ticket PDF...");
-      
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -118,14 +116,13 @@ export default function AccountTickets() {
         backgroundColor: "#ffffff",
         allowTaint: true,
       });
-      
+
       const imgData = canvas.toDataURL("image/png");
-      
-      // Dynamically import jsPDF to avoid SSR issues with fflate/node-worker
+
       const { jsPDF } = await import("jspdf");
-      
-      const pdfWidth = 210; // A4 width in mm
-      const pdfHeight = 297; // A4 height in mm
+
+      const pdfWidth = 210;
+      const pdfHeight = 297;
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -299,7 +296,7 @@ export default function AccountTickets() {
                         >
                           Payment Details
                         </Button>
-                        
+
                         <div className="ml-auto flex gap-2">
                           <Button
                             onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
@@ -357,8 +354,7 @@ export default function AccountTickets() {
                     {/* Expandable QR Code Section */}
                     {isExpanded && (
                       <div className="bg-slate-50 border-t border-slate-200 p-6 flex flex-col items-center animate-in slide-in-from-top-2 duration-200">
-                        {/* This div is used for PDF generation */}
-                        <div 
+                        <div
                           ref={(el) => { ticketRefs.current[ticketItem.id] = el; }}
                           className="bg-white p-8 rounded-lg shadow-sm border border-slate-300 flex flex-col items-center w-full max-w-sm"
                         >
@@ -366,10 +362,10 @@ export default function AccountTickets() {
                             <h4 className="text-xl font-bold text-slate-900 mb-1">Entry Pass</h4>
                             <p className="text-slate-500 text-sm">Order #{ticketItem.id}</p>
                           </div>
-                          
+
                           <div className="bg-slate-50 p-4 rounded-lg border-2 border-slate-300 mb-6">
-                            <QRCodeSVG 
-                              value={`TICKET-${ticketItem.id}-${user.id}`} 
+                            <QRCodeSVG
+                              value={`TICKET-${ticketItem.id}-${user.id}`}
                               size={160}
                               level="H"
                               includeMargin={true}
