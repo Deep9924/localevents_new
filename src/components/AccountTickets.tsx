@@ -179,20 +179,22 @@ const perTicket = count > 0 && !isNaN(priceNum) ? priceNum / count : 0;
               #{String(ticket.id).toUpperCase()}
             </span>
           </div>
-          {(ticket as Record<string, unknown>).createdAt && (
-            <div className="mt-1 flex items-center justify-between">
-              <span>Purchased</span>
-              <span>
-                {new Date(
-                  String((ticket as Record<string, unknown>).createdAt)
-                ).toLocaleDateString("en-CA", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
-            </div>
-          )}
+          {(() => {
+  const createdAt = (ticket as Record<string, unknown>).createdAt;
+  if (!createdAt) return null;
+  return (
+    <div className="mt-1 flex items-center justify-between">
+      <span>Purchased</span>
+      <span>
+        {new Date(String(createdAt)).toLocaleDateString("en-CA", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })}
+      </span>
+    </div>
+  );
+})()}
         </div>
       </div>
     </div>
