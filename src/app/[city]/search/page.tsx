@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { skipToken } from "@tanstack/react-query";
 import SearchNavbar from "@/components/SearchNavbar";
 import EventCard from "@/components/EventCard";
 import { useCity } from "@/contexts/CityContext";
 import { trpc } from "@/lib/trpc";
-
 
 function HorizontalRow({ children }: { children: React.ReactNode }) {
   return (
@@ -20,7 +20,6 @@ export default function SearchPage() {
   const { citySlug, cityName } = useCity();
   const searchParams = useSearchParams();
 
-  // These only change when the URL changes (i.e. user pressed search or picked a filter)
   const query    = searchParams.get("search") ?? "";
   const category = searchParams.get("category") ?? "all";
   const date     = (searchParams.get("date") ?? "any") as
@@ -28,16 +27,28 @@ export default function SearchPage() {
   const price    = searchParams.get("price") ?? "any";
   const sort     = searchParams.get("sort") ?? "relevance";
 
-  const hasActiveSearch = query.trim().length > 0 || category !== "all" || date !== "any" || price !== "any" || sort !== "relevance";
+  const hasActiveSearch =
+    query.trim().length > 0 ||
+    category !== "all" ||
+    date !== "any" ||
+    price !== "any" ||
+    sort !== "relevance";
 
   const { data: allEvents = [] } = trpc.events.getByCity.useQuery(
-    { citySlug, category: category !== "all" ? category : undefined, date: date === "any" ? undefined : date as "all" | "today" | "tomorrow" | "week" | "weekend", search: query, price, sort },
-    { enabled: !!citySlug }
+    citySlug
+      ? {
+          citySlug,
+          category: category !== "all" ? category : undefined,
+          date: date === "any" ? undefined : (date as "all" | "today" | "tomorrow" | "week" | "weekend"),
+          search: query,
+          price,
+          sort,
+        }
+      : skipToken
   );
 
   const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
-    { citySlug },
-    { enabled: !!citySlug && !hasActiveSearch }
+    citySlug && !hasActiveSearch ? { citySlug } : skipToken
   );
 
   const { data: categoriesFromDb = [] } = trpc.events.getCategories.useQuery();
@@ -55,7 +66,7 @@ export default function SearchPage() {
   const categoryPicks = useMemo(
     () =>
       categoriesFromDb
-        .filter(cat => cat.id !== "all")
+        .filter((cat) => cat.id !== "all")
         .map((cat) => ({
           ...cat,
           events: featuredEvents.filter((e) => e.category === cat.id),
@@ -80,7 +91,6 @@ export default function SearchPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-10">
 
         {hasActiveSearch ? (
-          /* Results view */
           <section>
             <div className="mb-4">
               <h2 className="text-lg font-bold text-gray-900">
@@ -96,7 +106,7 @@ export default function SearchPage() {
             {visibleEvents.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleEvents.map((event: any) => (
-                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                  <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                 ))}
               </div>
             ) : (
@@ -111,7 +121,6 @@ export default function SearchPage() {
           </section>
 
         ) : (
-          /* Discovery view */
           <>
             {popularEvents.length > 0 && (
               <section>
@@ -121,7 +130,7 @@ export default function SearchPage() {
                 <HorizontalRow>
                   {popularEvents.map((event: any) => (
                     <div key={event.id} className="shrink-0 w-64 sm:w-72">
-                      <EventCard event={event} citySlug={citySlug} />
+                      <EventCard event={event} citySlug={citySlug ?? undefined} />
                     </div>
                   ))}
                 </HorizontalRow>
@@ -136,7 +145,7 @@ export default function SearchPage() {
                 <HorizontalRow>
                   {group.events.map((event: any) => (
                     <div key={event.id} className="shrink-0 w-64 sm:w-72">
-                      <EventCard event={event} citySlug={citySlug} />
+                      <EventCard event={event} citySlug={citySlug ?? undefined} />
                     </div>
                   ))}
                 </HorizontalRow>
@@ -157,7 +166,7 @@ export default function SearchPage() {
                       <HorizontalRow>
                         {list.slice(0, 5).map((event: any) => (
                           <div key={event.id} className="shrink-0 w-64 sm:w-72">
-                            <EventCard event={event} citySlug={citySlug} />
+                            <EventCard event={event} citySlug={citySlug ?? undefined} />
                           </div>
                         ))}
                       </HorizontalRow>

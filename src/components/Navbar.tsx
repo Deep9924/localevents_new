@@ -109,6 +109,7 @@ export default function Navbar({
   useEffect(() => { setMobileMenuOpen(false); }, [citySlug]);
 
   const goToSearch = (query = "") => {
+    if (!citySlug) return;
     const params = new URLSearchParams();
     if (query.trim()) params.set("search", query.trim());
     params.set("category", activeCategory);
@@ -144,7 +145,7 @@ export default function Navbar({
       />
       <CityPickerModal
         open={cityModalOpen}
-        currentCitySlug={citySlug}
+        currentCitySlug={citySlug ?? ""}
         onSelect={(slug) => {
           setCitySlug(slug);
           router.push(`/${slug}`);

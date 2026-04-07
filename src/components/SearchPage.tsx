@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { skipToken } from "@tanstack/react-query";
 import SearchNavbar from "@/components/SearchNavbar";
 import EventCard from "@/components/EventCard";
 import { useCity } from "@/contexts/CityContext";
@@ -14,23 +15,24 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState<"discover" | "search">("discover");
 
   const { data: categoryEvents = [] } = trpc.events.getByCity.useQuery(
-    {
-      citySlug,
-      category: category === "all" ? undefined : category,
-      search: query || undefined,
-      date: undefined,
-    },
-    { enabled: !!citySlug }
+    citySlug
+      ? {
+          citySlug,
+          category: category === "all" ? undefined : category,
+          search: query || undefined,
+          date: undefined,
+        }
+      : skipToken
   );
 
   const { data: searchEvents = [] } = trpc.events.search.useQuery(
-    { query, citySlug, category: category === "all" ? undefined : category },
-    { enabled: activeTab === "search" && query.trim().length > 0 }
+    citySlug && activeTab === "search" && query.trim().length > 0
+      ? { query, citySlug, category: category === "all" ? undefined : category }
+      : skipToken
   );
 
   const { data: featuredEvents = [] } = trpc.events.getFeatured.useQuery(
-    { citySlug },
-    { enabled: !!citySlug }
+    citySlug ? { citySlug } : skipToken
   );
 
   const visibleEvents = activeTab === "search" ? searchEvents : categoryEvents;
@@ -97,7 +99,7 @@ export default function SearchPage() {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {group.events.map((event: any) => (
-                        <EventCard key={event.id} event={event} citySlug={citySlug} />
+                        <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                       ))}
                     </div>
                   </div>
@@ -111,7 +113,7 @@ export default function SearchPage() {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {popularEvents.map((event: any) => (
-                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                  <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                 ))}
               </div>
             </section>
@@ -124,7 +126,7 @@ export default function SearchPage() {
                     <p className="text-sm font-semibold text-gray-700 mb-3">{organizer}</p>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {list.slice(0, 3).map((event: any) => (
-                        <EventCard key={event.id} event={event} citySlug={citySlug} />
+                        <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                       ))}
                     </div>
                   </div>
@@ -136,7 +138,7 @@ export default function SearchPage() {
               <h2 className="text-lg font-bold text-gray-900 mb-4">Happening this weekend</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {weekendEvents.map((event: any) => (
-                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                  <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                 ))}
               </div>
             </section>
@@ -177,7 +179,7 @@ export default function SearchPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visibleEvents.length > 0 ? (
                 visibleEvents.map((event: any) => (
-                  <EventCard key={event.id} event={event} citySlug={citySlug} />
+                  <EventCard key={event.id} event={event} citySlug={citySlug ?? undefined} />
                 ))
               ) : (
                 <div className="col-span-full py-16 text-center text-gray-500">
