@@ -3,7 +3,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Loader2,
   ArrowLeft,
@@ -71,7 +70,10 @@ function QrPanel({
   };
 
   return (
-    <div className="px-4 pb-5 pt-3 sm:px-5">
+    <div className="border-t border-dashed border-slate-200 bg-slate-50/60 px-5 pb-5 pt-4">
+      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+        Scan at Entry
+      </p>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -84,15 +86,15 @@ function QrPanel({
               key={i}
               className="flex w-full min-w-full snap-center flex-col items-center py-1"
             >
-              <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80">
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
                 <QRCode
                   value={codeValue}
-                  size={160}
-                  bgColor="#f8fafc"
+                  size={170}
+                  bgColor="#ffffff"
                   fgColor="#0f172a"
                 />
               </div>
-              <p className="mt-2.5 font-mono text-[11px] tracking-widest text-slate-400">
+              <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
                 {codeValue}
               </p>
               {totalTickets > 1 && (
@@ -106,7 +108,7 @@ function QrPanel({
       </div>
 
       {totalTickets > 1 && (
-        <div className="mt-2.5 flex justify-center gap-1.5">
+        <div className="mt-3 flex justify-center gap-1.5">
           {Array.from({ length: totalTickets }).map((_, i) => (
             <button
               key={i}
@@ -136,14 +138,14 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
     (event.price ? event.price.replace(/[^0-9.]/g, "") : "0");
   const priceNum = parseFloat(String(rawPrice));
   const totalLabel =
-    isNaN(priceNum) || priceNum === 0
-      ? "Free"
-      : `CAD ${priceNum.toFixed(2)}`;
+    isNaN(priceNum) || priceNum === 0 ? "Free" : `CAD ${priceNum.toFixed(2)}`;
 
   return (
-    <div className="px-4 pb-4 pt-2 sm:px-5">
-      <div className="space-y-1.5 rounded-xl bg-slate-50 p-3">
-        {/* Line item */}
+    <div className="border-t border-dashed border-slate-200 bg-slate-50/60 px-5 pb-5 pt-4">
+      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+        Payment Details
+      </p>
+      <div className="space-y-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="flex items-center justify-between text-xs text-slate-500">
           <span>
             {event.price ?? "Free"} × {count}{" "}
@@ -151,19 +153,14 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
           </span>
           <span>{totalLabel}</span>
         </div>
-
-        {/* Total */}
-        <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
           <span className="font-semibold text-slate-700">Total paid</span>
           <span className="font-semibold text-slate-900">{totalLabel}</span>
         </div>
-
-        {/* Meta */}
-        <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-[11px] text-slate-400">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
           <span>Order ID</span>
           <span className="font-mono">#{String(ticket.id).toUpperCase()}</span>
         </div>
-
         {(() => {
           const createdAt = (ticket as Record<string, unknown>).createdAt;
           if (!createdAt) return null;
@@ -275,7 +272,7 @@ export default function AccountTickets() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white"
+                className="h-52 animate-pulse rounded-3xl border border-slate-200 bg-white"
               />
             ))}
           </div>
@@ -301,7 +298,7 @@ export default function AccountTickets() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {filteredTickets.map((ticket) => {
               const event = ticket.event;
               const isPast = filterType === "past";
@@ -310,81 +307,91 @@ export default function AccountTickets() {
               const openPanel = expanded[ticket.id] ?? null;
 
               return (
-                <Card
+                <div
                   key={ticket.id}
-                  className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
-                    isPast ? "opacity-75" : ""
+                  className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
+                    isPast ? "opacity-70" : ""
                   }`}
                 >
-                  {/* Clickable event info */}
+                  {/* Hero image */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
                     }
-                    className="flex w-full gap-4 p-4 text-left transition-colors hover:bg-slate-50 sm:p-5"
+                    className="group relative block w-full overflow-hidden"
                   >
-                    <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                    <div className="relative h-44 w-full sm:h-52">
                       <img
                         src={event.image || "/placeholder-event.jpg"}
                         alt={event.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                    </div>
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-                    <div className="min-w-0 flex-1">
-                      {/* Title */}
-                      <h3 className="truncate text-sm font-semibold text-slate-900">
-                        {event.title}
-                      </h3>
-
-                      {/* City · category */}
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {event.city} · {event.category}
-                      </p>
-
-                      {/* Venue */}
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate">
-                          {event.venue ?? event.city}
-                        </span>
-                      </p>
-
-                      {/* Price below venue */}
-                      {event.price && (
-                        <p className="mt-1 text-xs text-slate-400">
-                          {event.price}
-                        </p>
+                      {/* Past badge */}
+                      {isPast && (
+                        <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-medium text-white/80 backdrop-blur-sm">
+                          Past Event
+                        </div>
                       )}
 
-                      {/* Date · time · tickets — all same style */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          {formatDate(event.date)}
-                        </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {formatTime(event.time)}
-                        </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="flex items-center gap-1">
-                          <Ticket className="h-3 w-3 shrink-0" />
-                          {count} {count === 1 ? "ticket" : "tickets"}
-                        </span>
+                      {/* Ticket count badge */}
+                      <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm ring-1 ring-white/30">
+                        <Ticket className="h-3 w-3" />
+                        {count} {count === 1 ? "ticket" : "tickets"}
+                      </div>
+
+                      {/* Event info overlaid on image bottom */}
+                      <div className="absolute bottom-0 left-0 right-0 p-4">
+                        <h3 className="text-base font-bold text-white drop-shadow-sm">
+                          {event.title}
+                        </h3>
+                        <p className="mt-0.5 text-xs text-white/70">
+                          {event.city} · {event.category}
+                        </p>
                       </div>
                     </div>
                   </button>
 
+                  {/* Details row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 sm:px-5">
+                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                      {formatDate(event.date)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <Clock className="h-3.5 w-3.5 text-slate-400" />
+                      {formatTime(event.time)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="max-w-[160px] truncate">
+                        {event.venue ?? event.city}
+                      </span>
+                    </span>
+                    {event.price && (
+                      <span className="ml-auto text-xs font-semibold text-slate-700">
+                        {event.price}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Divider with ticket notch effect */}
+                  <div className="relative mx-4 flex items-center">
+                    <div className="absolute -left-4 h-4 w-4 rounded-full bg-slate-50 ring-1 ring-slate-200" />
+                    <div className="w-full border-t border-dashed border-slate-200" />
+                    <div className="absolute -right-4 h-4 w-4 rounded-full bg-slate-50 ring-1 ring-slate-200" />
+                  </div>
+
                   {/* Action bar */}
-                  <div className="grid grid-cols-2 gap-1 px-4 pb-3 sm:px-5">
+                  <div className="grid grid-cols-2 gap-2 px-4 py-3 sm:px-5">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
                         openPanel === "payment"
-                          ? "bg-slate-100 text-slate-900"
-                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                       }`}
                     >
                       <CreditCard className="h-3.5 w-3.5" />
@@ -398,10 +405,10 @@ export default function AccountTickets() {
 
                     <button
                       onClick={() => togglePanel(ticket.id, "qr")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
                         openPanel === "qr"
-                          ? "bg-slate-100 text-slate-900"
-                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                       }`}
                     >
                       <QrCode className="h-3.5 w-3.5" />
@@ -421,7 +428,7 @@ export default function AccountTickets() {
                   {openPanel === "payment" && (
                     <PaymentPanel ticket={ticket} />
                   )}
-                </Card>
+                </div>
               );
             })}
           </div>
