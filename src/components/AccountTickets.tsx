@@ -22,8 +22,6 @@ import { formatDate, formatTime } from "@/lib/utils";
 import type { AppRouter } from "@/server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
 import { QRCodeSVG } from "qrcode.react";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import { toast } from "sonner";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -75,6 +73,11 @@ export default function AccountTickets() {
 
     try {
       toast.info("Generating your ticket PDF...");
+      
+      // Dynamically import to avoid SSR issues
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+      
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
