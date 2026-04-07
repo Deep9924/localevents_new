@@ -71,7 +71,7 @@ function QrPanel({
   };
 
   return (
-    <div className="px-4 pb-5 pt-3 sm:px-5">
+    <div className="px-4 pb-4 pt-2 sm:px-5">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -79,7 +79,6 @@ function QrPanel({
       >
         {Array.from({ length: totalTickets }).map((_, i) => {
           const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
-
           return (
             <div
               key={i}
@@ -93,11 +92,9 @@ function QrPanel({
                   fgColor="#0f172a"
                 />
               </div>
-
-              <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
+              <p className="mt-2.5 font-mono text-[11px] tracking-widest text-slate-400">
                 {codeValue}
               </p>
-
               {totalTickets > 1 && (
                 <p className="mt-1 text-[11px] text-slate-400">
                   {i + 1} / {totalTickets}
@@ -109,7 +106,7 @@ function QrPanel({
       </div>
 
       {totalTickets > 1 && (
-        <div className="mt-3 flex justify-center gap-1.5">
+        <div className="mt-2.5 flex justify-center gap-1.5">
           {Array.from({ length: totalTickets }).map((_, i) => (
             <button
               key={i}
@@ -140,7 +137,7 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
   const priceNum = parseFloat(String(rawPrice));
 
   return (
-    <div className="px-4 pb-5 pt-3 sm:px-5">
+    <div className="px-4 pb-4 pt-2 sm:px-5">
       <div className="space-y-2 rounded-xl bg-slate-50 p-3">
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-500">
@@ -220,10 +217,7 @@ export default function AccountTickets() {
       });
   }, [tickets, filterType]);
 
-  const togglePanel = (
-    ticketId: string | number,
-    panel: "qr" | "payment"
-  ) => {
+  const togglePanel = (ticketId: string | number, panel: "qr" | "payment") => {
     setExpanded((prev) => ({
       ...prev,
       [ticketId]: prev[ticketId] === panel ? null : panel,
@@ -252,7 +246,6 @@ export default function AccountTickets() {
             >
               <ArrowLeft className="h-5 w-5 text-slate-600" />
             </button>
-
             <div>
               <h1 className="text-xl font-semibold text-slate-900">Tickets</h1>
               <p className="text-sm text-slate-500">
@@ -295,18 +288,12 @@ export default function AccountTickets() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Ticket className="h-6 w-6 text-slate-400" />
             </div>
-
             <h3 className="text-lg font-semibold text-slate-900">
-              {filterType === "upcoming"
-                ? "No upcoming tickets"
-                : "No past tickets"}
+              {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
             </h3>
-
             <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
-              Your purchased tickets will appear here once you buy an event
-              ticket.
+              Your purchased tickets will appear here once you buy an event ticket.
             </p>
-
             <Button
               onClick={() => router.push("/")}
               className="mt-6 rounded-xl bg-slate-900 px-6 hover:bg-slate-700"
@@ -330,7 +317,7 @@ export default function AccountTickets() {
                     isPast ? "opacity-75" : ""
                   }`}
                 >
-                  {/* Clickable event info row */}
+                  {/* Clickable event info */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
@@ -346,37 +333,36 @@ export default function AccountTickets() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="truncate text-sm font-semibold text-slate-900">
-                          {event.title}
-                        </h3>
-                        {event.price && (
-                          <span className="shrink-0 text-sm font-semibold text-slate-800">
-                            {event.price}
-                          </span>
-                        )}
-                      </div>
+                      {/* Title row */}
+                      <h3 className="truncate text-sm font-semibold text-slate-900">
+                        {event.title}
+                      </h3>
 
+                      {/* City · category */}
                       <p className="mt-0.5 text-xs text-slate-500">
                         {event.city} · {event.category}
                       </p>
 
-                      <div className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
+                      {/* Venue */}
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
                         <MapPin className="h-3 w-3 shrink-0" />
                         <span className="truncate">{event.venue ?? event.city}</span>
-                      </div>
+                      </p>
 
-                      {/* Ticket count under venue */}
-                      <div className="mt-1.5 flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-xs text-slate-400">
-                          <Ticket className="h-3 w-3 shrink-0" />
-                          {count} {count === 1 ? "ticket" : "tickets"}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                      {/* Price below venue */}
+                      {event.price && (
+                        <p className="mt-1 text-xs font-semibold text-slate-700">
+                          {event.price}
+                        </p>
+                      )}
+
+                      {/* Date · time */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 shrink-0" />
                           {formatDate(event.date)}
                         </span>
-                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3 shrink-0" />
                           {formatTime(event.time)}
                         </span>
@@ -384,11 +370,11 @@ export default function AccountTickets() {
                     </div>
                   </button>
 
-                  {/* Action bar — no divider lines, evenly spaced buttons */}
-                  <div className="grid grid-cols-2 px-4 pb-3 sm:px-5">
+                  {/* Action bar — compact, no top line */}
+                  <div className="grid grid-cols-2 gap-1 px-4 pb-3 sm:px-5">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
                         openPanel === "payment"
                           ? "bg-slate-100 text-slate-900"
                           : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -405,7 +391,7 @@ export default function AccountTickets() {
 
                     <button
                       onClick={() => togglePanel(ticket.id, "qr")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
                         openPanel === "qr"
                           ? "bg-slate-100 text-slate-900"
                           : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -436,4 +422,4 @@ export default function AccountTickets() {
       </div>
     </div>
   );
-                    }
+}
