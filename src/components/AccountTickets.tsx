@@ -11,6 +11,9 @@ import {
   Calendar,
   Clock,
   QrCode,
+  ChevronDown,
+  CreditCard,
+  MapPin,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
@@ -26,6 +29,7 @@ type TicketWithEvent = TicketItem & {
 };
 
 type FilterType = "upcoming" | "past";
+type ExpandedPanel = "qr" | "payment" | null;
 
 const parseEventDate = (dateStr: string, timeStr?: string): Date => {
   let eventDate: Date;
@@ -44,15 +48,12 @@ function getTicketCount(ticket: TicketItem): number {
     "quantity" in ticket &&
     typeof (ticket as Record<string, unknown>).quantity === "number"
   ) {
-    return Math.max(
-      1,
-      (ticket as Record<string, unknown>).quantity as number
-    );
+    return Math.max(1, (ticket as Record<string, unknown>).quantity as number);
   }
   return 1;
 }
 
-function QrStrip({
+function QrPanel({
   totalTickets,
   ticketCode,
 }: {
@@ -70,54 +71,51 @@ function QrStrip({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-      <div className="mb-2 flex items-center justify-between px-1 text-xs text-slate-500">
-        <span className="font-medium text-slate-700">
-          Ticket {activeIndex + 1}
-          <span className="ml-1 font-normal text-slate-400">
-            of {totalTickets}
-          </span>
-        </span>
-        <span className="font-mono text-slate-400">{ticketCode}</span>
-      </div>
+    <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5">
+      {totalTickets > 1 && (
+        <p className="mb-3 text-xs text-slate-400">
+          Swipe to see all {totalTickets} tickets
+        </p>
+      )}
 
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex snap-x snap-mandatory gap-0 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {Array.from({ length: totalTickets }).map((_, i) => {
           const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
 
           return (
-            <div key={i} className="w-full min-w-full snap-center">
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                  Ticket {i + 1}
-                </p>
-
-                <div className="flex justify-center">
-                  <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-                    <QRCode
-                      value={codeValue}
-                      size={148}
-                      bgColor="#FFFFFF"
-                      fgColor="#0f172a"
-                    />
-                  </div>
-                </div>
-
-                <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-slate-400">
-                  {codeValue}
-                </p>
+            <div
+              key={i}
+              className="flex w-full min-w-full snap-center flex-col items-center py-2"
+            >
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <QRCode
+                  value={codeValue}
+                  size={160}
+                  bgColor="#FFFFFF"
+                  fgColor="#0f172a"
+                />
               </div>
+
+              <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
+                {codeValue}
+              </p>
+
+              {totalTickets > 1 && (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {i + 1} / {totalTickets}
+                </p>
+              )}
             </div>
           );
         })}
       </div>
 
       {totalTickets > 1 && (
-        <div className="mt-3 flex justify-center gap-1.5">
+        <div className="mt-2 flex justify-center gap-1.5">
           {Array.from({ length: totalTickets }).map((_, i) => (
             <button
               key={i}
@@ -129,12 +127,73 @@ function QrStrip({
               }}
               aria-label={`Go to ticket ${i + 1}`}
               className={`h-1.5 rounded-full transition-all ${
-                i === activeIndex ? "w-5 bg-indigo-500" : "w-1.5 bg-slate-300"
+                i === activeIndex ? "w-5 bg-slate-700" : "w-1.5 bg-slate-300"
               }`}
             />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
+  const event = ticket.event;
+  const count = getTicketCount(ticket);
+  const priceNum = parseFloat(
+    String((ticket as Record<string, unknown>).totalPrice ?? event.priceAmount ?? 0)
+  );
+  const perTicket = count > 0 ? priceNum / count : 0;
+
+  return (
+    <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5">
+      <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-500">
+            {event.price ?? "Free"} × {count}{" "}
+            {count === 1 ? "ticket" : "tickets"}
+          </span>
+          <span className="font-medium text-slate-700">
+            {isNaN(priceNum) || priceNum === 0
+              ? event.price ?? "Free"
+              : `CAD ${priceNum.toFixed(2)}`}
+          </span>
+        </div>
+
+        <div className="border-t border-slate-200 pt-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-slate-700">Total paid</span>
+            <span className="font-semibold text-slate-900">
+              {isNaN(priceNum) || priceNum === 0
+                ? "Free"
+                : `CAD ${priceNum.toFixed(2)}`}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 pt-2 text-xs text-slate-400">
+          <div className="flex items-center justify-between">
+            <span>Order ID</span>
+            <span className="font-mono">
+              #{String(ticket.id).toUpperCase()}
+            </span>
+          </div>
+          {(ticket as Record<string, unknown>).createdAt && (
+            <div className="mt-1 flex items-center justify-between">
+              <span>Purchased</span>
+              <span>
+                {new Date(
+                  String((ticket as Record<string, unknown>).createdAt)
+                ).toLocaleDateString("en-CA", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -145,9 +204,9 @@ export default function AccountTickets() {
   });
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
-  const [expandedTicket, setExpandedTicket] = useState<string | number | null>(
-    null
-  );
+  const [expanded, setExpanded] = useState<
+    Record<string | number, ExpandedPanel>
+  >({});
 
   const { data: tickets = [], isLoading: ticketsLoading } =
     trpc.tickets.list.useQuery(undefined, { enabled: !!user });
@@ -166,6 +225,16 @@ export default function AccountTickets() {
         return filterType === "upcoming" ? da - db : db - da;
       });
   }, [tickets, filterType]);
+
+  const togglePanel = (
+    ticketId: string | number,
+    panel: "qr" | "payment"
+  ) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [ticketId]: prev[ticketId] === panel ? null : panel,
+    }));
+  };
 
   if (authLoading) {
     return (
@@ -198,7 +267,6 @@ export default function AccountTickets() {
             </div>
           </div>
 
-          {/* Filter tabs */}
           <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
@@ -224,7 +292,7 @@ export default function AccountTickets() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-white"
+                className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white"
               />
             ))}
           </div>
@@ -247,118 +315,123 @@ export default function AccountTickets() {
 
             <Button
               onClick={() => router.push("/")}
-              className="mt-6 rounded-xl bg-indigo-600 px-6 hover:bg-indigo-700"
+              className="mt-6 rounded-xl bg-slate-900 px-6 hover:bg-slate-700"
             >
               Explore Events
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredTickets.map((ticket) => {
               const event = ticket.event;
               const isPast = filterType === "past";
               const count = getTicketCount(ticket);
               const ticketCode = `TKT-${String(ticket.id).toUpperCase()}`;
-              const isExpanded = expandedTicket === ticket.id;
+              const openPanel = expanded[ticket.id] ?? null;
 
               return (
                 <Card
                   key={ticket.id}
                   className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
-                    isPast ? "opacity-80" : ""
+                    isPast ? "opacity-75" : ""
                   }`}
                 >
-                  <div className="p-4 sm:p-5">
-                    {/* Event info row */}
-                    <div className="flex gap-4">
-                      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                        <img
-                          src={event.image || "/placeholder-event.jpg"}
-                          alt={event.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1.5 flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h3 className="truncate text-sm font-semibold text-slate-900">
-                              {event.title}
-                            </h3>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {event.city} · {event.category}
-                            </p>
-                          </div>
-
-                          {event.price && (
-                            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                              {event.price}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                            {formatDate(event.date)}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5 text-slate-400" />
-                            {formatTime(event.time)}
-                          </span>
-                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">
-                            {count} {count === 1 ? "ticket" : "tickets"}
-                          </span>
-                        </div>
-                      </div>
+                  {/* Clickable event info row */}
+                  <button
+                    onClick={() =>
+                      router.push(`/${event.citySlug}/${event.slug}`)
+                    }
+                    className="flex w-full gap-4 p-4 text-left transition-colors hover:bg-slate-50 sm:p-5"
+                  >
+                    <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <img
+                        src={event.image || "/placeholder-event.jpg"}
+                        alt={event.title}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
 
-                    {/* Actions + expandable QR */}
-                    <div className="mt-4 border-t border-slate-100 pt-4">
-                      {/* Action buttons */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() =>
-                            router.push(`/${event.citySlug}/${event.slug}`)
-                          }
-                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200"
-                        >
-                          View event
-                        </button>
-
-                        <button
-                          onClick={() =>
-                            router.push(`/account/payments/${ticket.id}`)
-                          }
-                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200"
-                        >
-                          Payment details
-                        </button>
-
-                        <button
-                          onClick={() =>
-                            setExpandedTicket((prev) =>
-                              prev === ticket.id ? null : ticket.id
-                            )
-                          }
-                          className="flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100"
-                        >
-                          <QrCode className="h-3.5 w-3.5" />
-                          {isExpanded ? "Hide QR code" : "Show QR code"}
-                        </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="truncate text-sm font-semibold text-slate-900">
+                          {event.title}
+                        </h3>
+                        {event.price && (
+                          <span className="shrink-0 text-sm font-semibold text-slate-800">
+                            {event.price}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Expandable QR panel */}
-                      {isExpanded && (
-                        <div className="mt-4">
-                          <QrStrip
-                            totalTickets={count}
-                            ticketCode={ticketCode}
-                          />
-                        </div>
-                      )}
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {event.city} · {event.category}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(event.date)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatTime(event.time)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {event.venue ?? event.city}
+                        </span>
+                      </div>
                     </div>
+                  </button>
+
+                  {/* Action bar */}
+                  <div className="flex items-center gap-1 border-t border-slate-100 px-4 py-2 sm:px-5">
+                    <span className="mr-auto rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                      {count} {count === 1 ? "ticket" : "tickets"}
+                    </span>
+
+                    <button
+                      onClick={() => togglePanel(ticket.id, "payment")}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        openPanel === "payment"
+                          ? "bg-slate-200 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      }`}
+                    >
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Payment
+                      <ChevronDown
+                        className={`h-3 w-3 transition-transform ${
+                          openPanel === "payment" ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    <button
+                      onClick={() => togglePanel(ticket.id, "qr")}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        openPanel === "qr"
+                          ? "bg-slate-200 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      }`}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      QR Code
+                      <ChevronDown
+                        className={`h-3 w-3 transition-transform ${
+                          openPanel === "qr" ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
                   </div>
+
+                  {/* Dropdown panels */}
+                  {openPanel === "qr" && (
+                    <QrPanel totalTickets={count} ticketCode={ticketCode} />
+                  )}
+                  {openPanel === "payment" && (
+                    <PaymentPanel ticket={ticket} />
+                  )}
                 </Card>
               );
             })}
