@@ -70,8 +70,8 @@ function QrPanel({
   };
 
   return (
-    <div className="border-t border-dashed border-slate-200 bg-slate-50/60 px-5 pb-5 pt-4">
-      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+    <div className="bg-slate-50/60 px-5 pb-7 pt-5">
+      <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
         Scan at Entry
       </p>
       <div
@@ -141,11 +141,11 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
     isNaN(priceNum) || priceNum === 0 ? "Free" : `CAD ${priceNum.toFixed(2)}`;
 
   return (
-    <div className="border-t border-dashed border-slate-200 bg-slate-50/60 px-5 pb-5 pt-4">
-      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+    <div className="bg-slate-50/60 px-5 pb-7 pt-5">
+      <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
         Payment Details
       </p>
-      <div className="space-y-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <div className="space-y-2.5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="flex items-center justify-between text-xs text-slate-500">
           <span>
             {event.price ?? "Free"} × {count}{" "}
@@ -153,11 +153,11 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
           </span>
           <span>{totalLabel}</span>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-sm">
           <span className="font-semibold text-slate-700">Total paid</span>
           <span className="font-semibold text-slate-900">{totalLabel}</span>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-400">
           <span>Order ID</span>
           <span className="font-mono">#{String(ticket.id).toUpperCase()}</span>
         </div>
@@ -229,8 +229,8 @@ export default function AccountTickets() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+      {/* Header — NOT sticky */}
+      <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="mb-4 flex items-center gap-3">
             <button
@@ -247,6 +247,7 @@ export default function AccountTickets() {
             </div>
           </div>
 
+          {/* Filter tabs — NOT sticky */}
           <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
@@ -266,13 +267,13 @@ export default function AccountTickets() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mx-auto max-w-3xl px-4 py-8 pb-16">
         {ticketsLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-52 animate-pulse rounded-3xl border border-slate-200 bg-white"
+                className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-white"
               />
             ))}
           </div>
@@ -298,7 +299,7 @@ export default function AccountTickets() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {filteredTickets.map((ticket) => {
               const event = ticket.event;
               const isPast = filterType === "past";
@@ -313,91 +314,85 @@ export default function AccountTickets() {
                     isPast ? "opacity-70" : ""
                   }`}
                 >
-                  {/* Hero image */}
+                  {/* Hero image — clean with no text overlay */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
                     }
                     className="group relative block w-full overflow-hidden"
                   >
-                    <div className="relative h-44 w-full sm:h-52">
+                    <div className="relative h-56 w-full sm:h-64">
                       <img
                         src={event.image || "/placeholder-event.jpg"}
                         alt={event.title}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                      {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-                      {/* Past badge */}
+                      {/* Subtle past desaturation only */}
                       {isPast && (
-                        <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-medium text-white/80 backdrop-blur-sm">
-                          Past Event
-                        </div>
+                        <div className="absolute inset-0 bg-slate-900/25" />
                       )}
-
-                      {/* Ticket count badge */}
-                      <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm ring-1 ring-white/30">
-                        <Ticket className="h-3 w-3" />
-                        {count} {count === 1 ? "ticket" : "tickets"}
-                      </div>
-
-                      {/* Event info overlaid on image bottom */}
-                      <div className="absolute bottom-0 left-0 right-0 p-4">
-                        <h3 className="text-base font-bold text-white drop-shadow-sm">
-                          {event.title}
-                        </h3>
-                        <p className="mt-0.5 text-xs text-white/70">
-                          {event.city} · {event.category}
-                        </p>
-                      </div>
                     </div>
                   </button>
 
-                  {/* Details row */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 sm:px-5">
-                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      {formatDate(event.date)}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Clock className="h-3.5 w-3.5 text-slate-400" />
-                      {formatTime(event.time)}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                      <span className="max-w-[160px] truncate">
-                        {event.venue ?? event.city}
+                  {/* Event info — all below the image */}
+                  <div className="px-5 pt-5 pb-2">
+                    {/* Title */}
+                    <h3 className="text-[17px] font-bold leading-snug text-slate-900">
+                      {event.title}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {event.city} · {event.category}
+                    </p>
+
+                    {/* Date / time / venue */}
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="flex items-center gap-1.5 text-[13px] text-slate-500">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                        {formatDate(event.date)}
                       </span>
-                    </span>
-                    {event.price && (
-                      <span className="ml-auto text-xs font-semibold text-slate-700">
-                        {event.price}
+                      <span className="flex items-center gap-1.5 text-[13px] text-slate-500">
+                        <Clock className="h-3.5 w-3.5 text-slate-400" />
+                        {formatTime(event.time)}
                       </span>
-                    )}
+                      <span className="flex items-center gap-1.5 text-[13px] text-slate-500">
+                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="max-w-[150px] truncate">
+                          {event.venue ?? event.city}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Tickets purchased pill + price — bottom of info block */}
+                    <div className="mt-4 mb-5 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3.5 py-1.5 text-[13px] font-medium text-slate-600">
+                        <Ticket className="h-3.5 w-3.5" />
+                        {count} {count === 1 ? "ticket" : "tickets"} purchased
+                      </div>
+                      {event.price && (
+                        <span className="text-sm font-semibold text-slate-800">
+                          {event.price}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Divider with ticket notch effect */}
-                  <div className="relative mx-4 flex items-center">
-                    <div className="absolute -left-4 h-4 w-4 rounded-full bg-slate-50 ring-1 ring-slate-200" />
-                    <div className="w-full border-t border-dashed border-slate-200" />
-                    <div className="absolute -right-4 h-4 w-4 rounded-full bg-slate-50 ring-1 ring-slate-200" />
-                  </div>
+                  {/* Clean separator */}
+                  <div className="mx-5 border-t border-slate-100" />
 
-                  {/* Action bar */}
-                  <div className="grid grid-cols-2 gap-2 px-4 py-3 sm:px-5">
+                  {/* Action buttons — generous padding for easy tapping */}
+                  <div className="grid grid-cols-2 gap-2.5 px-5 py-4">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-2 rounded-xl py-3.5 text-[13px] font-medium transition-colors ${
                         openPanel === "payment"
                           ? "bg-slate-900 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                       }`}
                     >
-                      <CreditCard className="h-3.5 w-3.5" />
+                      <CreditCard className="h-4 w-4" />
                       Payment
                       <ChevronDown
-                        className={`h-3 w-3 transition-transform duration-200 ${
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
                           openPanel === "payment" ? "rotate-180" : ""
                         }`}
                       />
@@ -405,28 +400,34 @@ export default function AccountTickets() {
 
                     <button
                       onClick={() => togglePanel(ticket.id, "qr")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-2 rounded-xl py-3.5 text-[13px] font-medium transition-colors ${
                         openPanel === "qr"
                           ? "bg-slate-900 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                       }`}
                     >
-                      <QrCode className="h-3.5 w-3.5" />
+                      <QrCode className="h-4 w-4" />
                       QR Code
                       <ChevronDown
-                        className={`h-3 w-3 transition-transform duration-200 ${
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
                           openPanel === "qr" ? "rotate-180" : ""
                         }`}
                       />
                     </button>
                   </div>
 
-                  {/* Panels */}
+                  {/* Expanded panels */}
                   {openPanel === "qr" && (
-                    <QrPanel totalTickets={count} ticketCode={ticketCode} />
+                    <>
+                      <div className="mx-5 border-t border-slate-100" />
+                      <QrPanel totalTickets={count} ticketCode={ticketCode} />
+                    </>
                   )}
                   {openPanel === "payment" && (
-                    <PaymentPanel ticket={ticket} />
+                    <>
+                      <div className="mx-5 border-t border-slate-100" />
+                      <PaymentPanel ticket={ticket} />
+                    </>
                   )}
                 </div>
               );
