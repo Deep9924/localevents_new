@@ -47,7 +47,7 @@ export default function AccountTickets() {
     data: tickets = [],
     isLoading: ticketsLoading,
   } = trpc.tickets.list.useQuery(undefined, {
-    enabled: isAuthenticated && !!user,
+    enabled: !!user,
   });
 
   const filteredTickets = useMemo(() => {

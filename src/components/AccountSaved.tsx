@@ -38,7 +38,7 @@ export default function AccountSaved() {
     data: savedEvents = [],
     isLoading: eventsLoading,
   } = trpc.savedEvents.list.useQuery(undefined, {
-    enabled: isAuthenticated && !!user,
+    enabled: !!user,
   });
 
   const utils = trpc.useUtils();

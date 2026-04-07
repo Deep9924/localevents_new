@@ -15,11 +15,14 @@ export async function createContext(): Promise<TrpcContext> {
   // 1. Try NextAuth session — isolated so failures don't block the fallback
   try {
     const session = await auth();
+    console.log("NextAuth session found:", !!session);
     const openId = session?.user?.id;
     if (openId) {
       user = (await getUserByOpenId(openId)) ?? null;
+      console.log("User found via NextAuth:", !!user);
     }
-  } catch {
+  } catch (err) {
+    console.error("NextAuth error:", err);
     // NextAuth misconfigured or unavailable — continue to cookie fallback
   }
 
