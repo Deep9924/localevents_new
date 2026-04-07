@@ -100,7 +100,7 @@ function getTicketStatusClasses(status?: string | null) {
 export default function AccountTickets() {
   const [openTicketId, setOpenTicketId] = useState<number | null>(null);
 
-  const { data, isLoading } = api.tickets.list.useQuery();
+  const { data, isLoading } = trpc.tickets.list.useQuery();
 
   const tickets = useMemo(() => {
     return ((data ?? []) as TicketItem[]).filter((ticket) => ticket.event);
