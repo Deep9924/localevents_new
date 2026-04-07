@@ -6,7 +6,7 @@ import Link from "next/link";
 import QRCode from "react-qr-code";
 import { CalendarDays, ChevronDown, ChevronUp, MapPin, Receipt, Ticket } from "lucide-react";
 
-import { api } from "~/trpc/react";
+import { trpc } from "@/lib/trpc";
 
 type TicketEvent = {
   id: string | number;
