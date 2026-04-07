@@ -1,380 +1,433 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import QRCode from "react-qr-code";
-import { CalendarDays, ChevronDown, ChevronUp, MapPin, Receipt, Ticket } from "lucide-react";
-
+import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Loader2,
+  ArrowLeft,
+  Ticket,
+  Calendar,
+  Clock,
+  ChevronDown,
+  QrCode,
+  CreditCard,
+  Receipt,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { formatDate, formatTime } from "@/lib/utils";
+import type { AppRouter } from "@/server/routers";
+import type { inferRouterOutputs } from "@trpc/server";
 
-type TicketEvent = {
-  id: string | number;
-  slug: string;
-  title: string;
-  image?: string | null;
-  date?: string | Date | null;
-  time?: string | null;
-  venue?: string | null;
-  city?: string | null;
-  citySlug?: string | null;
-  category?: string | null;
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type TicketItem = RouterOutputs["tickets"]["list"][number];
+type TicketWithEvent = TicketItem & {
+  event: NonNullable<TicketItem["event"]>;
 };
 
-type TicketItem = {
-  id: number;
-  userId: number;
-  eventId: string | number;
-  quantity?: number | null;
-  currency?: string | null;
-  total?: string | number | null;
-  status?: "confirmed" | "cancelled" | "refunded" | string | null;
-  createdAt?: string | Date | null;
-  event?: TicketEvent | null;
+type FilterType = "upcoming" | "past";
+
+const parseEventDate = (dateStr: string, timeStr?: string): Date => {
+  let eventDate: Date;
+
+  if (dateStr.includes(",")) {
+    const currentYear = new Date().getFullYear();
+    eventDate = new Date(`${dateStr}, ${currentYear} ${timeStr || "00:00"}`);
+  } else {
+    eventDate = new Date(`${dateStr}T${timeStr || "00:00"}`);
+  }
+
+  if (isNaN(eventDate.getTime())) return new Date();
+  return eventDate;
 };
 
-function formatEventDate(date: string | Date | null | undefined) {
-  if (!date) return "Date TBD";
-
-  const parsed = typeof date === "string" ? new Date(date) : date;
-  if (Number.isNaN(parsed.getTime())) return "Date TBD";
-
-  return parsed.toLocaleDateString("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatPurchaseDate(date: string | Date | null | undefined) {
-  if (!date) return "Unknown";
-  const parsed = typeof date === "string" ? new Date(date) : date;
-  if (Number.isNaN(parsed.getTime())) return "Unknown";
-
-  return parsed.toLocaleDateString("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatMoney(
-  value: string | number | null | undefined,
-  currency: string | null | undefined,
-) {
-  const amount =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? Number(value)
-        : 0;
-
-  if (Number.isNaN(amount)) return `${currency ?? "CAD"} 0.00`;
-
-  return new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: currency || "CAD",
-  }).format(amount);
-}
-
-function getTicketCount(ticket: TicketItem) {
-  if (typeof ticket.quantity === "number" && Number.isFinite(ticket.quantity)) {
-    return Math.max(1, ticket.quantity);
+function getTicketCount(ticket: TicketItem): number {
+  if (
+    "quantity" in ticket &&
+    typeof (ticket as Record<string, unknown>).quantity === "number"
+  ) {
+    return Math.max(
+      1,
+      (ticket as Record<string, unknown>).quantity as number
+    );
   }
   return 1;
 }
 
-function getTicketStatusClasses(status?: string | null) {
-  switch (status) {
-    case "confirmed":
-      return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20";
-    case "cancelled":
-      return "bg-red-500/15 text-red-300 ring-1 ring-red-500/20";
-    case "refunded":
-      return "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/20";
-    default:
-      return "bg-white/10 text-slate-300 ring-1 ring-white/10";
+function getPaymentAmount(
+  ticket: TicketItem,
+  eventPrice?: string | null
+): string {
+  if (
+    "amount" in ticket &&
+    typeof (ticket as Record<string, unknown>).amount === "string"
+  ) {
+    return (ticket as Record<string, unknown>).amount as string;
   }
+
+  if (
+    "total" in ticket &&
+    typeof (ticket as Record<string, unknown>).total === "string"
+  ) {
+    return (ticket as Record<string, unknown>).total as string;
+  }
+
+  return eventPrice || "Paid";
+}
+
+function getPaymentMethod(ticket: TicketItem): string {
+  if (
+    "paymentMethod" in ticket &&
+    typeof (ticket as Record<string, unknown>).paymentMethod === "string"
+  ) {
+    return (ticket as Record<string, unknown>).paymentMethod as string;
+  }
+  return "Card payment";
+}
+
+function getPurchaseDate(ticket: TicketItem): string {
+  if ("createdAt" in ticket && (ticket as Record<string, unknown>).createdAt) {
+    const value = (ticket as Record<string, unknown>).createdAt;
+    const d = value instanceof Date ? value : new Date(String(value));
+
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString();
+    }
+  }
+
+  return "Recently purchased";
+}
+
+function QrCard({ code, label }: { code: string; label: string }) {
+  const cells = Array.from({ length: 11 * 11 }, (_, i) => {
+    const row = Math.floor(i / 11);
+    const col = i % 11;
+    const seed = (row * 17 + col * 13 + code.length * 7) % 5;
+
+    const finder =
+      (row < 3 && col < 3) ||
+      (row < 3 && col > 7) ||
+      (row > 7 && col < 3);
+
+    return finder || seed === 0 || (row + col) % 7 === 0;
+  });
+
+  return (
+    <div className="w-[188px] shrink-0 snap-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:w-[210px]">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          {label}
+        </p>
+        <QrCode className="h-4 w-4 text-slate-400" />
+      </div>
+
+      <div className="mx-auto grid w-32 grid-cols-11 gap-[2px] rounded-xl bg-white p-2 ring-1 ring-slate-200 sm:w-36">
+        {cells.map((filled, i) => (
+          <div
+            key={i}
+            className={`aspect-square rounded-[1px] ${
+              filled ? "bg-slate-900" : "bg-transparent"
+            }`}
+          />
+        ))}
+      </div>
+
+      <p className="mt-3 truncate text-center font-mono text-[10px] tracking-wider text-slate-400">
+        {code}
+      </p>
+    </div>
+  );
+}
+
+function TicketDropdown({
+  ticket,
+  ticketCode,
+  quantity,
+}: {
+  ticket: TicketItem;
+  ticketCode: string;
+  quantity: number;
+}) {
+  const paymentAmount = getPaymentAmount(ticket);
+  const paymentMethod = getPaymentMethod(ticket);
+  const purchaseDate = getPurchaseDate(ticket);
+
+  return (
+    <details className="group rounded-2xl border border-slate-200 bg-slate-50/70 open:bg-slate-50">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-900">Ticket access</p>
+          <p className="text-xs text-slate-500">
+            Show QR codes and payment details
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+            {quantity} {quantity === 1 ? "ticket" : "tickets"}
+          </span>
+          <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+        </div>
+      </summary>
+
+      <div className="space-y-4 border-t border-slate-200 px-4 pb-4 pt-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              QR codes
+            </p>
+            <p className="text-xs text-slate-500">
+              Scroll sideways on mobile
+            </p>
+          </div>
+
+          <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+            <div className="flex min-w-max snap-x snap-mandatory gap-3 sm:grid sm:min-w-0 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: quantity }).map((_, i) => (
+                <QrCard
+                  key={i}
+                  code={`${ticketCode}-${String(i + 1).padStart(3, "0")}`}
+                  label={`Ticket ${i + 1} of ${quantity}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2 text-slate-500">
+              <CreditCard className="h-4 w-4" />
+              <span className="text-xs font-medium">Payment method</span>
+            </div>
+            <p className="text-sm font-semibold text-slate-900">
+              {paymentMethod}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2 text-slate-500">
+              <Receipt className="h-4 w-4" />
+              <span className="text-xs font-medium">Amount paid</span>
+            </div>
+            <p className="text-sm font-semibold text-slate-900">
+              {paymentAmount}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2 text-slate-500">
+              <Calendar className="h-4 w-4" />
+              <span className="text-xs font-medium">Purchased</span>
+            </div>
+            <p className="text-sm font-semibold text-slate-900">
+              {purchaseDate}
+            </p>
+          </div>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 export default function AccountTickets() {
-  const [openTicketId, setOpenTicketId] = useState<number | null>(null);
+  const { user, loading: authLoading, isAuthenticated } = useAuth({
+    redirectOnUnauthenticated: true,
+  });
 
-  const { data, isLoading } = trpc.tickets.list.useQuery();
+  const router = useRouter();
+  const [filterType, setFilterType] = useState<FilterType>("upcoming");
 
-  const tickets = useMemo(() => {
-    return ((data ?? []) as TicketItem[]).filter((ticket) => ticket.event);
-  }, [data]);
+  const { data: tickets = [], isLoading: ticketsLoading } =
+    trpc.tickets.list.useQuery(undefined, {
+      enabled: !!user,
+    });
 
-  if (isLoading) {
+  const filteredTickets = useMemo(() => {
+    const now = new Date();
+
+    return (tickets as TicketItem[])
+      .filter((item): item is TicketWithEvent => item.event !== null)
+      .filter((item) => {
+        const d = parseEventDate(item.event.date, item.event.time);
+        return filterType === "upcoming" ? d >= now : d < now;
+      })
+      .sort((a, b) => {
+        const da = parseEventDate(a.event.date, a.event.time).getTime();
+        const db = parseEventDate(b.event.date, b.event.time).getTime();
+        return filterType === "upcoming" ? da - db : db - da;
+      });
+  }, [tickets, filterType]);
+
+  if (authLoading) {
     return (
-      <div className="space-y-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-[#111827] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
-          >
-            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
-              <div className="h-44 w-full animate-pulse rounded-xl bg-white/10 sm:h-36 sm:w-48" />
-              <div className="flex-1 space-y-3">
-                <div className="h-5 w-2/3 animate-pulse rounded bg-white/10" />
-                <div className="h-4 w-1/2 animate-pulse rounded bg-white/10" />
-                <div className="h-4 w-1/3 animate-pulse rounded bg-white/10" />
-                <div className="mt-4 flex gap-2">
-                  <div className="h-10 w-28 animate-pulse rounded-lg bg-white/10" />
-                  <div className="h-10 w-24 animate-pulse rounded-lg bg-white/10" />
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
       </div>
     );
   }
 
-  if (!tickets.length) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-[#111827] p-8 text-center shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
-          <Ticket className="h-7 w-7 text-slate-300" />
-        </div>
-        <h3 className="text-lg font-semibold text-white">No tickets yet</h3>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
-          Once you purchase an event ticket, it will appear here with event details, purchase info,
-          and a scannable QR code.
-        </p>
-      </div>
-    );
-  }
+  if (!isAuthenticated || !user) return null;
 
   return (
-    <div className="space-y-4">
-      {tickets.map((ticket) => {
-        const event = ticket.event;
-        if (!event) return null;
+    <div className="min-h-screen bg-slate-50">
+      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto max-w-5xl px-4 py-4">
+          <div className="mb-4 flex items-center gap-3">
+            <button
+              onClick={() => router.push("/account/profile")}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100"
+            >
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            </button>
 
-        const isOpen = openTicketId === ticket.id;
-        const ticketCount = getTicketCount(ticket);
-        const eventHref = `/${event.citySlug ?? "events"}/${event.slug}`;
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Tickets</h1>
+              <p className="text-sm text-slate-500">
+                View your tickets, QR codes, and payment details
+              </p>
+            </div>
+          </div>
 
-        const qrItems = Array.from({ length: ticketCount }).map((_, index) => {
-          const itemNumber = index + 1;
-          const code = `TKT-${ticket.id}-${itemNumber.toString().padStart(2, "0")}`;
-          const qrValue = `ticket:${ticket.id}:item:${itemNumber}:user:${ticket.userId}:event:${ticket.eventId}:status:${ticket.status ?? "confirmed"}`;
+          <div className="flex rounded-2xl bg-slate-100 p-1 sm:w-fit">
+            {(["upcoming", "past"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-all sm:min-w-[140px] ${
+                  filterType === type
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                {type === "upcoming" ? "Upcoming" : "Past Tickets"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          return {
-            id: `${ticket.id}-${itemNumber}-${event.slug}`,
-            code,
-            qrValue,
-            label: `Ticket ${itemNumber}`,
-          };
-        });
-
-        return (
-          <div
-            key={ticket.id}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-[#111827] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
-          >
-            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
-              <div className="relative h-44 w-full overflow-hidden rounded-xl bg-slate-900 sm:h-36 sm:w-48 sm:flex-shrink-0">
-                {event.image ? (
-                  <Image
-                    src={event.image}
-                    alt={event.title}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, 192px"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-white/5 text-slate-500">
-                    <Ticket className="h-8 w-8" />
-                  </div>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="mb-2 inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-300">
-                      {event.category ?? "Event"}
-                    </p>
-                    <h3 className="line-clamp-2 text-lg font-semibold text-white sm:text-xl">
-                      {event.title}
-                    </h3>
-                  </div>
-
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getTicketStatusClasses(ticket.status)}`}
-                  >
-                    {ticket.status ?? "confirmed"}
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-400">
-                  <span className="inline-flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-slate-500" />
-                    {formatEventDate(event.date)}
-                    {event.time ? ` • ${event.time}` : ""}
-                  </span>
-
-                  <span className="inline-flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-500" />
-                    {event.venue ?? "Venue TBD"}
-                    {event.city ? ` • ${event.city}` : ""}
-                  </span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="rounded-lg bg-white/5 px-3 py-2 text-slate-300">
-                    {ticketCount} {ticketCount === 1 ? "ticket" : "tickets"}
-                  </span>
-                  <span className="rounded-lg bg-white/5 px-3 py-2 text-slate-300">
-                    {formatMoney(ticket.total, ticket.currency)}
-                  </span>
-                  <span className="rounded-lg bg-white/5 px-3 py-2 text-slate-400">
-                    Purchased {formatPurchaseDate(ticket.createdAt)}
-                  </span>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setOpenTicketId(isOpen ? null : ticket.id)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-400"
-                  >
-                    {isOpen ? "Hide tickets" : "View tickets"}
-                    {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-
-                  <Link
-                    href={eventHref}
-                    className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
-                  >
-                    View event
-                  </Link>
-                </div>
-              </div>
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        {ticketsLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-48 animate-pulse rounded-2xl border border-slate-200 bg-white"
+              />
+            ))}
+          </div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <Ticket className="h-6 w-6 text-slate-400" />
             </div>
 
-            {isOpen ? (
-              <div className="border-t border-white/10 bg-black/20 p-4 sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                      Ticket details
-                    </h4>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Present the QR code at entry. One code is shown for each ticket in the order.
-                    </p>
-                  </div>
-                </div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              {filterType === "upcoming"
+                ? "No upcoming tickets"
+                : "No past tickets"}
+            </h3>
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {qrItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-white/10 bg-[#0b1220] p-4"
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{item.label}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
-                            {item.code}
-                          </p>
-                        </div>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+              Your purchased tickets will appear here once you buy an event
+              ticket.
+            </p>
 
-                        <div className="inline-flex self-start rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/20">
-                          Valid for entry
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-                        <div className="rounded-2xl bg-white p-3">
-                          <QRCode
-                            value={item.qrValue}
-                            size={132}
-                            bgColor="#FFFFFF"
-                            fgColor="#111827"
-                            viewBox="0 0 256 256"
-                          />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="space-y-2 text-sm text-slate-300">
-                            <p className="line-clamp-2 font-medium text-white">{event.title}</p>
-                            <p>{formatEventDate(event.date)}{event.time ? ` • ${event.time}` : ""}</p>
-                            <p>{event.venue ?? "Venue TBD"}{event.city ? ` • ${event.city}` : ""}</p>
-                          </div>
-
-                          <div className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
-                            <div className="rounded-xl bg-white/5 px-3 py-2">
-                              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                                Status
-                              </p>
-                              <p className="mt-1 capitalize text-slate-200">
-                                {ticket.status ?? "confirmed"}
-                              </p>
-                            </div>
-                            <div className="rounded-xl bg-white/5 px-3 py-2">
-                              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                                Purchase date
-                              </p>
-                              <p className="mt-1 text-slate-200">
-                                {formatPurchaseDate(ticket.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-white/10 bg-[#0b1220] p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-slate-400" />
-                    <h5 className="text-sm font-semibold text-white">Purchase summary</h5>
-                  </div>
-
-                  <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-xl bg-white/5 px-3 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                        Order ID
-                      </p>
-                      <p className="mt-1 font-medium text-slate-200">#{ticket.id}</p>
-                    </div>
-
-                    <div className="rounded-xl bg-white/5 px-3 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                        Quantity
-                      </p>
-                      <p className="mt-1 font-medium text-slate-200">{ticketCount}</p>
-                    </div>
-
-                    <div className="rounded-xl bg-white/5 px-3 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                        Total paid
-                      </p>
-                      <p className="mt-1 font-medium text-slate-200">
-                        {formatMoney(ticket.total, ticket.currency)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-white/5 px-3 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                        Currency
-                      </p>
-                      <p className="mt-1 font-medium text-slate-200">
-                        {ticket.currency ?? "CAD"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+            <Button
+              onClick={() => router.push("/")}
+              className="mt-6 rounded-xl bg-indigo-600 px-6 hover:bg-indigo-700"
+            >
+              Explore Events
+            </Button>
           </div>
-        );
-      })}
+        ) : (
+          <div className="space-y-4">
+            {filteredTickets.map((ticket) => {
+              const event = ticket.event;
+              const isPast = filterType === "past";
+              const quantity = getTicketCount(ticket);
+              const ticketCode = `TKT-${String(ticket.id).toUpperCase()}`;
+              const paymentAmount = getPaymentAmount(ticket, event.price || null);
+
+              return (
+                <Card
+                  key={ticket.id}
+                  className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
+                    isPast ? "opacity-80" : ""
+                  }`}
+                >
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                        <img
+                          src={event.image || "/placeholder-event.jpg"}
+                          alt={event.title}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold text-slate-900">
+                              {event.title}
+                            </h3>
+                            <p className="mt-0.5 text-sm text-slate-500">
+                              {event.city} • {event.category}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                              {paymentAmount}
+                            </span>
+                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                              {quantity} {quantity === 1 ? "ticket" : "tickets"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500 sm:gap-4">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                            {formatDate(event.date)}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-slate-400" />
+                            {formatTime(event.time)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+                      <button
+                        onClick={() =>
+                          router.push(`/${event.citySlug}/${event.slug}`)
+                        }
+                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 hover:text-slate-900"
+                      >
+                        View details
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <TicketDropdown
+                        ticket={ticket}
+                        ticketCode={ticketCode}
+                        quantity={quantity}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
-      }
+}
