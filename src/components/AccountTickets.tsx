@@ -113,7 +113,7 @@ export default function AccountTickets() {
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-4 mb-5">
             <button
               onClick={() => router.push("/account/profile")}
               className="p-2 hover:bg-slate-100 rounded-full transition-colors"
@@ -146,44 +146,44 @@ export default function AccountTickets() {
       </div>
 
       {/* Content */}
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-6">
         {ticketsLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-white rounded-2xl animate-pulse border border-slate-200" />
+              <div key={i} className="h-24 bg-white rounded-xl animate-pulse border border-slate-200" />
             ))}
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Ticket className="w-10 h-10 text-slate-300" />
+          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Ticket className="w-8 h-8 text-slate-300" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">
               {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
             </h3>
-            <p className="text-slate-500 mb-6">Time to discover some amazing events!</p>
+            <p className="text-slate-500 text-sm mb-5">Time to discover some amazing events!</p>
             <Button
               onClick={() => router.push("/")}
-              className="bg-indigo-600 hover:bg-indigo-700 px-8 rounded-full"
+              className="bg-indigo-600 hover:bg-indigo-700 px-6 rounded-full text-sm"
             >
               Explore Events
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredTickets.map((ticketItem: TicketWithNonNullEvent) => {
               const event = ticketItem.event;
               const isExpanded = expandedTicket === ticketItem.id;
 
               return (
-                <div key={ticketItem.id} className="group">
+                <div key={ticketItem.id}>
                   <Card className={`overflow-hidden border-slate-200 transition-all duration-300 ${
-                    isExpanded ? "ring-2 ring-indigo-500 shadow-xl" : "hover:shadow-md"
+                    isExpanded ? "ring-2 ring-indigo-500 shadow-lg" : "hover:shadow-md"
                   }`}>
-                    <div className="p-4 sm:p-5">
-                      <div className="flex gap-4">
+                    <div className="p-3 sm:p-4">
+                      <div className="flex gap-3">
                         {/* Event Image */}
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-100">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-100">
                           <img
                             src={event.image || "/placeholder-event.jpg"}
                             alt={event.title}
@@ -192,53 +192,57 @@ export default function AccountTickets() {
                         </div>
 
                         {/* Event Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start gap-2 mb-1">
-                            <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-tight line-clamp-1">
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-bold text-slate-900 text-sm leading-tight line-clamp-1">
                               {event.title}
                             </h3>
-                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md whitespace-nowrap">
-                              x{ticketItem.quantity}
-                            </span>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {event.city} • {event.category}
+                            </p>
                           </div>
-                          
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm">
-                              <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                          <div className="flex items-center gap-3 text-xs text-slate-600 mt-1">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-indigo-500" />
                               <span>{formatDate(event.date)}</span>
-                              <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                              <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-indigo-500" />
                               <span>{formatTime(event.time)}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm">
-                              <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-                              <span className="truncate">{event.venue}</span>
-                            </div>
                           </div>
+                        </div>
+
+                        {/* Quantity Badge */}
+                        <div className="flex flex-col items-end justify-between">
+                          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">
+                            x{ticketItem.quantity}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-900">
+                            {ticketItem.currency} {Number(ticketItem.total).toFixed(2)}
+                          </span>
                         </div>
                       </div>
 
                       {/* Actions Row */}
-                      <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => setExpandedTicket(isExpanded ? null : ticketItem.id)}
-                            variant="ghost"
-                            size="sm"
-                            className={`rounded-full px-4 ${isExpanded ? "bg-indigo-50 text-indigo-600" : "text-slate-600"}`}
-                          >
-                            <QrCode className="w-4 h-4 mr-2" />
-                            {isExpanded ? "Hide Code" : "Show Code"}
-                            {isExpanded ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
-                          </Button>
-                        </div>
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <Button
+                          onClick={() => setExpandedTicket(isExpanded ? null : ticketItem.id)}
+                          variant="ghost"
+                          size="sm"
+                          className={`rounded-lg px-3 py-1.5 h-auto text-xs font-medium ${isExpanded ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-100"}`}
+                        >
+                          <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                          {isExpanded ? "Hide" : "Show"} Code
+                          {isExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                        </Button>
                         
                         <div className="flex gap-2">
                           <Button
                             onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
                             variant="ghost"
                             size="sm"
-                            className="text-slate-600 hover:text-indigo-600 rounded-full"
+                            className="text-slate-600 hover:text-indigo-600 rounded-lg h-auto px-3 py-1.5 text-xs font-medium"
                           >
                             Details
                           </Button>
@@ -246,9 +250,9 @@ export default function AccountTickets() {
                             onClick={() => downloadTicket(ticketItem)}
                             variant="outline"
                             size="sm"
-                            className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-full px-4"
+                            className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg h-auto px-3 py-1.5 text-xs font-medium"
                           >
-                            <Download className="w-4 h-4 mr-2" />
+                            <Download className="w-3.5 h-3.5 mr-1" />
                             Download
                           </Button>
                         </div>
@@ -257,47 +261,47 @@ export default function AccountTickets() {
 
                     {/* Expandable Ticket Section */}
                     {isExpanded && (
-                      <div className="bg-slate-50 border-t border-slate-100 p-6 sm:p-8 flex flex-col items-center animate-in slide-in-from-top-2 duration-300">
+                      <div className="bg-slate-50 border-t border-slate-100 p-4 sm:p-6 flex flex-col items-center animate-in slide-in-from-top-2 duration-300">
                         {/* This hidden div is used for PDF generation */}
                         <div 
                           ref={(el) => { ticketRefs.current[ticketItem.id] = el; }}
-                          className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center w-full max-w-sm"
+                          className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center w-full max-w-sm"
                         >
-                          <div className="text-center mb-6">
-                            <h4 className="text-xl font-black text-slate-900 mb-1 uppercase tracking-tight">Entry Pass</h4>
-                            <p className="text-slate-500 text-sm font-medium">Order #{ticketItem.id}</p>
+                          <div className="text-center mb-4">
+                            <h4 className="text-lg font-black text-slate-900 mb-0.5 uppercase tracking-tight">Entry Pass</h4>
+                            <p className="text-slate-500 text-xs font-medium">Order #{ticketItem.id}</p>
                           </div>
                           
-                          <div className="bg-white p-4 rounded-2xl border-2 border-slate-100 mb-6">
+                          <div className="bg-white p-3 rounded-xl border-2 border-slate-100 mb-4">
                             <QRCodeSVG 
                               value={`TICKET-${ticketItem.id}-${user.id}`} 
-                              size={180}
+                              size={140}
                               level="H"
                               includeMargin={false}
                             />
                           </div>
 
-                          <div className="w-full space-y-4">
-                            <div className="flex justify-between border-b border-slate-100 pb-2">
-                              <span className="text-slate-400 text-xs font-bold uppercase">Event</span>
-                              <span className="text-slate-900 text-sm font-bold text-right">{event.title}</span>
+                          <div className="w-full space-y-2 text-xs">
+                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                              <span className="text-slate-400 font-bold uppercase">Event</span>
+                              <span className="text-slate-900 font-semibold text-right">{event.title}</span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 pb-2">
-                              <span className="text-slate-400 text-xs font-bold uppercase">Date</span>
-                              <span className="text-slate-900 text-sm font-bold">{formatDate(event.date)}</span>
+                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                              <span className="text-slate-400 font-bold uppercase">Date</span>
+                              <span className="text-slate-900 font-semibold">{formatDate(event.date)}</span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 pb-2">
-                              <span className="text-slate-400 text-xs font-bold uppercase">Holder</span>
-                              <span className="text-slate-900 text-sm font-bold">{user.name || "Guest"}</span>
+                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                              <span className="text-slate-400 font-bold uppercase">Holder</span>
+                              <span className="text-slate-900 font-semibold">{user.name || "Guest"}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-slate-400 text-xs font-bold uppercase">Quantity</span>
-                              <span className="text-slate-900 text-sm font-bold">{ticketItem.quantity} Person(s)</span>
+                              <span className="text-slate-400 font-bold uppercase">Qty</span>
+                              <span className="text-slate-900 font-semibold">{ticketItem.quantity}</span>
                             </div>
                           </div>
 
-                          <div className="mt-8 pt-6 border-t-2 border-dashed border-slate-200 w-full text-center">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Scan at the entrance</p>
+                          <div className="mt-5 pt-4 border-t-2 border-dashed border-slate-200 w-full text-center">
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Scan at entrance</p>
                           </div>
                         </div>
                       </div>
