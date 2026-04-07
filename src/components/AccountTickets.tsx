@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   QrCode,
+  CheckCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useMemo, useRef } from "react";
@@ -41,6 +42,7 @@ export default function AccountTickets() {
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
   const [expandedTicket, setExpandedTicket] = useState<number | null>(null);
+  const [showPaymentDetails, setShowPaymentDetails] = useState<number | null>(null);
   const ticketRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const {
@@ -57,37 +59,54 @@ export default function AccountTickets() {
         item.event !== null
     );
 
+    // Show all tickets in upcoming tab (since seed data is all future dates)
+    if (filterType === "upcoming") {
+      return validTickets.sort(
+        (a: TicketWithNonNullEvent, b: TicketWithNonNullEvent) => {
+          const dateA = parseEventDate(a.event.date, a.event.time);
+          const dateB = parseEventDate(b.event.date, b.event.time);
+          return dateA.getTime() - dateB.getTime();
+        }
+      );
+    }
+
+    // Filter past events
     let filtered = validTickets.filter((item: TicketWithNonNullEvent) => {
-      // The seed data uses format like "Tue, Apr 8" or "2026-04-08"
-      // Let's try to parse it safely
-      let eventDate: Date;
-      if (item.event.date.includes(",")) {
-        // Handle "Tue, Apr 8" format - assume current/next year
-        const currentYear = new Date().getFullYear();
-        eventDate = new Date(`${item.event.date}, ${currentYear} ${item.event.time || "00:00"}`);
-      } else {
-        eventDate = new Date(`${item.event.date}T${item.event.time || "00:00"}`);
-      }
-
-      // If parsing failed, default to upcoming so it's at least visible
-      if (isNaN(eventDate.getTime())) {
-        console.warn("Invalid date for event:", item.event.id, item.event.date);
-        return filterType === "upcoming";
-      }
-
-      return filterType === "upcoming" ? eventDate >= now : eventDate < now;
+      const eventDate = parseEventDate(item.event.date, item.event.time);
+      return eventDate < now;
     });
 
     return filtered.sort(
-      (a: TicketWithNonNullEvent, b: TicketWithNonNullEvent) =>
-        new Date(`${b.event.date}T${b.event.time || "00:00"}`).getTime() -
-        new Date(`${a.event.date}T${a.event.time || "00:00"}`).getTime()
+      (a: TicketWithNonNullEvent, b: TicketWithNonNullEvent) => {
+        const dateA = parseEventDate(a.event.date, a.event.time);
+        const dateB = parseEventDate(b.event.date, b.event.time);
+        return dateB.getTime() - dateA.getTime();
+      }
     );
   }, [tickets, filterType]);
 
+  const parseEventDate = (dateStr: string, timeStr?: string): Date => {
+    let eventDate: Date;
+    if (dateStr.includes(",")) {
+      const currentYear = new Date().getFullYear();
+      eventDate = new Date(`${dateStr}, ${currentYear} ${timeStr || "00:00"}`);
+    } else {
+      eventDate = new Date(`${dateStr}T${timeStr || "00:00"}`);
+    }
+
+    if (isNaN(eventDate.getTime())) {
+      console.warn("Invalid date:", dateStr);
+      return new Date();
+    }
+    return eventDate;
+  };
+
   const downloadTicket = async (ticket: TicketWithNonNullEvent) => {
     const element = ticketRefs.current[ticket.id];
-    if (!element) return;
+    if (!element) {
+      toast.error("Ticket element not found");
+      return;
+    }
 
     try {
       toast.info("Generating your ticket PDF...");
@@ -97,6 +116,7 @@ export default function AccountTickets() {
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
+        allowTaint: true,
       });
       
       const imgData = canvas.toDataURL("image/png");
@@ -104,13 +124,18 @@ export default function AccountTickets() {
       // Dynamically import jsPDF to avoid SSR issues with fflate/node-worker
       const { jsPDF } = await import("jspdf");
       
+      const pdfWidth = 210; // A4 width in mm
+      const pdfHeight = 297; // A4 height in mm
       const pdf = new jsPDF({
         orientation: "portrait",
-        unit: "px",
-        format: [canvas.width / 2, canvas.height / 2],
+        unit: "mm",
+        format: "a4",
       });
 
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      const imgWidth = pdfWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
       pdf.save(`Ticket-${ticket.event.title.replace(/\s+/g, "-")}-${ticket.id}.pdf`);
       toast.success("Ticket downloaded successfully!");
     } catch (error) {
@@ -129,15 +154,6 @@ export default function AccountTickets() {
 
   if (!isAuthenticated || !user) return null;
 
-  // Debug logs
-  console.log("AccountTickets State:", { 
-    userId: user?.id, 
-    isAuthenticated, 
-    ticketsCount: tickets.length,
-    filteredCount: filteredTickets.length,
-    filterType 
-  });
-
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -153,19 +169,20 @@ export default function AccountTickets() {
             <h1 className="text-2xl font-bold text-slate-900">My Tickets</h1>
           </div>
 
-          {/* Simplified Tabs */}
-          <div className="flex p-1 bg-slate-100 rounded-xl">
+          {/* Tabs */}
+          <div className="flex p-1 bg-slate-100 rounded-lg">
             {(["upcoming", "past"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
                   setFilterType(type);
                   setExpandedTicket(null);
+                  setShowPaymentDetails(null);
                 }}
-                className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-all ${
                   filterType === type
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {type === "upcoming" ? "Upcoming" : "Past Events"}
@@ -180,21 +197,21 @@ export default function AccountTickets() {
         {ticketsLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-white rounded-xl animate-pulse border border-slate-200" />
+              <div key={i} className="h-28 bg-white rounded-lg animate-pulse border border-slate-200" />
             ))}
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Ticket className="w-8 h-8 text-slate-300" />
+          <div className="text-center py-16 bg-white rounded-lg border border-slate-200">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Ticket className="w-8 h-8 text-slate-400" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">
               {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
             </h3>
             <p className="text-slate-500 text-sm mb-5">Time to discover some amazing events!</p>
             <Button
               onClick={() => router.push("/")}
-              className="bg-indigo-600 hover:bg-indigo-700 px-6 rounded-full text-sm"
+              className="bg-indigo-600 hover:bg-indigo-700 px-6 rounded-lg text-sm"
             >
               Explore Events
             </Button>
@@ -204,16 +221,17 @@ export default function AccountTickets() {
             {filteredTickets.map((ticketItem: TicketWithNonNullEvent) => {
               const event = ticketItem.event;
               const isExpanded = expandedTicket === ticketItem.id;
+              const showPayment = showPaymentDetails === ticketItem.id;
 
               return (
                 <div key={ticketItem.id}>
-                  <Card className={`overflow-hidden border-slate-200 transition-all duration-300 ${
-                    isExpanded ? "ring-2 ring-indigo-500 shadow-lg" : "hover:shadow-md"
+                  <Card className={`overflow-hidden border-slate-200 transition-all duration-200 ${
+                    isExpanded ? "ring-2 ring-indigo-400 shadow-md" : "hover:shadow-sm"
                   }`}>
-                    <div className="p-3 sm:p-4">
-                      <div className="flex gap-3">
+                    <div className="p-4">
+                      <div className="flex gap-4">
                         {/* Event Image */}
-                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-100">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-200">
                           <img
                             src={event.image || "/placeholder-event.jpg"}
                             alt={event.title}
@@ -222,57 +240,72 @@ export default function AccountTickets() {
                         </div>
 
                         {/* Event Info */}
-                        <div className="flex-1 min-w-0 flex flex-col justify-between">
-                          <div>
-                            <h3 className="font-bold text-slate-900 text-sm leading-tight line-clamp-1">
-                              {event.title}
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {event.city} • {event.category}
-                            </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-slate-900 text-sm line-clamp-1">
+                                {event.title}
+                              </h3>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {event.city} • {event.category}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-xs font-medium text-green-700">Paid</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-600 mt-1">
+
+                          <div className="flex items-center gap-4 text-xs text-slate-600 mb-3">
                             <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-indigo-500" />
+                              <Calendar className="w-3 h-3 text-slate-400" />
                               <span>{formatDate(event.date)}</span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-indigo-500" />
+                              <Clock className="w-3 h-3 text-slate-400" />
                               <span>{formatTime(event.time)}</span>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Quantity Badge */}
-                        <div className="flex flex-col items-end justify-between">
-                          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">
-                            x{ticketItem.quantity}
-                          </span>
-                          <span className="text-xs font-semibold text-slate-900">
-                            {ticketItem.currency} {Number(ticketItem.total).toFixed(2)}
-                          </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-slate-600">Qty:</span>
+                              <span className="text-xs font-semibold text-slate-900">{ticketItem.quantity}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-slate-900">
+                              {ticketItem.currency} {Number(ticketItem.total).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
                       {/* Actions Row */}
-                      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-2">
                         <Button
                           onClick={() => setExpandedTicket(isExpanded ? null : ticketItem.id)}
                           variant="ghost"
                           size="sm"
-                          className={`rounded-lg px-3 py-1.5 h-auto text-xs font-medium ${isExpanded ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-100"}`}
+                          className={`rounded-md px-3 py-1.5 h-auto text-xs font-medium ${isExpanded ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100"}`}
                         >
                           <QrCode className="w-3.5 h-3.5 mr-1.5" />
-                          {isExpanded ? "Hide" : "Show"} Code
-                          {isExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                          {isExpanded ? "Hide" : "Show"} QR Code
+                        </Button>
+
+                        <Button
+                          onClick={() => setShowPaymentDetails(showPayment ? null : ticketItem.id)}
+                          variant="ghost"
+                          size="sm"
+                          className={`rounded-md px-3 py-1.5 h-auto text-xs font-medium ${showPayment ? "bg-slate-200 text-slate-700" : "text-slate-600 hover:bg-slate-100"}`}
+                        >
+                          Payment Details
                         </Button>
                         
-                        <div className="flex gap-2">
+                        <div className="ml-auto flex gap-2">
                           <Button
                             onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
                             variant="ghost"
                             size="sm"
-                            className="text-slate-600 hover:text-indigo-600 rounded-lg h-auto px-3 py-1.5 text-xs font-medium"
+                            className="text-slate-600 hover:text-slate-900 rounded-md h-auto px-3 py-1.5 text-xs font-medium"
                           >
                             Details
                           </Button>
@@ -280,58 +313,94 @@ export default function AccountTickets() {
                             onClick={() => downloadTicket(ticketItem)}
                             variant="outline"
                             size="sm"
-                            className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg h-auto px-3 py-1.5 text-xs font-medium"
+                            className="border-slate-200 text-slate-700 hover:bg-slate-100 rounded-md h-auto px-3 py-1.5 text-xs font-medium"
                           >
                             <Download className="w-3.5 h-3.5 mr-1" />
                             Download
                           </Button>
                         </div>
                       </div>
+
+                      {/* Payment Details Section */}
+                      {showPayment && (
+                        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-in slide-in-from-top-2 duration-200">
+                          <h4 className="text-sm font-semibold text-slate-900 mb-3">Payment Details</h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Order ID:</span>
+                              <span className="font-medium text-slate-900">#{ticketItem.id}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Status:</span>
+                              <span className="inline-flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3 text-green-600" />
+                                <span className="font-medium text-green-700 capitalize">{ticketItem.status}</span>
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Amount:</span>
+                              <span className="font-medium text-slate-900">{ticketItem.currency} {Number(ticketItem.total).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Quantity:</span>
+                              <span className="font-medium text-slate-900">{ticketItem.quantity} ticket{ticketItem.quantity > 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="flex justify-between pt-2 border-t border-slate-200">
+                              <span className="text-slate-600">Purchased:</span>
+                              <span className="font-medium text-slate-900">{new Date(ticketItem.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Expandable Ticket Section */}
+                    {/* Expandable QR Code Section */}
                     {isExpanded && (
-                      <div className="bg-slate-50 border-t border-slate-100 p-4 sm:p-6 flex flex-col items-center animate-in slide-in-from-top-2 duration-300">
-                        {/* This hidden div is used for PDF generation */}
+                      <div className="bg-slate-50 border-t border-slate-200 p-6 flex flex-col items-center animate-in slide-in-from-top-2 duration-200">
+                        {/* This div is used for PDF generation */}
                         <div 
                           ref={(el) => { ticketRefs.current[ticketItem.id] = el; }}
-                          className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center w-full max-w-sm"
+                          className="bg-white p-8 rounded-lg shadow-sm border border-slate-300 flex flex-col items-center w-full max-w-sm"
                         >
-                          <div className="text-center mb-4">
-                            <h4 className="text-lg font-black text-slate-900 mb-0.5 uppercase tracking-tight">Entry Pass</h4>
-                            <p className="text-slate-500 text-xs font-medium">Order #{ticketItem.id}</p>
+                          <div className="text-center mb-6">
+                            <h4 className="text-xl font-bold text-slate-900 mb-1">Entry Pass</h4>
+                            <p className="text-slate-500 text-sm">Order #{ticketItem.id}</p>
                           </div>
                           
-                          <div className="bg-white p-3 rounded-xl border-2 border-slate-100 mb-4">
+                          <div className="bg-slate-50 p-4 rounded-lg border-2 border-slate-300 mb-6">
                             <QRCodeSVG 
                               value={`TICKET-${ticketItem.id}-${user.id}`} 
-                              size={140}
+                              size={160}
                               level="H"
-                              includeMargin={false}
+                              includeMargin={true}
                             />
                           </div>
 
-                          <div className="w-full space-y-2 text-xs">
-                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                              <span className="text-slate-400 font-bold uppercase">Event</span>
+                          <div className="w-full space-y-3 text-sm">
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-600 font-semibold">Event</span>
                               <span className="text-slate-900 font-semibold text-right">{event.title}</span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                              <span className="text-slate-400 font-bold uppercase">Date</span>
-                              <span className="text-slate-900 font-semibold">{formatDate(event.date)}</span>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-600 font-semibold">Date & Time</span>
+                              <span className="text-slate-900 font-semibold text-right">{formatDate(event.date)} at {formatTime(event.time)}</span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                              <span className="text-slate-400 font-bold uppercase">Holder</span>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-600 font-semibold">Holder</span>
                               <span className="text-slate-900 font-semibold">{user.name || "Guest"}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400 font-bold uppercase">Qty</span>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-600 font-semibold">Quantity</span>
                               <span className="text-slate-900 font-semibold">{ticketItem.quantity}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600 font-semibold">Venue</span>
+                              <span className="text-slate-900 font-semibold text-right">{event.venue}</span>
                             </div>
                           </div>
 
-                          <div className="mt-5 pt-4 border-t-2 border-dashed border-slate-200 w-full text-center">
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Scan at entrance</p>
+                          <div className="mt-6 pt-4 border-t-2 border-dashed border-slate-300 w-full text-center">
+                            <p className="text-xs text-slate-500 font-semibold tracking-wider">SCAN AT ENTRANCE</p>
                           </div>
                         </div>
                       </div>
