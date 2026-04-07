@@ -54,7 +54,20 @@ export default function AccountSaved() {
     );
 
     filtered = filtered.filter((item: SavedEventWithNonNullEvent) => {
-      const eventDate = new Date(`${item.event.date}T${item.event.time || "00:00"}`);
+      // The seed data uses format like "Tue, Apr 8" or "2026-04-08"
+      let eventDate: Date;
+      if (item.event.date.includes(",")) {
+        const currentYear = new Date().getFullYear();
+        eventDate = new Date(`${item.event.date}, ${currentYear} ${item.event.time || "00:00"}`);
+      } else {
+        eventDate = new Date(`${item.event.date}T${item.event.time || "00:00"}`);
+      }
+
+      if (isNaN(eventDate.getTime())) {
+        console.warn("Invalid date for event:", item.event.id, item.event.date);
+        return filterType === "upcoming";
+      }
+
       return filterType === "upcoming" ? eventDate >= now : eventDate < now;
     });
 
@@ -73,6 +86,15 @@ export default function AccountSaved() {
     );
   }
   if (!isAuthenticated || !user) return null;
+
+  // Debug logs
+  console.log("AccountSaved State:", { 
+    userId: user?.id, 
+    isAuthenticated, 
+    savedCount: savedEvents.length,
+    filteredCount: filteredEvents.length,
+    filterType 
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">

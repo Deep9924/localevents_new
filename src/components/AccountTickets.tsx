@@ -58,7 +58,23 @@ export default function AccountTickets() {
     );
 
     let filtered = validTickets.filter((item: TicketWithNonNullEvent) => {
-      const eventDate = new Date(`${item.event.date}T${item.event.time || "00:00"}`);
+      // The seed data uses format like "Tue, Apr 8" or "2026-04-08"
+      // Let's try to parse it safely
+      let eventDate: Date;
+      if (item.event.date.includes(",")) {
+        // Handle "Tue, Apr 8" format - assume current/next year
+        const currentYear = new Date().getFullYear();
+        eventDate = new Date(`${item.event.date}, ${currentYear} ${item.event.time || "00:00"}`);
+      } else {
+        eventDate = new Date(`${item.event.date}T${item.event.time || "00:00"}`);
+      }
+
+      // If parsing failed, default to upcoming so it's at least visible
+      if (isNaN(eventDate.getTime())) {
+        console.warn("Invalid date for event:", item.event.id, item.event.date);
+        return filterType === "upcoming";
+      }
+
       return filterType === "upcoming" ? eventDate >= now : eventDate < now;
     });
 
@@ -112,6 +128,15 @@ export default function AccountTickets() {
   }
 
   if (!isAuthenticated || !user) return null;
+
+  // Debug logs
+  console.log("AccountTickets State:", { 
+    userId: user?.id, 
+    isAuthenticated, 
+    ticketsCount: tickets.length,
+    filteredCount: filteredTickets.length,
+    filterType 
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">
