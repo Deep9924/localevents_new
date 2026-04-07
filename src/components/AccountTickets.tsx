@@ -22,7 +22,7 @@ import { formatDate, formatTime } from "@/lib/utils";
 import type { AppRouter } from "@/server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
 import { QRCodeSVG } from "qrcode.react";
-import { jsPDF } from "jspdf";
+// jsPDF is imported dynamically to avoid SSR issues
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 
@@ -84,6 +84,10 @@ export default function AccountTickets() {
       });
       
       const imgData = canvas.toDataURL("image/png");
+      
+      // Dynamically import jsPDF to avoid SSR issues with fflate/node-worker
+      const { jsPDF } = await import("jspdf");
+      
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
