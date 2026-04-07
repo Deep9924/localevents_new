@@ -3,6 +3,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Loader2,
   ArrowLeft,
@@ -10,9 +11,11 @@ import {
   Calendar,
   Clock,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { formatDate, formatTime } from "@/lib/utils";
 import type { AppRouter } from "@/server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -33,12 +36,61 @@ const parseEventDate = (dateStr: string, timeStr?: string): Date => {
   } else {
     eventDate = new Date(`${dateStr}T${timeStr || "00:00"}`);
   }
-  if (isNaN(eventDate.getTime())) {
-    console.warn("Invalid date:", dateStr);
-    return new Date();
-  }
+  if (isNaN(eventDate.getTime())) return new Date();
   return eventDate;
 };
+
+function TicketStrip({ tickets }: { tickets: Array<{ barcode: string; label?: string }> }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [index, setIndex] = useState(0);
+  const total = tickets.length;
+  const current = tickets[index];
+
+  const scrollTo = (next: number) => {
+    const clamped = Math.max(0, Math.min(total - 1, next));
+    setIndex(clamped);
+    const el = ref.current;
+    if (el) el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+      <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+        <span>Ticket {index + 1} of {total}</span>
+        <span>{current?.label || "Barcode"}</span>
+      </div>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => scrollTo(index - 1)}
+          disabled={index === 0}
+          className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm disabled:opacity-40"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollTo(index + 1)}
+          disabled={index === total - 1}
+          className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm disabled:opacity-40"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+        <div ref={ref} className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory no-scrollbar">
+          {tickets.map((t, i) => (
+            <div key={t.barcode + i} className="min-w-full snap-center px-8">
+              <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
+                <div className="text-center text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">{t.label || `Ticket ${i + 1}`}</div>
+                <div className="h-20 rounded-xl bg-[repeating-linear-gradient(90deg,#111827_0,#111827_2px,#fff_2px,#fff_6px)] opacity-90" />
+                <div className="mt-3 font-mono text-[11px] text-slate-500 text-center break-all">{t.barcode}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AccountSaved() {
   const { user, loading: authLoading, isAuthenticated } = useAuth({
@@ -47,10 +99,7 @@ export default function AccountSaved() {
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
 
-  const {
-    data: savedEvents = [],
-    isLoading: eventsLoading,
-  } = trpc.savedEvents.list.useQuery(undefined, {
+  const { data: savedEvents = [], isLoading: eventsLoading } = trpc.savedEvents.list.useQuery(undefined, {
     enabled: !!user,
   });
 
@@ -61,30 +110,24 @@ export default function AccountSaved() {
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
-    let filtered = savedEvents.filter(
-      (item: SavedEventWithEvent): item is SavedEventWithNonNullEvent =>
-        item.event !== null
-    );
-
-    filtered = filtered.filter((item: SavedEventWithNonNullEvent) => {
-      const eventDate = parseEventDate(item.event.date, item.event.time);
-      return filterType === "upcoming" ? eventDate >= now : eventDate < now;
-    });
-
-    return filtered.sort(
-      (a: SavedEventWithNonNullEvent, b: SavedEventWithNonNullEvent) =>
+    const filtered = savedEvents
+      .filter((item: SavedEventWithEvent): item is SavedEventWithNonNullEvent => item.event !== null)
+      .filter((item: SavedEventWithNonNullEvent) => {
+        const eventDate = parseEventDate(item.event.date, item.event.time);
+        return filterType === "upcoming" ? eventDate >= now : eventDate < now;
+      })
+      .sort((a, b) =>
         filterType === "upcoming"
-          ? parseEventDate(a.event.date, a.event.time).getTime() -
-            parseEventDate(b.event.date, b.event.time).getTime()
-          : parseEventDate(b.event.date, b.event.time).getTime() -
-            parseEventDate(a.event.date, a.event.time).getTime()
-    );
+          ? parseEventDate(a.event.date, a.event.time).getTime() - parseEventDate(b.event.date, b.event.time).getTime()
+          : parseEventDate(b.event.date, b.event.time).getTime() - parseEventDate(a.event.date, a.event.time).getTime()
+      );
+    return filtered;
   }, [savedEvents, filterType]);
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
       </div>
     );
   }
@@ -93,30 +136,30 @@ export default function AccountSaved() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-
-      {/* Header */}
-      <div className="bg-white border-b border-slate-100 sticky top-0 z-40">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3 mb-4">
+      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto max-w-3xl px-4 py-4">
+          <div className="mb-4 flex items-center gap-3">
             <button
               onClick={() => router.push("/account/profile")}
-              className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
+              className="rounded-full p-2 transition-colors hover:bg-slate-100"
             >
-              <ArrowLeft className="w-4 h-4 text-slate-500" />
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
             </button>
-            <h1 className="text-lg font-semibold text-slate-900">Saved Events</h1>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Saved Events</h1>
+              <p className="text-sm text-slate-500">Manage your bookmarked events</p>
+            </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-4 border-b border-slate-100">
+          <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
-                className={`pb-3 text-sm transition-all border-b-2 -mb-px ${
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
                   filterType === type
-                    ? "border-indigo-600 text-indigo-600 font-medium"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 {type === "upcoming" ? "Upcoming" : "Past Events"}
@@ -126,118 +169,102 @@ export default function AccountSaved() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-2xl mx-auto px-4 py-5">
+      <div className="mx-auto max-w-3xl px-4 py-6">
         {eventsLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-24 bg-white rounded-xl animate-pulse border border-slate-100"
-              />
+              <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white" />
             ))}
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Bookmark className="w-5 h-5 text-slate-300" />
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <Bookmark className="h-6 w-6 text-slate-400" />
             </div>
-            <p className="text-sm text-slate-500 mb-4">
-              {filterType === "upcoming"
-                ? "No saved upcoming events"
-                : "No saved past events"}
+            <h3 className="text-lg font-semibold text-slate-900">
+              {filterType === "upcoming" ? "No saved upcoming events" : "No saved past events"}
+            </h3>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+              Start bookmarking events you&apos;re interested in.
             </p>
             {filterType === "upcoming" && (
-              <button
-                onClick={() => router.push("/")}
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                Browse events →
-              </button>
+              <Button onClick={() => router.push("/")} className="mt-6 rounded-xl bg-indigo-600 px-6 hover:bg-indigo-700">
+                Explore Events
+              </Button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
+          <div className="space-y-4">
+            {filteredEvents.map((savedEvent) => {
               const event = savedEvent.event;
               const isPast = filterType === "past";
+              const tickets = Array.from({ length: Math.max(1, savedEvent.quantity || 1) }).map((_, i) => ({
+                barcode: `${event.id}-${i + 1}-${event.slug}`,
+                label: `Seat ${i + 1}`,
+              }));
 
               return (
-                <div
-                  key={event.id}
-                  className={`bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-all duration-200 overflow-hidden ${
-                    isPast ? "opacity-70" : ""
-                  }`}
-                >
-                  {/* Main row */}
-                  <div className="flex gap-3 p-4">
-                    {/* Image */}
-                    <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100">
-                      <img
-                        src={event.image || "/placeholder-event.jpg"}
-                        alt={event.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                <Card key={event.id} className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${isPast ? "opacity-80" : ""}`}>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex gap-4">
+                      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                        <img
+                          src={event.image || "/placeholder-event.jpg"}
+                          alt={event.title}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-medium text-slate-900 truncate">
-                            {event.title}
-                          </h3>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {event.city} · {event.category}
-                          </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-sm font-semibold text-slate-900">{event.title}</h3>
+                            <p className="mt-0.5 text-xs text-slate-500">{event.city} • {event.category}</p>
+                          </div>
+                          {event.price && (
+                            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{event.price}</span>
+                          )}
                         </div>
-                        {event.price && (
-                          <span className="text-xs font-medium text-slate-600 flex-shrink-0">
-                            {event.price}
-                          </span>
-                        )}
-                      </div>
 
-                      <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(event.date)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(event.time)}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                          <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-slate-400" />{formatDate(event.date)}</span>
+                          <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-slate-400" />{formatTime(event.time)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 space-y-4 border-t border-slate-200 pt-4">
+                      <TicketStrip tickets={tickets} />
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-xl px-4 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                          View details
+                        </Button>
+                        <Button
+                          onClick={() => unsaveMutation.mutate({ eventId: event.id })}
+                          disabled={unsaveMutation.isPending}
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto rounded-xl px-4 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          {unsaveMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="mr-1.5 h-4 w-4" />
+                              Remove
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </div>
-
-                  {/* Action strip */}
-                  <div className="flex items-center gap-1 px-4 pb-3">
-                    <button
-                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                      className="text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-md hover:bg-slate-50 transition-colors"
-                    >
-                      View event
-                    </button>
-
-                    <div className="ml-auto">
-                      <button
-                        onClick={() => unsaveMutation.mutate({ eventId: event.id })}
-                        disabled={unsaveMutation.isPending}
-                        className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 px-2.5 py-1.5 rounded-md hover:bg-red-50 transition-colors border border-slate-100"
-                      >
-                        {unsaveMutation.isPending ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <>
-                            <Trash2 className="w-3 h-3" />
-                            Remove
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                </Card>
               );
             })}
           </div>
