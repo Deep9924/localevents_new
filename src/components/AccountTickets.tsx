@@ -10,8 +10,7 @@ import {
   Ticket,
   Calendar,
   Clock,
-  ChevronLeft,
-  ChevronRight,
+  QrCode,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
@@ -63,97 +62,79 @@ function QrStrip({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const goTo = (next: number) => {
-    const clamped = Math.max(0, Math.min(totalTickets - 1, next));
-    setActiveIndex(clamped);
+  const handleScroll = () => {
     const el = scrollRef.current;
-    if (el) {
-      el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
-    }
+    if (!el) return;
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveIndex(index);
   };
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
       <div className="mb-2 flex items-center justify-between px-1 text-xs text-slate-500">
         <span className="font-medium text-slate-700">
-          Ticket {activeIndex + 1}{" "}
-          <span className="font-normal text-slate-400">of {totalTickets}</span>
+          Ticket {activeIndex + 1}
+          <span className="ml-1 font-normal text-slate-400">
+            of {totalTickets}
+          </span>
         </span>
         <span className="font-mono text-slate-400">{ticketCode}</span>
       </div>
 
-      <div className="relative">
-        {totalTickets > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={() => goTo(activeIndex - 1)}
-              disabled={activeIndex === 0}
-              className="absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm transition-opacity disabled:pointer-events-none disabled:opacity-30"
-              aria-label="Previous ticket"
-            >
-              <ChevronLeft className="h-3.5 w-3.5 text-slate-600" />
-            </button>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex snap-x snap-mandatory gap-0 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {Array.from({ length: totalTickets }).map((_, i) => {
+          const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
 
-            <button
-              type="button"
-              onClick={() => goTo(activeIndex + 1)}
-              disabled={activeIndex === totalTickets - 1}
-              className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm transition-opacity disabled:pointer-events-none disabled:opacity-30"
-              aria-label="Next ticket"
-            >
-              <ChevronRight className="h-3.5 w-3.5 text-slate-600" />
-            </button>
-          </>
-        )}
+          return (
+            <div key={i} className="w-full min-w-full snap-center">
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                  Ticket {i + 1}
+                </p>
 
-        <div ref={scrollRef} className="flex snap-x snap-mandatory overflow-x-hidden">
-          {Array.from({ length: totalTickets }).map((_, i) => {
-            const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
-
-            return (
-              <div key={i} className="min-w-full snap-center px-7">
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                    Ticket {i + 1}
-                  </p>
-
-                  <div className="flex justify-center">
-                    <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-                      <QRCode
-                        value={codeValue}
-                        size={132}
-                        bgColor="#FFFFFF"
-                        fgColor="#0f172a"
-                      />
-                    </div>
+                <div className="flex justify-center">
+                  <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
+                    <QRCode
+                      value={codeValue}
+                      size={148}
+                      bgColor="#FFFFFF"
+                      fgColor="#0f172a"
+                    />
                   </div>
-
-                  <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-slate-400">
-                    {codeValue}
-                  </p>
                 </div>
-              </div>
-            );
-          })}
-        </div>
 
-        {totalTickets > 1 && (
-          <div className="mt-2 flex justify-center gap-1">
-            {Array.from({ length: totalTickets }).map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => goTo(i)}
-                aria-label={`Go to ticket ${i + 1}`}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === activeIndex ? "w-4 bg-indigo-500" : "w-1.5 bg-slate-300"
-                }`}
-              />
-            ))}
-          </div>
-        )}
+                <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-slate-400">
+                  {codeValue}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {totalTickets > 1 && (
+        <div className="mt-3 flex justify-center gap-1.5">
+          {Array.from({ length: totalTickets }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                const el = scrollRef.current;
+                if (!el) return;
+                el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+              }}
+              aria-label={`Go to ticket ${i + 1}`}
+              className={`h-1.5 rounded-full transition-all ${
+                i === activeIndex ? "w-5 bg-indigo-500" : "w-1.5 bg-slate-300"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -164,6 +145,9 @@ export default function AccountTickets() {
   });
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
+  const [expandedTicket, setExpandedTicket] = useState<string | number | null>(
+    null
+  );
 
   const { data: tickets = [], isLoading: ticketsLoading } =
     trpc.tickets.list.useQuery(undefined, { enabled: !!user });
@@ -195,6 +179,7 @@ export default function AccountTickets() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Header */}
       <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="mb-4 flex items-center gap-3">
@@ -213,6 +198,7 @@ export default function AccountTickets() {
             </div>
           </div>
 
+          {/* Filter tabs */}
           <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
@@ -231,6 +217,7 @@ export default function AccountTickets() {
         </div>
       </div>
 
+      {/* Content */}
       <div className="mx-auto max-w-3xl px-4 py-6">
         {ticketsLoading ? (
           <div className="space-y-4">
@@ -272,6 +259,7 @@ export default function AccountTickets() {
               const isPast = filterType === "past";
               const count = getTicketCount(ticket);
               const ticketCode = `TKT-${String(ticket.id).toUpperCase()}`;
+              const isExpanded = expandedTicket === ticket.id;
 
               return (
                 <Card
@@ -281,6 +269,7 @@ export default function AccountTickets() {
                   }`}
                 >
                   <div className="p-4 sm:p-5">
+                    {/* Event info row */}
                     <div className="flex gap-4">
                       <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
                         <img
@@ -324,19 +313,50 @@ export default function AccountTickets() {
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
-                      <QrStrip totalTickets={count} ticketCode={ticketCode} />
-
-                      <div className="flex items-center">
+                    {/* Actions + expandable QR */}
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() =>
                             router.push(`/${event.citySlug}/${event.slug}`)
                           }
-                          className="rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200"
                         >
                           View event
                         </button>
+
+                        <button
+                          onClick={() =>
+                            router.push(`/account/payments/${ticket.id}`)
+                          }
+                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200"
+                        >
+                          Payment details
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setExpandedTicket((prev) =>
+                              prev === ticket.id ? null : ticket.id
+                            )
+                          }
+                          className="flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100"
+                        >
+                          <QrCode className="h-3.5 w-3.5" />
+                          {isExpanded ? "Hide QR code" : "Show QR code"}
+                        </button>
                       </div>
+
+                      {/* Expandable QR panel */}
+                      {isExpanded && (
+                        <div className="mt-4">
+                          <QrStrip
+                            totalTickets={count}
+                            ticketCode={ticketCode}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -347,4 +367,4 @@ export default function AccountTickets() {
       </div>
     </div>
   );
-            }
+                                 }
