@@ -140,11 +140,12 @@ function QrPanel({
 function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
   const event = ticket.event;
   const count = getTicketCount(ticket);
-  const priceNum = parseFloat(
-    String((ticket as Record<string, unknown>).totalPrice ?? event.priceAmount ?? 0)
-  );
-  const perTicket = count > 0 ? priceNum / count : 0;
-
+const rawPrice =
+  (ticket as Record<string, unknown>).totalPrice ??
+  (event.price ? event.price.replace(/[^0-9.]/g, "") : "0");
+const priceNum = parseFloat(String(rawPrice));
+const perTicket = count > 0 && !isNaN(priceNum) ? priceNum / count : 0;
+  
   return (
     <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5">
       <div className="space-y-2 rounded-xl bg-slate-50 p-3">
