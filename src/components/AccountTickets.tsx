@@ -3,6 +3,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Loader2,
   ArrowLeft,
@@ -70,7 +71,7 @@ function QrPanel({
   };
 
   return (
-    <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5">
+    <div className="px-4 pb-4 pt-2 sm:px-5">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -81,21 +82,21 @@ function QrPanel({
           return (
             <div
               key={i}
-              className="flex w-full min-w-full snap-center flex-col items-center"
+              className="flex w-full min-w-full snap-center flex-col items-center py-1"
             >
-              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200/80">
+              <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80">
                 <QRCode
                   value={codeValue}
-                  size={140}
+                  size={160}
                   bgColor="#f8fafc"
                   fgColor="#0f172a"
                 />
               </div>
-              <p className="mt-2 font-mono text-[10px] tracking-widest text-slate-400">
+              <p className="mt-2.5 font-mono text-[11px] tracking-widest text-slate-400">
                 {codeValue}
               </p>
               {totalTickets > 1 && (
-                <p className="mt-0.5 text-[10px] text-slate-400">
+                <p className="mt-1 text-[11px] text-slate-400">
                   {i + 1} / {totalTickets}
                 </p>
               )}
@@ -105,7 +106,7 @@ function QrPanel({
       </div>
 
       {totalTickets > 1 && (
-        <div className="mt-2 flex justify-center gap-1.5">
+        <div className="mt-2.5 flex justify-center gap-1.5">
           {Array.from({ length: totalTickets }).map((_, i) => (
             <button
               key={i}
@@ -117,7 +118,7 @@ function QrPanel({
               }}
               aria-label={`Go to ticket ${i + 1}`}
               className={`h-1.5 rounded-full transition-all ${
-                i === activeIndex ? "w-4 bg-slate-700" : "w-1.5 bg-slate-300"
+                i === activeIndex ? "w-5 bg-slate-700" : "w-1.5 bg-slate-300"
               }`}
             />
           ))}
@@ -136,7 +137,7 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
   const priceNum = parseFloat(String(rawPrice));
 
   return (
-    <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5">
+    <div className="px-4 pb-4 pt-2 sm:px-5">
       <div className="space-y-2 rounded-xl bg-slate-50 p-3">
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-500">
@@ -149,9 +150,10 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
               : `CAD ${priceNum.toFixed(2)}`}
           </span>
         </div>
+
         <div className="border-t border-slate-200 pt-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-700">Total paid</span>
+            <span className="font-semibold text-slate-700">Total paid</span>
             <span className="font-semibold text-slate-900">
               {isNaN(priceNum) || priceNum === 0
                 ? "Free"
@@ -159,6 +161,7 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
             </span>
           </div>
         </div>
+
         <div className="border-t border-slate-200 pt-2 text-xs text-slate-400">
           <div className="flex items-center justify-between">
             <span>Order ID</span>
@@ -224,7 +227,7 @@ export default function AccountTickets() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
       </div>
     );
   }
@@ -234,31 +237,35 @@ export default function AccountTickets() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto max-w-2xl px-4 py-4">
+      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="mb-4 flex items-center gap-3">
             <button
               onClick={() => router.push("/account/profile")}
-              className="rounded-full p-1.5 transition-colors hover:bg-slate-100"
+              className="rounded-full p-2 transition-colors hover:bg-slate-100"
             >
-              <ArrowLeft className="h-4 w-4 text-slate-500" />
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
             </button>
-            <h1 className="text-base font-semibold text-slate-900">My Tickets</h1>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Tickets</h1>
+              <p className="text-sm text-slate-500">
+                View and manage your purchased tickets
+              </p>
+            </div>
           </div>
 
-          {/* Underline tabs */}
-          <div className="flex gap-5 border-b border-slate-100">
+          <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
-                className={`pb-2.5 text-sm transition-all border-b-2 -mb-px ${
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
                   filterType === type
-                    ? "border-slate-900 text-slate-900 font-medium"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
                 }`}
               >
-                {type === "upcoming" ? "Upcoming" : "Past"}
+                {type === "upcoming" ? "Upcoming" : "Past Tickets"}
               </button>
             ))}
           </div>
@@ -266,40 +273,36 @@ export default function AccountTickets() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-2xl px-4 py-5">
+      <div className="mx-auto max-w-3xl px-4 py-6">
         {ticketsLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-28 animate-pulse rounded-2xl border border-slate-100 bg-white"
+                className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white"
               />
             ))}
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-              <Ticket className="h-5 w-5 text-slate-300" />
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <Ticket className="h-6 w-6 text-slate-400" />
             </div>
-            <p className="text-sm font-medium text-slate-700">
-              {filterType === "upcoming"
-                ? "No upcoming tickets"
-                : "No past tickets"}
+            <h3 className="text-lg font-semibold text-slate-900">
+              {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
+            </h3>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+              Your purchased tickets will appear here once you buy an event ticket.
             </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Your tickets will appear here after purchase.
-            </p>
-            {filterType === "upcoming" && (
-              <Button
-                onClick={() => router.push("/")}
-                className="mt-5 rounded-xl bg-slate-900 px-5 text-sm hover:bg-slate-700"
-              >
-                Explore Events
-              </Button>
-            )}
+            <Button
+              onClick={() => router.push("/")}
+              className="mt-6 rounded-xl bg-slate-900 px-6 hover:bg-slate-700"
+            >
+              Explore Events
+            </Button>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {filteredTickets.map((ticket) => {
               const event = ticket.event;
               const isPast = filterType === "past";
@@ -307,99 +310,74 @@ export default function AccountTickets() {
               const ticketCode = `TKT-${String(ticket.id).toUpperCase()}`;
               const openPanel = expanded[ticket.id] ?? null;
 
-              const rawPrice =
-                (ticket as Record<string, unknown>).totalPrice ??
-                (event.price ? event.price.replace(/[^0-9.]/g, "") : "0");
-              const priceNum = parseFloat(String(rawPrice));
-              const displayPrice =
-                isNaN(priceNum) || priceNum === 0
-                  ? event.price ?? "Free"
-                  : `CAD ${priceNum.toFixed(2)}`;
-
               return (
-                <div
+                <Card
                   key={ticket.id}
-                  className={`overflow-hidden rounded-2xl border bg-white transition-all ${
-                    openPanel
-                      ? "border-slate-200 shadow-sm"
-                      : "border-slate-100 hover:border-slate-200"
-                  } ${isPast ? "opacity-60" : ""}`}
+                  className={`overflow-hidden border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md ${
+                    isPast ? "opacity-75" : ""
+                  }`}
                 >
-                  {/* Card body */}
+                  {/* Clickable event info */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
                     }
-                    className="flex w-full gap-3 p-3.5 text-left transition-colors hover:bg-slate-50/60"
+                    className="flex w-full gap-4 p-4 text-left transition-colors hover:bg-slate-50 sm:p-5"
                   >
-                    {/* Image — taller, fills height */}
-                    <div
-                      className="relative flex-shrink-0 overflow-hidden rounded-xl bg-slate-100"
-                      style={{ width: 68, height: 84 }}
-                    >
+                    <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                       <img
                         src={event.image || "/placeholder-event.jpg"}
                         alt={event.title}
-                        className="absolute inset-0 h-full w-full object-cover"
+                        className="h-full w-full object-cover"
                       />
-                      {isPast && (
-                        <div className="absolute inset-0 bg-white/30" />
-                      )}
                     </div>
 
-                    {/* Info */}
-                    <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
-                      {/* Top: title + past badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-slate-900 leading-snug">
-                            {event.title}
-                          </h3>
-                          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
-                            <MapPin className="h-2.5 w-2.5 shrink-0" />
-                            <span className="truncate">
-                              {event.venue ?? event.city}
-                            </span>
-                          </p>
-                        </div>
-                        {isPast && (
-                          <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                            Past
-                          </span>
-                        )}
-                      </div>
+                    <div className="min-w-0 flex-1">
+                      {/* Title row */}
+                      <h3 className="truncate text-sm font-semibold text-slate-900">
+                        {event.title}
+                      </h3>
 
-                      {/* Bottom meta: date · time · price · qty */}
-                      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-500">
+                      {/* City · category */}
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {event.city} · {event.category}
+                      </p>
+
+                      {/* Venue */}
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{event.venue ?? event.city}</span>
+                      </p>
+
+                      {/* Price below venue */}
+                      {event.price && (
+                        <p className="mt-1 text-xs font-semibold text-slate-700">
+                          {event.price}
+                        </p>
+                      )}
+
+                      {/* Date · time */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
+                          <Calendar className="h-3 w-3 shrink-0" />
                           {formatDate(event.date)}
                         </span>
-                        <span className="text-slate-300">·</span>
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 shrink-0 text-slate-400" />
+                          <Clock className="h-3 w-3 shrink-0" />
                           {formatTime(event.time)}
-                        </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="font-medium text-slate-700">
-                          {displayPrice}
-                        </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="text-slate-500">
-                          {count} {count === 1 ? "ticket" : "tickets"}
                         </span>
                       </div>
                     </div>
                   </button>
 
-                  {/* Action bar */}
-                  <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">
+                  {/* Action bar — compact, no top line */}
+                  <div className="grid grid-cols-2 gap-1 px-4 pb-3 sm:px-5">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
                         openPanel === "payment"
-                          ? "bg-slate-50 text-slate-900"
-                          : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                       }`}
                     >
                       <CreditCard className="h-3.5 w-3.5" />
@@ -413,10 +391,10 @@ export default function AccountTickets() {
 
                     <button
                       onClick={() => togglePanel(ticket.id, "qr")}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-colors ${
                         openPanel === "qr"
-                          ? "bg-slate-50 text-slate-900"
-                          : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                       }`}
                     >
                       <QrCode className="h-3.5 w-3.5" />
@@ -429,14 +407,14 @@ export default function AccountTickets() {
                     </button>
                   </div>
 
-                  {/* Expandable panels */}
+                  {/* Dropdown panels */}
                   {openPanel === "qr" && (
                     <QrPanel totalTickets={count} ticketCode={ticketCode} />
                   )}
                   {openPanel === "payment" && (
                     <PaymentPanel ticket={ticket} />
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
