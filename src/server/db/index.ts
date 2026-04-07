@@ -1,7 +1,15 @@
-import { and, desc, eq, ne, like, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, ne, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { events as eventsTable, users, savedEvents, organizers, cities as citiesTable, categories as categoriesTable } from "./schema";
+import {
+  events as eventsTable,
+  users,
+  savedEvents,
+  organizers,
+  cities as citiesTable,
+  categories as categoriesTable,
+  tickets,
+} from "./schema";
 import type { InsertUser } from "./schema";
 
 type Db = ReturnType<typeof drizzle> | null;
@@ -94,7 +102,13 @@ export async function getUserByOpenId(openId: string) {
 
 // ── Saved Events ───────────────────────────────────────────────────────────
 
-export async function saveEvent(userId: number, eventId: string, eventTitle: string, eventDate: string, eventCity: string) {
+export async function saveEvent(
+  userId: number,
+  eventId: string,
+  eventTitle: string,
+  eventDate: string,
+  eventCity: string,
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -113,7 +127,9 @@ export async function saveEvent(userId: number, eventId: string, eventTitle: str
 export async function unsaveEvent(userId: number, eventId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(savedEvents).where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, eventId)));
+  await db
+    .delete(savedEvents)
+    .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, eventId)));
   return { success: true };
 }
 
@@ -164,6 +180,48 @@ export async function isEventSaved(userId: number, eventId: string) {
   return result.length > 0;
 }
 
+// ── Tickets ────────────────────────────────────────────────────────────────
+
+export async function getUserTickets(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db
+    .select({
+      id: tickets.id,
+      userId: tickets.userId,
+      eventId: tickets.eventId,
+      quantity: tickets.quantity,
+      currency: tickets.currency,
+      total: tickets.total,
+      status: tickets.status,
+      createdAt: tickets.createdAt,
+      event: {
+        id: eventsTable.id,
+        title: eventsTable.title,
+        description: eventsTable.description,
+        image: eventsTable.image,
+        date: eventsTable.date,
+        time: eventsTable.time,
+        venue: eventsTable.venue,
+        city: eventsTable.city,
+        citySlug: eventsTable.citySlug,
+        category: eventsTable.category,
+        price: eventsTable.price,
+        interested: eventsTable.interested,
+        tags: eventsTable.tags,
+        slug: eventsTable.slug,
+        isFeatured: eventsTable.isFeatured,
+        createdAt: eventsTable.createdAt,
+        updatedAt: eventsTable.updatedAt,
+      },
+    })
+    .from(tickets)
+    .leftJoin(eventsTable, eq(tickets.eventId, eventsTable.id))
+    .where(eq(tickets.userId, userId))
+    .orderBy(desc(tickets.createdAt));
+}
+
 // ── Events ─────────────────────────────────────────────────────────────────
 
 export async function getEventsByCity(citySlug: string) {
@@ -196,13 +254,24 @@ export async function getFeaturedEvents(citySlug: string) {
     .where(and(eq(eventsTable.citySlug, citySlug), eq(eventsTable.isFeatured, 1)));
 }
 
-export async function getSimilarEvents(eventId: string, category: string, citySlug: string, limit = 3) {
+export async function getSimilarEvents(
+  eventId: string,
+  category: string,
+  citySlug: string,
+  limit = 3,
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db
     .select()
     .from(eventsTable)
-    .where(and(ne(eventsTable.id, eventId), eq(eventsTable.category, category), eq(eventsTable.citySlug, citySlug)))
+    .where(
+      and(
+        ne(eventsTable.id, eventId),
+        eq(eventsTable.category, category),
+        eq(eventsTable.citySlug, citySlug),
+      ),
+    )
     .limit(limit);
 }
 
@@ -211,7 +280,11 @@ export async function getSimilarEvents(eventId: string, category: string, citySl
 export async function getOrganizerById(organizerId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.select().from(organizers).where(eq(organizers.id, organizerId)).limit(1);
+  const result = await db
+    .select()
+    .from(organizers)
+    .where(eq(organizers.id, organizerId))
+    .limit(1);
   return result.length > 0 ? result[0] : null;
 }
 
@@ -238,7 +311,11 @@ export async function searchEvents(
 
   if (query) {
     const searchPattern = `%${query.toLowerCase()}%`;
-    conditions.push(sql`LOWER(${eventsTable.title}) LIKE ${searchPattern} OR LOWER(${eventsTable.description}) LIKE ${searchPattern} OR LOWER(${eventsTable.venue}) LIKE ${searchPattern}`);
+    conditions.push(
+      sql`LOWER(${eventsTable.title}) LIKE ${searchPattern}
+        OR LOWER(${eventsTable.description}) LIKE ${searchPattern}
+        OR LOWER(${eventsTable.venue}) LIKE ${searchPattern}`,
+    );
   }
   if (citySlug) {
     conditions.push(eq(eventsTable.citySlug, citySlug));
@@ -262,10 +339,12 @@ export async function searchEvents(
     } else if (dateFilter === "week") {
       const nextWeek = new Date(today);
       nextWeek.setDate(today.getDate() + 7);
-      conditions.push(gte(eventsTable.date, todayStr), lte(eventsTable.date, nextWeek.toISOString().split("T")[0]));
+      conditions.push(
+        gte(eventsTable.date, todayStr),
+        lte(eventsTable.date, nextWeek.toISOString().split("T")[0]),
+      );
     } else if (dateFilter === "weekend") {
-      // This is more complex as it requires checking day of week, might be better handled client-side or with a more advanced SQL function
-      // For now, we'll leave it as a client-side filter if not directly supported by Drizzle/SQL
+      // left as client-side for now
     }
   }
 
@@ -274,11 +353,19 @@ export async function searchEvents(
     if (priceFilter === "free") {
       conditions.push(eq(eventsTable.price, "Free"));
     } else if (priceFilter === "under20") {
-      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 0 AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) < 20`);
+      conditions.push(
+        sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 0
+            AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) < 20`,
+      );
     } else if (priceFilter === "20to50") {
-      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) >= 20 AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) <= 50`);
+      conditions.push(
+        sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) >= 20
+            AND CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) <= 50`,
+      );
     } else if (priceFilter === "50plus") {
-      conditions.push(sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 50`);
+      conditions.push(
+        sql`CAST(REPLACE(${eventsTable.price}, 'CAD ', '') AS DECIMAL(10, 2)) > 50`,
+      );
     }
   }
 
@@ -312,6 +399,8 @@ export async function searchEvents(
     .limit(20);
 }
 
+// ── Cities ─────────────────────────────────────────────────────────────────
+
 export async function getCitiesFromDb() {
   const db = await getDb();
   if (!db) return [];
@@ -322,4 +411,17 @@ export async function getCategoriesFromDb() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(categoriesTable).orderBy(categoriesTable.label);
+}
+
+export async function getCityBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const rows = await db
+    .select()
+    .from(citiesTable)
+    .where(eq(citiesTable.slug, slug))
+    .limit(1);
+
+  return rows[0] ?? null;
 }

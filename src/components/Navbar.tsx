@@ -16,6 +16,7 @@ import {
   Calendar,
   Search,
   Bookmark,
+Ticket
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -223,11 +224,18 @@ export default function Navbar({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
                     <DropdownMenuItem
+                      onClick={() => router.push("/account/tickets")}
+                      className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100"
+                    >
+                      <Ticket className="w-3.5 h-3.5 mr-2" /> Tickets
+                    </DropdownMenuItem>
+<DropdownMenuItem
                       onClick={() => router.push("/account/saved")}
                       className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100"
                     >
                       <Bookmark className="w-3.5 h-3.5 mr-2" /> Saved Events
                     </DropdownMenuItem>
+		
                     <DropdownMenuItem
                       onClick={() => router.push("/account/profile")}
                       className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100"
@@ -374,6 +382,15 @@ export default function Navbar({
                         )}
                       </div>
                     </div>
+<button
+                      className={menuRowCls}
+                      onClick={() => { router.push("/account/tickets"); setMobileMenuOpen(false); }}
+                    >
+                      <div className="w-8 flex justify-center shrink-0">
+                        <Ticket className="w-4 h-4 text-gray-400" />
+                      </div>
+                      Tickets
+                    </button>
                     <button
                       className={menuRowCls}
                       onClick={() => { router.push("/account/saved"); setMobileMenuOpen(false); }}

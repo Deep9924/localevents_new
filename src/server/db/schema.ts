@@ -113,3 +113,23 @@ export const notificationPreferences = mysqlTable("notificationPreferences", {
 
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;
+
+export const tickets = mysqlTable("tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  eventId: varchar("eventId", { length: 255 })
+    .notNull()
+    .references(() => events.id, { onDelete: "cascade" }),
+  quantity: int("quantity").notNull(),
+  currency: varchar("currency", { length: 10 }).notNull(), // e.g. "CAD"
+  total: double("total").notNull(), // total amount charged
+  status: mysqlEnum("status", ["paid", "refunded", "pending"])
+    .default("paid")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Ticket = typeof tickets.$inferSelect;
+export type InsertTicket = typeof tickets.$inferInsert;
