@@ -146,14 +146,17 @@ export default function AccountSaved() {
           /* ── Skeleton ── */
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex gap-4 py-3">
-                <div className="h-[88px] w-[88px] animate-pulse rounded-2xl bg-slate-200 flex-shrink-0" />
-                <div className="flex-1 space-y-2 py-1">
-                  <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" />
-                  <div className="h-3 w-1/4 animate-pulse rounded bg-slate-200" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
-                  <div className="h-3 w-2/5 animate-pulse rounded bg-slate-200" />
+              <div key={i} className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+                <div className="flex gap-3 p-3">
+                  <div className="h-[84px] w-[84px] animate-pulse rounded-xl bg-slate-200 flex-shrink-0" />
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3 w-1/3 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3 w-2/5 animate-pulse rounded bg-slate-200" />
+                  </div>
                 </div>
+                <div className="h-10 animate-pulse border-t border-slate-100 bg-slate-50" />
               </div>
             ))}
           </div>
@@ -185,8 +188,8 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          /* ── Event rows ── */
-          <div className="divide-y divide-slate-100">
+          /* ── Event cards ── */
+          <div className="space-y-3">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
               const isDeleting = deletingId === event.id;
@@ -194,81 +197,86 @@ export default function AccountSaved() {
               return (
                 <div
                   key={event.id}
-                  className="group flex items-stretch gap-4 py-3 first:pt-0 last:pb-0"
+                  className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
-                  {/* ── Square thumbnail ── */}
+                  {/* ── Top: image + info ── */}
                   <button
                     onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="relative h-[88px] w-[88px] flex-shrink-0 self-start overflow-hidden rounded-2xl sm:h-24 sm:w-24"
+                    className="flex w-full gap-3 p-3 text-left"
                   >
-                    {event.image ? (
-                      <img
-                        src={event.image}
-                        alt={event.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
-                    )}
+                    {/* Thumbnail */}
+                    <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-xl">
+                      {event.image ? (
+                        <img
+                          src={event.image}
+                          alt={event.title}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
+                      )}
+                    </div>
+
+                    {/* Text */}
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                      {/* Category */}
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        {event.category}
+                      </span>
+
+                      {/* Title */}
+                      <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
+                        {event.title}
+                      </h3>
+
+                      {/* Date */}
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        {formatDate(event.date)} · {formatTime(event.time)}
+                      </span>
+
+                      {/* Venue + price on same row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{event.venue ?? event.city}</span>
+                        </span>
+                        {event.price && (
+                          <span className="flex-shrink-0 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                            {event.price}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </button>
 
-                  {/* ── Right column: text + actions ── */}
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  {/* ── Bottom: action bar ── */}
+                  <div className="flex items-stretch border-t border-slate-100">
+                    <button
+                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                      className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
+                    >
+                      View details
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
 
-                    {/* Title + meta */}
-                    <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
-                      {event.title}
-                    </h3>
+                    <div className="w-px bg-slate-100" />
 
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                      {event.category}
-                    </span>
-
-                    <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      {formatDate(event.date)} · {formatTime(event.time)}
-                    </span>
-
-                    <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{event.venue ?? event.city}</span>
-                    </span>
-
-                    {/* Price pill */}
-                    {event.price && (
-                      <span className="mt-0.5 w-fit rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        {event.price}
-                      </span>
-                    )}
-
-                    {/* Actions — grouped together, left-aligned */}
-                    <div className="mt-1.5 flex items-center gap-3">
-                      <button
-                        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                        className="flex items-center gap-0.5 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-800"
-                      >
-                        View details
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
-
-                      <span className="text-slate-200">|</span>
-
-                      <button
-                        onClick={() => handleUnsave(event.id)}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1 text-[11px] font-medium text-slate-400 transition-colors hover:text-red-500 disabled:opacity-40"
-                        aria-label="Remove saved event"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <>
-                            Remove
-                            <Trash2 className="h-3 w-3" />
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleUnsave(event.id)}
+                      disabled={isDeleting}
+                      className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                      aria-label="Remove saved event"
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <>
+                          Remove
+                          <Trash2 className="h-3 w-3" />
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               );
