@@ -229,7 +229,7 @@ export default function AccountSaved() {
 
                   {/* ── Floating white meta pill — lifts above the bottom edge ── */}
                   <div className="absolute bottom-3 left-3 right-3">
-                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 shadow-md">
+                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3 py-2 shadow-md">
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
                           <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
