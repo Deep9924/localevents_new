@@ -49,7 +49,6 @@ export default function AccountSaved() {
   });
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
-  // ← track exactly which card is being deleted
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: savedEvents = [], isLoading: eventsLoading } =
@@ -102,8 +101,6 @@ export default function AccountSaved() {
       {/* ── Header ── */}
       <div className="border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-2xl px-4 sm:px-6">
-
-          {/* Row 1: back + title */}
           <div className="flex items-center gap-3 py-3">
             <button
               onClick={() => router.push("/account/profile")}
@@ -121,7 +118,6 @@ export default function AccountSaved() {
             </div>
           </div>
 
-          {/* Row 2: pill tabs */}
           <div className="pb-3">
             <div className="flex rounded-2xl bg-slate-100 p-1">
               {(["upcoming", "past"] as const).map((type) => (
@@ -146,7 +142,6 @@ export default function AccountSaved() {
       <div className="mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
 
         {eventsLoading ? (
-          /* ── Skeleton ── */
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
               <div
@@ -157,7 +152,6 @@ export default function AccountSaved() {
           </div>
 
         ) : filteredEvents.length === 0 ? (
-          /* ── Empty state ── */
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Bookmark className="h-6 w-6 text-slate-400" />
@@ -183,62 +177,59 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          /* ── Cards ── */
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
-              const isDeleting = deletingId === event.id; // ← per-card check
+              const isDeleting = deletingId === event.id;
 
               return (
                 <div
                   key={event.id}
-                  className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-md"
+                  className="group relative overflow-hidden rounded-3xl border border-slate-200 shadow-sm transition-shadow duration-300 hover:shadow-md"
                   style={{ aspectRatio: "3 / 4" }}
                 >
-                  {/* ── Full-bleed image + gradient (top ~75% of card) ── */}
-                  <div className="relative min-h-0 flex-1 overflow-hidden">
+                  {/* Full-bleed image */}
+                  <button
+                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                    className="absolute inset-0 h-full w-full"
+                  >
+                    <img
+                      src={event.image || "/placeholder-event.jpg"}
+                      alt={event.title}
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  </button>
+
+                  {/* Dark gradient — only at the very bottom for the meta strip */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+                  {/* Price badge */}
+                  {event.price && (
+                    <div className="absolute top-3 right-3 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-md border border-white/15">
+                      <span className="text-[11px] font-semibold text-white">
+                        {event.price}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Category + title over the image */}
+                  <div className="absolute bottom-[88px] left-0 right-0 px-4">
+                    <span className="mb-1.5 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80 backdrop-blur-sm">
+                      {event.category}
+                    </span>
                     <button
                       onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                      className="absolute inset-0 h-full w-full"
+                      className="block text-left"
                     >
-                      <img
-                        src={event.image || "/placeholder-event.jpg"}
-                        alt={event.title}
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
+                      <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-white drop-shadow sm:text-[16px]">
+                        {event.title}
+                      </h3>
                     </button>
-
-                    {/* Gradient — fades image into white at the bottom */}
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
-
-                    {/* Price badge */}
-                    {event.price && (
-                      <div className="absolute top-3 right-3 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm">
-                        <span className="text-[11px] font-semibold text-white">
-                          {event.price}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Category + title sit at the bottom of the image area */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <span className="mb-1.5 inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white backdrop-blur-sm">
-                        {event.category}
-                      </span>
-                      <button
-                        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                        className="block text-left"
-                      >
-                        <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-white drop-shadow-sm sm:text-[16px]">
-                          {event.title}
-                        </h3>
-                      </button>
-                    </div>
                   </div>
 
-                  {/* ── White info strip (bottom ~25%) ── */}
-                  <div className="flex-shrink-0 bg-white px-4 pb-4 pt-2">
-                    <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                  {/* ── White meta strip — pinned to bottom ── */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-white px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
                           <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
@@ -250,7 +241,6 @@ export default function AccountSaved() {
                         </span>
                       </div>
 
-                      {/* Remove button — only this card shows spinner */}
                       <button
                         onClick={() => handleUnsave(event.id)}
                         disabled={isDeleting}
