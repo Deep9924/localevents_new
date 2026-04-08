@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2,
   ArrowLeft,
-  ArrowRight,
   Bookmark,
   MapPin,
   Calendar,
@@ -199,13 +198,13 @@ export default function AccountSaved() {
                   key={event.id}
                   className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
-                  {/* ── Top: image + info ── */}
-                  <button
-                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="flex w-full gap-3 p-3 text-left"
-                  >
-                    {/* Thumbnail */}
-                    <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-xl">
+                  {/* ── Card body ── */}
+                  <div className="flex gap-3 p-3">
+                    {/* Thumbnail — tappable */}
+                    <button
+                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                      className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-xl"
+                    >
                       {event.image ? (
                         <img
                           src={event.image}
@@ -215,14 +214,27 @@ export default function AccountSaved() {
                       ) : (
                         <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
                       )}
-                    </div>
+                    </button>
 
-                    {/* Text */}
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                      {/* Category */}
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        {event.category}
-                      </span>
+                    {/* Text — tappable */}
+                    <button
+                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                      className="flex min-w-0 flex-1 flex-col justify-center gap-1 text-left"
+                    >
+                      {/* Category · Price */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          {event.category}
+                        </span>
+                        {event.price && (
+                          <>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-[11px] font-bold text-slate-700">
+                              {event.price}
+                            </span>
+                          </>
+                        )}
+                      </div>
 
                       {/* Title */}
                       <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
@@ -235,48 +247,31 @@ export default function AccountSaved() {
                         {formatDate(event.date)} · {formatTime(event.time)}
                       </span>
 
-                      {/* Venue + price on same row */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{event.venue ?? event.city}</span>
-                        </span>
-                        {event.price && (
-                          <span className="flex-shrink-0 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
-                            {event.price}
-                          </span>
+                      {/* Venue */}
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{event.venue ?? event.city}</span>
+                      </span>
+                    </button>
+
+                    {/* Remove button — aligned to venue row at bottom */}
+                    <div className="flex flex-shrink-0 flex-col items-end justify-end">
+                      <button
+                        onClick={() => handleUnsave(event.id)}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1 text-[11px] font-medium text-slate-400 transition-colors hover:text-red-500 disabled:opacity-40"
+                        aria-label="Remove saved event"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            Remove
+                            <Trash2 className="h-3 w-3" />
+                          </>
                         )}
-                      </div>
+                      </button>
                     </div>
-                  </button>
-
-                  {/* ── Bottom: action bar ── */}
-                  <div className="flex items-stretch border-t border-slate-100">
-                    <button
-                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                      className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
-                    >
-                      View details
-                      <ArrowRight className="h-3 w-3" />
-                    </button>
-
-                    <div className="w-px bg-slate-100" />
-
-                    <button
-                      onClick={() => handleUnsave(event.id)}
-                      disabled={isDeleting}
-                      className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                      aria-label="Remove saved event"
-                    >
-                      {isDeleting ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <>
-                          Remove
-                          <Trash2 className="h-3 w-3" />
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
               );
