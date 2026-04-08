@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2,
   ArrowLeft,
+  ArrowRight,
   Bookmark,
   MapPin,
   Calendar,
   Trash2,
-  Tag,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
@@ -27,13 +27,13 @@ type SavedEventWithNonNullEvent = SavedEventWithEvent & {
 type FilterType = "upcoming" | "past";
 
 const parseEventDate = (dateStr: string, timeStr?: string): Date => {
-  if (/^d{4}-d{2}-d{2}$/.test(dateStr)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const d = new Date(`${dateStr}T${timeStr || "00:00"}:00`);
     if (!isNaN(d.getTime())) return d;
   }
   if (dateStr.includes(",")) {
     const currentYear = new Date().getFullYear();
-    const withYear = dateStr.match(/d{4}/)
+    const withYear = dateStr.match(/\d{4}/)
       ? `${dateStr} ${timeStr || "00:00"}`
       : `${dateStr} ${currentYear} ${timeStr || "00:00"}`;
     const d = new Date(withYear);
@@ -146,10 +146,11 @@ export default function AccountSaved() {
           /* ── Skeleton ── */
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex gap-3 py-2">
-                <div className="h-20 w-24 sm:h-24 sm:w-28 animate-pulse rounded-xl bg-slate-200 flex-shrink-0" />
+              <div key={i} className="flex gap-4 py-3">
+                <div className="h-[88px] w-[88px] animate-pulse rounded-2xl bg-slate-200 flex-shrink-0" />
                 <div className="flex-1 space-y-2 py-1">
                   <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" />
+                  <div className="h-3 w-1/4 animate-pulse rounded bg-slate-200" />
                   <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
                   <div className="h-3 w-2/5 animate-pulse rounded bg-slate-200" />
                 </div>
@@ -184,85 +185,94 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          /* ── Rows — no card wrapper ── */
+          /* ── Event rows ── */
           <div className="divide-y divide-slate-100">
+            {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
+              const event = savedEvent.event;
+              const isDeleting = deletingId === event.id;
 
-{filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
-  const event = savedEvent.event;
-  const isDeleting = deletingId === event.id;
+              return (
+                <div
+                  key={event.id}
+                  className="group flex items-stretch gap-4 py-3 first:pt-0 last:pb-0"
+                >
+                  {/* ── Square thumbnail ── */}
+                  <button
+                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                    className="relative h-[88px] w-[88px] flex-shrink-0 self-start overflow-hidden rounded-2xl sm:h-24 sm:w-24"
+                  >
+                    {event.image ? (
+                      <img
+                        src={event.image}
+                        alt={event.title}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
+                    )}
+                  </button>
 
-  return (
-    <div
-      key={event.id}
-      className="group flex items-center gap-4 py-3 first:pt-0 last:pb-0"
-    >
-      {/* ── Square thumbnail with category badge overlay ── */}
-      <button
-        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-        className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl sm:h-[72px] sm:w-[72px]"
-      >
-        {/* Background image or gradient fallback */}
-        {event.image ? (
-          <img
-            src={event.image}
-            alt={event.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
-        )}
+                  {/* ── Right column: text + actions ── */}
+                  <div className="flex min-w-0 flex-1 flex-col justify-between gap-1">
 
-        {/* Dark gradient scrim so badge is readable */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    {/* Top: title + meta */}
+                    <div className="flex flex-col gap-0.5">
+                      <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
+                        {event.title}
+                      </h3>
 
-        {/* Category badge — bottom-left, matching screenshot */}
-        <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
-          {event.category}
-        </span>
-      </button>
+                      <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        {event.category}
+                      </span>
 
-      {/* ── Text content ── */}
-      <button
-        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-        className="flex min-w-0 flex-1 flex-col gap-1 text-left"
-      >
-        <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-slate-800">
-          {event.title}
-        </h3>
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        {formatDate(event.date)} · {formatTime(event.time)}
+                      </span>
 
-        <span className="flex items-center gap-1.5 text-[12px] text-slate-400">
-          <Calendar className="h-3.5 w-3.5 shrink-0" />
-          {formatDate(event.date)} · {formatTime(event.time)}
-        </span>
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">
+                          {event.venue ?? event.city}
+                          {event.price ? ` · ${event.price}` : ""}
+                        </span>
+                      </span>
+                    </div>
 
-        {/* Venue + price on one row, matching "Victoria Park · $25" */}
-        <span className="flex items-center gap-1.5 text-[12px] text-slate-400">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {event.venue ?? event.city}
-            {event.price ? ` · ${event.price}` : ""}
-          </span>
-        </span>
-      </button>
+                    {/* Bottom action row */}
+                    <div className="flex items-center justify-between pt-1.5">
 
-      {/* ── Trash button — far right, circular, light grey ── */}
-      <button
-        onClick={() => handleUnsave(event.id)}
-        disabled={isDeleting}
-        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-        aria-label="Remove saved event"
-      >
-        {isDeleting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Trash2 className="h-4 w-4" />
-        )}
-      </button>
-    </div>
-  );
-})}
+                      {/* View details → */}
+                      <button
+                        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                        className="flex items-center gap-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+                      >
+                        View details
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
 
-            
+                      {/* Remove + trash icon */}
+                      <button
+                        onClick={() => handleUnsave(event.id)}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1 text-[11px] font-medium text-slate-400 transition-colors hover:text-red-500 disabled:opacity-40"
+                        aria-label="Remove saved event"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            Remove
+                            <Trash2 className="h-3 w-3" />
+                          </>
+                        )}
+                      </button>
+
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
