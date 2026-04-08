@@ -132,11 +132,11 @@ export default function AccountSaved() {
       {/* ── Content ── */}
       <div className="mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
         {eventsLoading ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-[168px] animate-pulse rounded-3xl border border-slate-200 bg-white"
+                className="h-80 animate-pulse rounded-3xl border border-slate-200 bg-white"
               />
             ))}
           </div>
@@ -165,98 +165,94 @@ export default function AccountSaved() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
 
               return (
                 <div
                   key={event.id}
-                  className="h-[168px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
-                  <div className="flex h-full">
-                    {/* ── Left: image ── */}
+                  {/* ── Hero image ── */}
+                  <button
+                    onClick={() =>
+                      router.push(`/${event.citySlug}/${event.slug}`)
+                    }
+                    className="group relative block w-full overflow-hidden"
+                  >
+                    <div className="relative h-48 w-full sm:h-52">
+                      <img
+                        src={event.image || "/placeholder-event.jpg"}
+                        alt={event.title}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                  </button>
+
+                  {/* ── Event info ── */}
+                  <div className="px-5 pt-4 pb-3">
+                    <h3 className="text-[16px] font-bold leading-snug text-slate-900">
+                      {event.title}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {event.city} · {event.category}
+                    </p>
+
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        {formatDate(event.date)} · {formatTime(event.time)}
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">
+                          {event.venue ?? event.city}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Price pill */}
+                    <div className="mt-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-[12px] font-medium text-blue-700">
+                        <Bookmark className="h-3 w-3" />
+                        Saved
+                      </div>
+                      {event.price && (
+                        <span className="text-[13px] font-semibold text-slate-700">
+                          {event.price}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Separator ── */}
+                  <div className="mx-5 border-t border-slate-100" />
+
+                  {/* ── Action buttons ── */}
+                  <div className="grid grid-cols-2 gap-2 px-5 pt-3 pb-5">
                     <button
                       onClick={() =>
                         router.push(`/${event.citySlug}/${event.slug}`)
                       }
-                      className="group relative flex-shrink-0 overflow-hidden rounded-l-3xl"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
                     >
-                      <div className="h-[168px] w-52 sm:w-60">
-                        <img
-                          src={event.image || "/placeholder-event.jpg"}
-                          alt={event.title}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      </div>
+                      View details →
                     </button>
-
-                    {/* ── Right: info ── */}
-                    <div className="flex flex-1 flex-col justify-between px-3 py-3.5 min-w-0">
-                      {/* Top: title + price */}
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <button
-                            onClick={() =>
-                              router.push(`/${event.citySlug}/${event.slug}`)
-                            }
-                            className="min-w-0 text-left"
-                          >
-                            <h3 className="text-[15px] font-bold leading-snug text-slate-900 line-clamp-2">
-                              {event.title}
-                            </h3>
-                            <p className="mt-0.5 text-[11px] text-slate-400">
-                              {event.city} · {event.category}
-                            </p>
-                          </button>
-                          {event.price && (
-                            <span className="flex-shrink-0 text-[12px] font-semibold text-slate-700">
-                              {event.price}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Date + venue */}
-                        <div className="mt-2.5 flex flex-col gap-1">
-                          <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
-                            {formatDate(event.date)} · {formatTime(event.time)}
-                          </span>
-                          <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                            <span className="truncate">
-                              {event.venue ?? event.city}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bottom: actions */}
-                      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                        <button
-                          onClick={() =>
-                            router.push(`/${event.citySlug}/${event.slug}`)
-                          }
-                          className="text-[12px] font-medium text-slate-500 transition-colors hover:text-slate-900"
-                        >
-                          View details →
-                        </button>
-                        <button
-                          onClick={() =>
-                            unsaveMutation.mutate({ eventId: event.id })
-                          }
-                          disabled={unsaveMutation.isPending}
-                          className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                        >
-                          {unsaveMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                          Remove
-                        </button>
-                      </div>
-                    </div>
+                    <button
+                      onClick={() =>
+                        unsaveMutation.mutate({ eventId: event.id })
+                      }
+                      disabled={unsaveMutation.isPending}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-[13px] font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      {unsaveMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Remove
+                    </button>
                   </div>
                 </div>
               );
