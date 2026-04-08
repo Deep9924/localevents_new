@@ -10,6 +10,7 @@ import {
   MapPin,
   Calendar,
   Trash2,
+  MoreVertical,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
@@ -49,6 +50,7 @@ export default function AccountSaved() {
   });
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const { data: savedEvents = [], isLoading: eventsLoading } =
     trpc.savedEvents.list.useQuery(undefined, { enabled: !!user });
@@ -78,7 +80,7 @@ export default function AccountSaved() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
       </div>
     );
@@ -86,7 +88,7 @@ export default function AccountSaved() {
   if (!isAuthenticated || !user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
 
       {/* ── Header ── */}
       <div className="border-b border-slate-200 bg-white">
@@ -105,7 +107,9 @@ export default function AccountSaved() {
                 Saved Events
               </h1>
               <p className="text-[12px] text-slate-400">
-                Events you've bookmarked
+                {filteredEvents.length > 0
+                  ? `${filteredEvents.length} event${filteredEvents.length !== 1 ? "s" : ""}`
+                  : "Events you've bookmarked"}
               </p>
             </div>
           </div>
@@ -132,23 +136,29 @@ export default function AccountSaved() {
       </div>
 
       {/* ── Content ── */}
-      <div className="mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
+      <div className="mx-auto max-w-2xl px-0 sm:px-0 pb-16">
 
         {eventsLoading ? (
-          /* ── Skeleton ── */
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="animate-pulse rounded-3xl bg-white border border-slate-200"
-                style={{ aspectRatio: "3 / 4" }}
-              />
+          /* ── Skeletons ── */
+          <div className="flex flex-col">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex gap-3 px-4 py-3 sm:px-6">
+                {/* Thumbnail skeleton */}
+                <div className="h-[94px] w-[168px] flex-shrink-0 animate-pulse rounded-xl bg-slate-100 sm:h-[101px] sm:w-[180px]" />
+                {/* Text skeleton */}
+                <div className="flex flex-1 flex-col gap-2 pt-1">
+                  <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100" />
+                </div>
+              </div>
             ))}
           </div>
 
         ) : filteredEvents.length === 0 ? (
           /* ── Empty state ── */
-          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+          <div className="px-4 py-16 text-center sm:px-6">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Bookmark className="h-6 w-6 text-slate-400" />
             </div>
@@ -173,94 +183,120 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          /* ── Cards ── */
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          /* ── Watch Later style rows ── */
+          <div className="flex flex-col pt-2">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
+              const isMenuOpen = openMenuId === event.id;
 
               return (
                 <div
                   key={event.id}
-                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                  className="group relative flex gap-3 px-4 py-3 transition-colors hover:bg-slate-50 sm:gap-4 sm:px-6"
+                  // Close menu on outside interaction
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                      setOpenMenuId(null);
+                    }
+                  }}
                 >
-                  {/* ── Full-bleed image (top portion) ── */}
+                  {/* ── Thumbnail ── */}
                   <button
                     onClick={() =>
                       router.push(`/${event.citySlug}/${event.slug}`)
                     }
-                    className="relative block w-full overflow-hidden"
-                    style={{ aspectRatio: "16 / 9" }}
+                    className="relative flex-shrink-0 overflow-hidden rounded-xl"
                   >
-                    <img
-                      src={event.image || "/placeholder-event.jpg"}
-                      alt={event.title}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    {/* Price badge overlaid on image */}
+                    {/* 16:9 thumbnail — 168px wide on mobile, 180px on sm+ */}
+                    <div className="h-[94px] w-[168px] sm:h-[101px] sm:w-[180px]">
+                      <img
+                        src={event.image || "/placeholder-event.jpg"}
+                        alt={event.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                    {/* Price chip on thumbnail */}
                     {event.price && (
-                      <span className="absolute top-3 right-3 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow-sm">
+                      <span className="absolute bottom-1.5 right-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                         {event.price}
                       </span>
                     )}
                   </button>
 
-                  {/* ── Info panel — plain white ── */}
-                  <div className="flex flex-col gap-3 px-4 py-3">
-
-                    {/* Category + title */}
-                    <div>
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                        {event.city} · {event.category}
-                      </p>
+                  {/* ── Info ── */}
+                  <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+                    <div className="min-w-0 pr-8">
+                      {/* Title */}
                       <button
                         onClick={() =>
                           router.push(`/${event.citySlug}/${event.slug}`)
                         }
                         className="text-left"
                       >
-                        <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-slate-900 hover:text-slate-600 transition-colors">
+                        <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-900 hover:text-slate-600 transition-colors sm:text-[14px]">
                           {event.title}
                         </h3>
                       </button>
-                    </div>
 
-                    {/* Date + venue */}
-                    <div className="flex flex-col gap-1">
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                        <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
+                      {/* City · Category */}
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {event.city} · {event.category}
+                      </p>
+
+                      {/* Date */}
+                      <span className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500">
+                        <Calendar className="h-2.5 w-2.5 shrink-0 text-slate-400" />
                         {formatDate(event.date)} · {formatTime(event.time)}
                       </span>
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                        <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+
+                      {/* Venue */}
+                      <span className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
+                        <MapPin className="h-2.5 w-2.5 shrink-0 text-slate-400" />
                         <span className="truncate">{event.venue ?? event.city}</span>
                       </span>
                     </div>
+                  </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                      <button
-                        onClick={() =>
-                          router.push(`/${event.citySlug}/${event.slug}`)
-                        }
-                        className="text-[12px] font-medium text-slate-500 transition-colors hover:text-slate-900"
-                      >
-                        View details →
-                      </button>
-                      <button
-                        onClick={() =>
-                          unsaveMutation.mutate({ eventId: event.id })
-                        }
-                        disabled={unsaveMutation.isPending}
-                        className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      >
-                        {unsaveMutation.isPending ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                        Remove
-                      </button>
-                    </div>
+                  {/* ── Three-dot menu (top-right of row) ── */}
+                  <div className="absolute right-4 top-3 sm:right-6">
+                    <button
+                      onClick={() =>
+                        setOpenMenuId(isMenuOpen ? null : event.id)
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-700 focus:opacity-100"
+                      aria-label="More options"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+
+                    {/* Dropdown */}
+                    {isMenuOpen && (
+                      <div className="absolute right-0 top-9 z-20 min-w-[160px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                        <button
+                          onClick={() =>
+                            router.push(`/${event.citySlug}/${event.slug}`)
+                          }
+                          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 hover:bg-slate-50"
+                        >
+                          View event
+                        </button>
+                        <button
+                          onClick={() => {
+                            unsaveMutation.mutate({ eventId: event.id });
+                            setOpenMenuId(null);
+                          }}
+                          disabled={unsaveMutation.isPending}
+                          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {unsaveMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Remove from saved
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
