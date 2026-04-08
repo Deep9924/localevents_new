@@ -186,75 +186,83 @@ export default function AccountSaved() {
         ) : (
           /* ── Rows — no card wrapper ── */
           <div className="divide-y divide-slate-100">
-            {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
-              const event = savedEvent.event;
-              const isDeleting = deletingId === event.id;
 
-              return (
-                <div
-                  key={event.id}
-                  className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  {/* ── Rectangular thumbnail ── */}
-                  <button
-                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="h-20 w-24 flex-shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-28"
-                  >
-                    <img
-                      src={event.image || "/placeholder-event.jpg"}
-                      alt={event.title}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  </button>
+{filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
+  const event = savedEvent.event;
+  const isDeleting = deletingId === event.id;
 
-                  {/* ── Text content ── */}
-                  <button
-                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="flex min-w-0 flex-1 flex-col gap-1 text-left"
-                  >
-                    <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-800">
-                      {event.title}
-                    </h3>
-                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      {formatDate(event.date)} · {formatTime(event.time)}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{event.venue ?? event.city}</span>
-                    </span>
-                  </button>
+  return (
+    <div
+      key={event.id}
+      className="group flex items-center gap-4 py-3 first:pt-0 last:pb-0"
+    >
+      {/* ── Square thumbnail with category badge overlay ── */}
+      <button
+        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+        className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl sm:h-[72px] sm:w-[72px]"
+      >
+        {/* Background image or gradient fallback */}
+        {event.image ? (
+          <img
+            src={event.image}
+            alt={event.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-slate-600 via-slate-700 to-emerald-900" />
+        )}
 
-                  {/* ── Right column: category + price + delete ── */}
-                  <div className="flex flex-shrink-0 flex-col items-end justify-between gap-2 self-stretch py-0.5">
-                    {/* Category badge */}
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      {event.category}
-                    </span>
+        {/* Dark gradient scrim so badge is readable */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                    {/* Price */}
-                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700">
-                      <Tag className="h-3 w-3 text-slate-400" />
-                      {event.price ?? "Free"}
-                    </span>
+        {/* Category badge — bottom-left, matching screenshot */}
+        <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+          {event.category}
+        </span>
+      </button>
 
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleUnsave(event.id)}
-                      disabled={isDeleting}
-                      className="flex h-7 w-7 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                      aria-label="Remove saved event"
-                    >
-                      {isDeleting ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3 w-3" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+      {/* ── Text content ── */}
+      <button
+        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+        className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+      >
+        <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-slate-800">
+          {event.title}
+        </h3>
+
+        <span className="flex items-center gap-1.5 text-[12px] text-slate-400">
+          <Calendar className="h-3.5 w-3.5 shrink-0" />
+          {formatDate(event.date)} · {formatTime(event.time)}
+        </span>
+
+        {/* Venue + price on one row, matching "Victoria Park · $25" */}
+        <span className="flex items-center gap-1.5 text-[12px] text-slate-400">
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {event.venue ?? event.city}
+            {event.price ? ` · ${event.price}` : ""}
+          </span>
+        </span>
+      </button>
+
+      {/* ── Trash button — far right, circular, light grey ── */}
+      <button
+        onClick={() => handleUnsave(event.id)}
+        disabled={isDeleting}
+        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+        aria-label="Remove saved event"
+      >
+        {isDeleting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Trash2 className="h-4 w-4" />
+        )}
+      </button>
+    </div>
+  );
+})}
+
+            
           </div>
         )}
       </div>
