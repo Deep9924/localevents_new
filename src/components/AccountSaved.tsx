@@ -10,6 +10,7 @@ import {
   MapPin,
   Calendar,
   Trash2,
+  Tag,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
@@ -142,16 +143,25 @@ export default function AccountSaved() {
       <div className="mx-auto max-w-2xl px-4 py-5 pb-16 sm:px-6">
 
         {eventsLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
+          /* ── Skeleton ── */
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
-                className="aspect-[4/5] animate-pulse rounded-3xl bg-slate-200"
-              />
+                className="flex gap-3 rounded-2xl bg-white p-3 shadow-sm border border-slate-100"
+              >
+                <div className="h-20 w-20 animate-pulse rounded-xl bg-slate-200 flex-shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
+                  <div className="h-3 w-2/5 animate-pulse rounded bg-slate-200" />
+                </div>
+              </div>
             ))}
           </div>
 
         ) : filteredEvents.length === 0 ? (
+          /* ── Empty state ── */
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Bookmark className="h-6 w-6 text-slate-400" />
@@ -177,7 +187,8 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          /* ── Horizontal list rows ── */
+          <div className="space-y-2.5">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
               const isDeleting = deletingId === event.id;
@@ -185,75 +196,64 @@ export default function AccountSaved() {
               return (
                 <div
                   key={event.id}
-                  className="group relative overflow-hidden rounded-3xl border border-slate-200 shadow-sm transition-shadow duration-300 hover:shadow-md"
-                  style={{ aspectRatio: "4 / 5" }}
+                  className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-shadow duration-200 hover:shadow-md"
                 >
-                  {/* Full-bleed image */}
+                  {/* ── Thumbnail — clean, no overlay ── */}
                   <button
                     onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="absolute inset-0 h-full w-full"
+                    className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl"
                   >
                     <img
                       src={event.image || "/placeholder-event.jpg"}
                       alt={event.title}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </button>
 
-                  {/* Gradient overlay — fades at the bottom */}
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                  {/* ── Text content ── */}
+                  <button
+                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                    className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+                  >
+                    <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-800">
+                      {event.title}
+                    </h3>
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <Calendar className="h-3 w-3 shrink-0" />
+                      {formatDate(event.date)} · {formatTime(event.time)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{event.venue ?? event.city}</span>
+                    </span>
+                  </button>
 
-                  {/* Price badge */}
-                  {event.price && (
-                    <div className="absolute top-3 right-3 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-md border border-white/15">
-                      <span className="text-[11px] font-semibold text-white">
-                        {event.price}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Category + title over the image */}
-                  <div className="absolute bottom-[76px] left-0 right-0 px-3.5">
-                    <span className="mb-1 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80 backdrop-blur-sm">
+                  {/* ── Right column: category + price + delete ── */}
+                  <div className="flex flex-shrink-0 flex-col items-end justify-between gap-2 self-stretch py-0.5">
+                    {/* Category badge */}
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                       {event.category}
                     </span>
+
+                    {/* Price */}
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700">
+                      <Tag className="h-3 w-3 text-slate-400" />
+                      {event.price ?? "Free"}
+                    </span>
+
+                    {/* Delete button */}
                     <button
-                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                      className="block text-left"
+                      onClick={() => handleUnsave(event.id)}
+                      disabled={isDeleting}
+                      className="flex h-7 w-7 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                      aria-label="Remove saved event"
                     >
-                      <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-white drop-shadow sm:text-[15px]">
-                        {event.title}
-                      </h3>
+                      {isDeleting ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
                     </button>
-                  </div>
-
-                  {/* ── Floating white meta pill — lifts above the bottom edge ── */}
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/85 backdrop-blur-md px-3 py-2 shadow-md">
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                          <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
-                          {formatDate(event.date)} · {formatTime(event.time)}
-                        </span>
-                        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                          <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                          <span className="truncate">{event.venue ?? event.city}</span>
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => handleUnsave(event.id)}
-                        disabled={isDeleting}
-                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                        aria-label="Remove saved event"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </button>
-                    </div>
                   </div>
                 </div>
               );
