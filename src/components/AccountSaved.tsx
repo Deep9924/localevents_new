@@ -213,45 +213,46 @@ export default function AccountSaved() {
                   </button>
 
                   {/* ── Right column: text + actions ── */}
-                  <div className="flex min-w-0 flex-1 flex-col justify-between gap-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
 
-                    {/* Top: title + meta */}
-                    <div className="flex flex-col gap-0.5">
-                      <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
-                        {event.title}
-                      </h3>
+                    {/* Title + meta */}
+                    <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-slate-800">
+                      {event.title}
+                    </h3>
 
-                      <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        {event.category}
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {event.category}
+                    </span>
+
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <Calendar className="h-3 w-3 shrink-0" />
+                      {formatDate(event.date)} · {formatTime(event.time)}
+                    </span>
+
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{event.venue ?? event.city}</span>
+                    </span>
+
+                    {/* Price pill */}
+                    {event.price && (
+                      <span className="mt-0.5 w-fit rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {event.price}
                       </span>
+                    )}
 
-                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <Calendar className="h-3 w-3 shrink-0" />
-                        {formatDate(event.date)} · {formatTime(event.time)}
-                      </span>
-
-                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate">
-                          {event.venue ?? event.city}
-                          {event.price ? ` · ${event.price}` : ""}
-                        </span>
-                      </span>
-                    </div>
-
-                    {/* Bottom action row */}
-                    <div className="flex items-center justify-between pt-1.5">
-
-                      {/* View details → */}
+                    {/* Actions — grouped together, left-aligned */}
+                    <div className="mt-1.5 flex items-center gap-3">
                       <button
                         onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                        className="flex items-center gap-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+                        className="flex items-center gap-0.5 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-800"
                       >
                         View details
                         <ArrowRight className="h-3 w-3" />
                       </button>
 
-                      {/* Remove + trash icon */}
+                      <span className="text-slate-200">|</span>
+
                       <button
                         onClick={() => handleUnsave(event.id)}
                         disabled={isDeleting}
@@ -267,7 +268,6 @@ export default function AccountSaved() {
                           </>
                         )}
                       </button>
-
                     </div>
                   </div>
                 </div>
