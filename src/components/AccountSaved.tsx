@@ -49,14 +49,25 @@ export default function AccountSaved() {
   });
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
+  // ← track exactly which card is being deleted
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: savedEvents = [], isLoading: eventsLoading } =
     trpc.savedEvents.list.useQuery(undefined, { enabled: !!user });
 
   const utils = trpc.useUtils();
   const unsaveMutation = trpc.savedEvents.unsave.useMutation({
-    onSuccess: () => utils.savedEvents.list.invalidate(),
+    onSuccess: () => {
+      utils.savedEvents.list.invalidate();
+      setDeletingId(null);
+    },
+    onError: () => setDeletingId(null),
   });
+
+  const handleUnsave = (eventId: string) => {
+    setDeletingId(eventId);
+    unsaveMutation.mutate({ eventId });
+  };
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
@@ -176,25 +187,31 @@ export default function AccountSaved() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
+              const isDeleting = deletingId === event.id; // ← per-card check
 
               return (
                 <div
                   key={event.id}
-                  className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-md"
+                  className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-md"
+                  style={{ aspectRatio: "3 / 4" }}
                 >
-                  {/* Image — fixed height, not full bleed */}
-                  <button
-                    onClick={() =>
-                      router.push(`/${event.citySlug}/${event.slug}`)
-                    }
-                    className="relative block h-48 w-full overflow-hidden"
-                  >
-                    <img
-                      src={event.image || "/placeholder-event.jpg"}
-                      alt={event.title}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    {/* Price badge over image */}
+                  {/* ── Full-bleed image + gradient (top ~75% of card) ── */}
+                  <div className="relative min-h-0 flex-1 overflow-hidden">
+                    <button
+                      onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                      className="absolute inset-0 h-full w-full"
+                    >
+                      <img
+                        src={event.image || "/placeholder-event.jpg"}
+                        alt={event.title}
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                    </button>
+
+                    {/* Gradient — fades image into white at the bottom */}
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
+
+                    {/* Price badge */}
                     {event.price && (
                       <div className="absolute top-3 right-3 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm">
                         <span className="text-[11px] font-semibold text-white">
@@ -202,30 +219,25 @@ export default function AccountSaved() {
                         </span>
                       </div>
                     )}
-                  </button>
 
-                  {/* Info panel — white background */}
-                  <div className="p-4">
-
-                    {/* Category pill + title */}
-                    <div className="mb-1">
-                      <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-violet-500">
+                    {/* Category + title sit at the bottom of the image area */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <span className="mb-1.5 inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white backdrop-blur-sm">
                         {event.category}
                       </span>
+                      <button
+                        onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
+                        className="block text-left"
+                      >
+                        <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-white drop-shadow-sm sm:text-[16px]">
+                          {event.title}
+                        </h3>
+                      </button>
                     </div>
+                  </div>
 
-                    <button
-                      onClick={() =>
-                        router.push(`/${event.citySlug}/${event.slug}`)
-                      }
-                      className="mb-3 block text-left"
-                    >
-                      <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-slate-800">
-                        {event.title}
-                      </h3>
-                    </button>
-
-                    {/* Date + venue + remove */}
+                  {/* ── White info strip (bottom ~25%) ── */}
+                  <div className="flex-shrink-0 bg-white px-4 pb-4 pt-2">
                     <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
@@ -234,22 +246,18 @@ export default function AccountSaved() {
                         </span>
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
                           <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                          <span className="truncate">
-                            {event.venue ?? event.city}
-                          </span>
+                          <span className="truncate">{event.venue ?? event.city}</span>
                         </span>
                       </div>
 
-                      {/* Remove button */}
+                      {/* Remove button — only this card shows spinner */}
                       <button
-                        onClick={() =>
-                          unsaveMutation.mutate({ eventId: event.id })
-                        }
-                        disabled={unsaveMutation.isPending}
+                        onClick={() => handleUnsave(event.id)}
+                        disabled={isDeleting}
                         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
                         aria-label="Remove saved event"
                       >
-                        {unsaveMutation.isPending ? (
+                        {isDeleting ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />
