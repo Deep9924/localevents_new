@@ -146,11 +146,8 @@ export default function AccountSaved() {
           /* ── Skeleton ── */
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="flex gap-3 rounded-2xl bg-white p-3 shadow-sm border border-slate-100"
-              >
-                <div className="h-20 w-20 animate-pulse rounded-xl bg-slate-200 flex-shrink-0" />
+              <div key={i} className="flex gap-3 py-2">
+                <div className="h-20 w-24 sm:h-24 sm:w-28 animate-pulse rounded-xl bg-slate-200 flex-shrink-0" />
                 <div className="flex-1 space-y-2 py-1">
                   <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" />
                   <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
@@ -187,8 +184,8 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          /* ── Horizontal list rows ── */
-          <div className="space-y-2.5">
+          /* ── Rows — no card wrapper ── */
+          <div className="divide-y divide-slate-100">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
               const isDeleting = deletingId === event.id;
@@ -196,12 +193,12 @@ export default function AccountSaved() {
               return (
                 <div
                   key={event.id}
-                  className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-shadow duration-200 hover:shadow-md"
+                  className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0"
                 >
-                  {/* ── Thumbnail — clean, no overlay ── */}
+                  {/* ── Rectangular thumbnail ── */}
                   <button
                     onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl"
+                    className="h-20 w-24 flex-shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-28"
                   >
                     <img
                       src={event.image || "/placeholder-event.jpg"}
