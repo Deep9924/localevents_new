@@ -26,13 +26,13 @@ type SavedEventWithNonNullEvent = SavedEventWithEvent & {
 type FilterType = "upcoming" | "past";
 
 const parseEventDate = (dateStr: string, timeStr?: string): Date => {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+  if (/^d{4}-d{2}-d{2}$/.test(dateStr)) {
     const d = new Date(`${dateStr}T${timeStr || "00:00"}:00`);
     if (!isNaN(d.getTime())) return d;
   }
   if (dateStr.includes(",")) {
     const currentYear = new Date().getFullYear();
-    const withYear = dateStr.match(/\d{4}/)
+    const withYear = dateStr.match(/d{4}/)
       ? `${dateStr} ${timeStr || "00:00"}`
       : `${dateStr} ${currentYear} ${timeStr || "00:00"}`;
     const d = new Date(withYear);
@@ -139,14 +139,14 @@ export default function AccountSaved() {
       </div>
 
       {/* ── Content ── */}
-      <div className="mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
+      <div className="mx-auto max-w-2xl px-4 py-5 pb-16 sm:px-6">
 
         {eventsLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="aspect-[3/4] animate-pulse rounded-3xl bg-slate-200"
+                className="aspect-[4/5] animate-pulse rounded-3xl bg-slate-200"
               />
             ))}
           </div>
@@ -177,7 +177,7 @@ export default function AccountSaved() {
           </div>
 
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
               const isDeleting = deletingId === event.id;
@@ -186,7 +186,7 @@ export default function AccountSaved() {
                 <div
                   key={event.id}
                   className="group relative overflow-hidden rounded-3xl border border-slate-200 shadow-sm transition-shadow duration-300 hover:shadow-md"
-                  style={{ aspectRatio: "3 / 4" }}
+                  style={{ aspectRatio: "4 / 5" }}
                 >
                   {/* Full-bleed image */}
                   <button
@@ -200,8 +200,8 @@ export default function AccountSaved() {
                     />
                   </button>
 
-                  {/* Dark gradient — only at the very bottom for the meta strip */}
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  {/* Gradient overlay — fades at the bottom */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
 
                   {/* Price badge */}
                   {event.price && (
@@ -213,23 +213,23 @@ export default function AccountSaved() {
                   )}
 
                   {/* Category + title over the image */}
-                  <div className="absolute bottom-[88px] left-0 right-0 px-4">
-                    <span className="mb-1.5 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80 backdrop-blur-sm">
+                  <div className="absolute bottom-[76px] left-0 right-0 px-3.5">
+                    <span className="mb-1 inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80 backdrop-blur-sm">
                       {event.category}
                     </span>
                     <button
                       onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
                       className="block text-left"
                     >
-                      <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-white drop-shadow sm:text-[16px]">
+                      <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-white drop-shadow sm:text-[15px]">
                         {event.title}
                       </h3>
                     </button>
                   </div>
 
-                  {/* ── White meta strip — pinned to bottom ── */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-white px-4 py-3">
-                    <div className="flex items-center justify-between gap-2">
+                  {/* ── Floating white meta pill — lifts above the bottom edge ── */}
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 shadow-md">
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
                           <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
@@ -244,13 +244,13 @@ export default function AccountSaved() {
                       <button
                         onClick={() => handleUnsave(event.id)}
                         disabled={isDeleting}
-                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
                         aria-label="Remove saved event"
                       >
                         {isDeleting ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3" />
                         )}
                       </button>
                     </div>
