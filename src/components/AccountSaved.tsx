@@ -78,7 +78,7 @@ export default function AccountSaved() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-900">
         <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
       </div>
     );
@@ -86,39 +86,48 @@ export default function AccountSaved() {
   if (!isAuthenticated || !user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-900">
+
+      {/* ── Ambient background blobs ── */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 h-[600px] w-[600px] rounded-full bg-violet-600/20 blur-[120px]" />
+        <div className="absolute top-1/3 -right-40 h-[500px] w-[500px] rounded-full bg-blue-500/15 blur-[120px]" />
+        <div className="absolute bottom-0 left-1/3 h-[400px] w-[400px] rounded-full bg-indigo-500/10 blur-[100px]" />
+      </div>
+
       {/* ── Header ── */}
-      <div className="border-b border-slate-200 bg-white">
+      <div className="relative z-10 border-b border-white/10 backdrop-blur-xl bg-white/5">
         <div className="mx-auto max-w-2xl px-4 sm:px-6">
+
           {/* Row 1: back + title */}
           <div className="flex items-center gap-3 py-3">
             <button
               onClick={() => router.push("/account/profile")}
-              className="rounded-full p-1.5 transition-colors hover:bg-slate-100"
+              className="rounded-full p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
             >
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+              <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-[17px] font-semibold leading-tight text-slate-900">
+              <h1 className="text-[17px] font-semibold leading-tight text-white">
                 Saved Events
               </h1>
-              <p className="text-[12px] text-slate-400">
+              <p className="text-[12px] text-white/40">
                 Events you've bookmarked
               </p>
             </div>
           </div>
 
-          {/* Row 2: full-width pill tabs */}
+          {/* Row 2: pill tabs */}
           <div className="pb-3">
-            <div className="flex rounded-2xl bg-slate-100 p-1">
+            <div className="flex rounded-2xl bg-white/10 p-1 backdrop-blur-sm">
               {(["upcoming", "past"] as const).map((type) => (
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}
                   className={`flex-1 rounded-xl px-6 py-2 text-sm font-medium transition-all ${
                     filterType === type
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900"
+                      ? "bg-white/20 text-white shadow-sm backdrop-blur-sm"
+                      : "text-white/50 hover:text-white"
                   }`}
                 >
                   {type === "upcoming" ? "Upcoming" : "Past Events"}
@@ -130,27 +139,31 @@ export default function AccountSaved() {
       </div>
 
       {/* ── Content ── */}
-      <div className="mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
+      <div className="relative z-10 mx-auto max-w-2xl px-4 py-6 pb-16 sm:px-6">
+
         {eventsLoading ? (
-          <div className="flex flex-col gap-4">
-            {[1, 2, 3].map((i) => (
+          /* ── Skeleton ── */
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-[120px] animate-pulse rounded-3xl border border-slate-200 bg-white sm:h-[168px]"
+                className="aspect-[3/4] animate-pulse rounded-3xl bg-white/5"
               />
             ))}
           </div>
+
         ) : filteredEvents.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-              <Bookmark className="h-6 w-6 text-slate-400" />
+          /* ── Empty state ── */
+          <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-16 text-center backdrop-blur-xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+              <Bookmark className="h-6 w-6 text-white/40" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900">
+            <h3 className="text-lg font-semibold text-white">
               {filterType === "upcoming"
                 ? "No saved upcoming events"
                 : "No saved past events"}
             </h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+            <p className="mx-auto mt-2 max-w-sm text-sm text-white/50">
               {filterType === "upcoming"
                 ? "Bookmark events you're interested in and they'll appear here."
                 : "Past events you bookmarked will show up here."}
@@ -158,188 +171,105 @@ export default function AccountSaved() {
             {filterType === "upcoming" && (
               <Button
                 onClick={() => router.push("/")}
-                className="mt-6 rounded-xl bg-slate-900 px-6 hover:bg-slate-700"
+                className="mt-6 rounded-xl bg-white/15 px-6 text-white backdrop-blur-sm hover:bg-white/25 border border-white/20"
               >
                 Explore Events
               </Button>
             )}
           </div>
+
         ) : (
-          <div className="flex flex-col gap-4">
+          /* ── Cards ── */
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {filteredEvents.map((savedEvent: SavedEventWithNonNullEvent) => {
               const event = savedEvent.event;
 
               return (
                 <div
                   key={event.id}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                  className="group relative overflow-hidden rounded-3xl border border-white/10 shadow-2xl transition-transform duration-300 hover:-translate-y-1 hover:shadow-black/40"
+                  style={{ aspectRatio: "3 / 4" }}
                 >
-                  {/* ─────────────────────────────────────
-                      MOBILE (<sm): compact horizontal card
-                      ───────────────────────────────────── */}
-                  <div className="flex h-[120px] sm:hidden">
-                    {/* Thumbnail */}
-                    <button
-                      onClick={() =>
-                        router.push(`/${event.citySlug}/${event.slug}`)
-                      }
-                      className="group relative flex-shrink-0 overflow-hidden rounded-l-3xl"
-                    >
-                      <div className="h-[120px] w-[110px]">
-                        <img
-                          src={event.image || "/placeholder-event.jpg"}
-                          alt={event.title}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      </div>
-                    </button>
+                  {/* Full-bleed image */}
+                  <button
+                    onClick={() =>
+                      router.push(`/${event.citySlug}/${event.slug}`)
+                    }
+                    className="absolute inset-0 w-full h-full"
+                  >
+                    <img
+                      src={event.image || "/placeholder-event.jpg"}
+                      alt={event.title}
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  </button>
 
-                    {/* Info */}
-                    <div className="flex flex-1 flex-col justify-between px-3 py-3 min-w-0">
-                      <div>
-                        <div className="flex items-start justify-between gap-1.5">
-                          <button
-                            onClick={() =>
-                              router.push(`/${event.citySlug}/${event.slug}`)
-                            }
-                            className="min-w-0 text-left"
-                          >
-                            <h3 className="text-[13px] font-bold leading-snug text-slate-900 line-clamp-2">
-                              {event.title}
-                            </h3>
-                            <p className="mt-0.5 text-[10px] text-slate-400">
-                              {event.city} · {event.category}
-                            </p>
-                          </button>
-                          {event.price && (
-                            <span className="flex-shrink-0 text-[11px] font-semibold text-slate-700">
-                              {event.price}
-                            </span>
-                          )}
-                        </div>
+                  {/* Gradient overlay — bottom heavy */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-                        <div className="mt-1.5 flex flex-col gap-0.5">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                            <Calendar className="h-2.5 w-2.5 shrink-0 text-slate-400" />
-                            {formatDate(event.date)} · {formatTime(event.time)}
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                            <MapPin className="h-2.5 w-2.5 shrink-0 text-slate-400" />
-                            <span className="truncate">
-                              {event.venue ?? event.city}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-2">
-                        <button
-                          onClick={() =>
-                            router.push(`/${event.citySlug}/${event.slug}`)
-                          }
-                          className="text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-900"
-                        >
-                          View →
-                        </button>
-                        <button
-                          onClick={() =>
-                            unsaveMutation.mutate({ eventId: event.id })
-                          }
-                          disabled={unsaveMutation.isPending}
-                          className="flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                        >
-                          {unsaveMutation.isPending ? (
-                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-2.5 w-2.5" />
-                          )}
-                          Remove
-                        </button>
-                      </div>
+                  {/* Top-right: price badge */}
+                  {event.price && (
+                    <div className="absolute top-3 right-3 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-md border border-white/15">
+                      <span className="text-[11px] font-semibold text-white">
+                        {event.price}
+                      </span>
                     </div>
-                  </div>
+                  )}
 
-                  {/* ─────────────────────────────────────
-                      DESKTOP (sm+): original horizontal card
-                      ───────────────────────────────────── */}
-                  <div className="hidden h-[168px] sm:flex">
-                    {/* Image */}
+                  {/* Bottom: frosted glass info panel */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+
+                    {/* Category pill */}
+                    <div className="mb-2">
+                      <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/70 backdrop-blur-sm">
+                        {event.category}
+                      </span>
+                    </div>
+
+                    {/* Title */}
                     <button
                       onClick={() =>
                         router.push(`/${event.citySlug}/${event.slug}`)
                       }
-                      className="group relative flex-shrink-0 overflow-hidden rounded-l-3xl"
+                      className="mb-3 block text-left"
                     >
-                      <div className="h-[168px] w-52 sm:w-60">
-                        <img
-                          src={event.image || "/placeholder-event.jpg"}
-                          alt={event.title}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      </div>
+                      <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-white sm:text-[16px]">
+                        {event.title}
+                      </h3>
                     </button>
 
-                    {/* Info */}
-                    <div className="flex flex-1 flex-col justify-between px-3 py-3.5 min-w-0">
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <button
-                            onClick={() =>
-                              router.push(`/${event.citySlug}/${event.slug}`)
-                            }
-                            className="min-w-0 text-left"
-                          >
-                            <h3 className="text-[15px] font-bold leading-snug text-slate-900 line-clamp-2">
-                              {event.title}
-                            </h3>
-                            <p className="mt-0.5 text-[11px] text-slate-400">
-                              {event.city} · {event.category}
-                            </p>
-                          </button>
-                          {event.price && (
-                            <span className="flex-shrink-0 text-[12px] font-semibold text-slate-700">
-                              {event.price}
-                            </span>
-                          )}
-                        </div>
+                    {/* Frosted glass info row */}
+                    <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 backdrop-blur-md">
+                      <div className="flex items-center justify-between gap-2">
 
-                        <div className="mt-2.5 flex flex-col gap-1">
-                          <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
+                        {/* Date + venue */}
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="flex items-center gap-1.5 text-[11px] text-white/70">
+                            <Calendar className="h-3 w-3 shrink-0 text-white/50" />
                             {formatDate(event.date)} · {formatTime(event.time)}
                           </span>
-                          <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                          <span className="flex items-center gap-1.5 text-[11px] text-white/70">
+                            <MapPin className="h-3 w-3 shrink-0 text-white/50" />
                             <span className="truncate">
                               {event.venue ?? event.city}
                             </span>
                           </span>
                         </div>
-                      </div>
 
-                      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                        <button
-                          onClick={() =>
-                            router.push(`/${event.citySlug}/${event.slug}`)
-                          }
-                          className="text-[12px] font-medium text-slate-500 transition-colors hover:text-slate-900"
-                        >
-                          View details →
-                        </button>
+                        {/* Remove button */}
                         <button
                           onClick={() =>
                             unsaveMutation.mutate({ eventId: event.id })
                           }
                           disabled={unsaveMutation.isPending}
-                          className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/50 transition-colors hover:bg-red-500/40 hover:text-white disabled:opacity-40"
+                          aria-label="Remove saved event"
                         >
                           {unsaveMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           )}
-                          Remove
                         </button>
                       </div>
                     </div>
