@@ -216,7 +216,7 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
               #{String(ticket.id).toUpperCase()}
             </span>
           </div>
-          {createdAt && (
+          {createdAt != null && (
             <div className="flex items-center justify-between text-[12px]">
               <span className="text-slate-400">Purchased</span>
               <span className="text-slate-700">
