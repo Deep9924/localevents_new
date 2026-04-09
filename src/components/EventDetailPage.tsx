@@ -16,6 +16,7 @@ import Footer from "@/components/Footer";
 import { City } from "@/types/trpc";
 import CalendarButton from "@/components/CalendarButton";
 import EventCard from "@/components/EventCard";
+import TicketCheckoutModal from "@/components/TicketCheckoutModal";
 
 interface EventDetailPageProps {
   citySlug?: string;
@@ -173,6 +174,9 @@ function Sidebar({
   isSaved,
   onSave,
   eventTitle,
+  user,
+  router,
+  setShowCheckout,
 }: {
   isFree: boolean;
   displayPrice: string | null;
@@ -183,6 +187,9 @@ function Sidebar({
   isSaved: boolean;
   onSave: () => void;
   eventTitle: string;
+  user: any;
+  router: any;
+  setShowCheckout: (v: boolean) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -192,15 +199,19 @@ function Sidebar({
         {!isFree && <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>}
       </div>
 
-      <a
-        href={ticketUrl ?? "#"}
-        target={ticketUrl ? "_blank" : undefined}
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl transition-colors text-sm"
+      <Button
+        onClick={() => {
+          if (!user) {
+            router.push("/auth-error");
+            return;
+          }
+          setShowCheckout(true);
+        }}
+        className="w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2"
       >
-        <Ticket className="w-4 h-4" />Get Tickets
-        {ticketUrl && <ExternalLink className="w-3 h-3 opacity-60" />}
-      </a>
+        <Ticket className="w-4 h-4" />
+        Get Tickets
+      </Button>
 
       <div className="[&>button]:w-full [&>a]:w-full">
         <CalendarButton event={calendarEvent} />
@@ -230,6 +241,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
   const [isSaved, setIsSaved] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [isInterested, setIsInterested] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [citySlug, eventSlug]);
 
@@ -469,6 +481,9 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
               isSaved={isSaved}
               onSave={handleSaveEvent}
               eventTitle={event.title}
+              user={user}
+              router={router}
+              setShowCheckout={setShowCheckout}
             />
           </div>
 
@@ -504,15 +519,30 @@ export default function EventDetailPage({ citySlug, eventSlug }: EventDetailPage
         >
           <Bookmark className={`w-4 h-4 ${isSaved ? "fill-indigo-600 text-indigo-600" : "text-gray-400"}`} />
         </button>
-        <a
-          href={ticketUrl ?? "#"}
-          target={ticketUrl ? "_blank" : undefined}
-          rel="noopener noreferrer"
-          className="h-10 px-5 flex items-center gap-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-sm rounded-xl shrink-0 transition-colors"
+        <Button
+          onClick={() => {
+            if (!user) {
+              router.push("/auth-error");
+              return;
+            }
+            setShowCheckout(true);
+          }}
+          className="h-10 px-5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-sm rounded-xl shrink-0 flex items-center gap-2"
         >
           <Ticket className="w-4 h-4" />Get Tickets
-        </a>
+        </Button>
       </div>
+
+      <TicketCheckoutModal
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        eventId={event.id}
+        eventTitle={event.title}
+        price={event.price}
+        onSuccess={() => {
+          router.push("/account/tickets");
+        }}
+      />
     </div>
   );
 }
