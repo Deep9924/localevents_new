@@ -41,20 +41,21 @@ export async function POST(req: NextRequest) {
       const { ticketId, tierId, quantity } = session.metadata ?? {};
 
       if (ticketId) {
-        // Confirm the ticket
+        // Mark ticket as paid
         await db
           .update(tickets)
-          .set({
-            status: "paid",
-            stripeSessionId: session.id,
-          })
+          .set({ status: "paid", stripeSessionId: session.id })
           .where(eq(tickets.id, Number(ticketId)));
 
-        // Increment tier sold count
+        // Increment tier sold count using .select() instead of db.query.*
         if (tierId && tierId !== "" && quantity) {
-          const tier = await db.query.ticketTiers.findFirst({
-            where: eq(ticketTiers.id, Number(tierId)),
-          });
+          const tierRows = await db
+            .select()
+            .from(ticketTiers)
+            .where(eq(ticketTiers.id, Number(tierId)))
+            .limit(1);
+
+          const tier = tierRows[0];
           if (tier) {
             await db
               .update(ticketTiers)
@@ -72,8 +73,6 @@ export async function POST(req: NextRequest) {
       const { ticketId } = session.metadata ?? {};
 
       if (ticketId) {
-        // Leave as "pending" — admin can clean these up periodically
-        // or you can delete: await db.delete(tickets).where(eq(tickets.id, Number(ticketId)));
         await db
           .update(tickets)
           .set({ status: "pending" })
@@ -85,9 +84,10 @@ export async function POST(req: NextRequest) {
     // ── Refund issued ─────────────────────────────────────────────────
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
-      const sessionId = typeof charge.payment_intent === "string"
-        ? charge.payment_intent
-        : charge.payment_intent?.id;
+      const sessionId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id;
 
       if (sessionId) {
         await db
