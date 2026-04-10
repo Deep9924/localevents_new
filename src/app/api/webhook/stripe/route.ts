@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
 
-  if (!sig) return NextResponse.json({ error: "No signature" }, { status: 400 });
+  if (!sig) {
+    return NextResponse.json({ error: "No signature" }, { status: 400 });
+  }
 
   let event: Stripe.Event;
   try {
@@ -27,17 +29,21 @@ export async function POST(req: NextRequest) {
   }
 
   const db = await getDb();
-  if (!db) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+  if (!db) {
+    return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+  }
 
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const ticketId = session.metadata?.ticketId;
-
       if (ticketId) {
         await db
           .update(tickets)
-          .set({ status: "confirmed", stripeSessionId: session.id })
+          .set({
+            status: "paid",
+            stripeSessionId: session.id,
+          })
           .where(eq(tickets.id, Number(ticketId)));
       }
       break;
@@ -46,18 +52,28 @@ export async function POST(req: NextRequest) {
     case "checkout.session.expired": {
       const session = event.data.object as Stripe.Checkout.Session;
       const ticketId = session.metadata?.ticketId;
-
       if (ticketId) {
         await db
           .update(tickets)
-          .set({ status: "expired" })
+          .set({ status: "pending" })
           .where(eq(tickets.id, Number(ticketId)));
       }
       break;
     }
 
+    case "charge.refunded": {
+      const charge = event.data.object as Stripe.Charge;
+      const sessionId = charge.payment_intent as string;
+      if (sessionId) {
+        await db
+          .update(tickets)
+          .set({ status: "refunded" })
+          .where(eq(tickets.stripeSessionId, sessionId));
+      }
+      break;
+    }
+
     default:
-      // Ignore unhandled events
       break;
   }
 
