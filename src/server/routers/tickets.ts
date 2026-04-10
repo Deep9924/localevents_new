@@ -1,4 +1,3 @@
-// src/server/routers/tickets.ts
 import { router, protectedProcedure } from "../trpc";
 import { getUserTickets } from "@/server/db";
 import { getDb } from "@/server/db";
@@ -13,8 +12,8 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
-const TAX_RATE = 0.13;           // HST 13%
-const SERVICE_FEE_PERCENT = 0.03; // 3% service fee
+const TAX_RATE = 0;              // set to 0.05 when GST registered, 0.11 for SK
+const SERVICE_FEE_PERCENT = 0.03;
 
 export const ticketsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -34,8 +33,6 @@ export const ticketsRouter = router({
         .limit(1);
 
       const ticket = result[0];
-
-      // Ensure the ticket belongs to this user
       if (!ticket || ticket.userId !== ctx.user.id) {
         throw new Error("Ticket not found or access denied");
       }
@@ -67,36 +64,27 @@ export const ticketsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const userEmail = ctx.user.email || "customer@example.com";
+      const userEmail = ctx.user.email || undefined;
 
-      if (!stripe) {
-        throw new Error("Stripe secret key not configured");
-      }
+      if (!stripe) throw new Error("Stripe secret key not configured");
 
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      // ============================================================
-      // STEP 1: Fetch event from database (server-side validation)
-      // ============================================================
+      // ── Fetch event ───────────────────────────────────────────────────
       const eventResult = await db
         .select()
         .from(events)
         .where(eq(events.id, input.eventId))
         .limit(1);
 
-      if (eventResult.length === 0) {
-        throw new Error("Event not found");
-      }
-
+      if (eventResult.length === 0) throw new Error("Event not found");
       const event = eventResult[0];
-      const eventTitle = event.title;
 
-      // ============================================================
-      // STEP 2: Fetch ticket tier from database (if specified)
-      // ============================================================
+      // ── Fetch tier ────────────────────────────────────────────────────
       let unitPriceDollars = 0;
       let tierName = "Standard Ticket";
+      let tier: typeof ticketTiers.$inferSelect | null = null;
 
       if (input.tierId) {
         const tierResult = await db
@@ -105,38 +93,26 @@ export const ticketsRouter = router({
           .where(eq(ticketTiers.id, input.tierId))
           .limit(1);
 
-        if (tierResult.length === 0) {
-          throw new Error("Ticket tier not found");
-        }
+        if (tierResult.length === 0) throw new Error("Ticket tier not found");
+        tier = tierResult[0];
 
-        const tier = tierResult[0];
-
-        if (tier.eventId !== input.eventId) {
+        if (tier.eventId !== input.eventId)
           throw new Error("Ticket tier does not belong to this event");
-        }
-
-        if (tier.isActive === 0) {
+        if (tier.isActive === 0)
           throw new Error("This ticket tier is no longer available");
-        }
-
-        if (tier.quantity && tier.sold && tier.sold >= tier.quantity) {
+        if (tier.quantity && Number(tier.sold ?? 0) >= Number(tier.quantity))
           throw new Error("This ticket tier is sold out");
-        }
 
-        unitPriceDollars = tier.price;
+        unitPriceDollars = Number(tier.price); // coerce string decimal
         tierName = tier.name;
       } else {
-        if (event.price === "Free" || event.price === null) {
-          unitPriceDollars = 0;
-        } else {
-          const parsed = parseFloat(String(event.price).replace(/[^\d.]/g, ""));
+        if (event.price !== "Free" && event.price !== null) {
+          const parsed = parseFloat(String(event.price).replace(/[^d.]/g, ""));
           unitPriceDollars = isNaN(parsed) ? 0 : parsed;
         }
       }
 
-      // ============================================================
-      // STEP 3: Calculate all fees server-side
-      // ============================================================
+      // ── Calculate fees ────────────────────────────────────────────────
       const subtotalDollars = unitPriceDollars * input.quantity;
       const taxAmountDollars = subtotalDollars * TAX_RATE;
       const serviceFeeAmountDollars = subtotalDollars * SERVICE_FEE_PERCENT;
@@ -148,14 +124,12 @@ export const ticketsRouter = router({
       const serviceFeeAmountCents = Math.round(serviceFeeAmountDollars * 100);
       const totalCents = Math.round(totalDollars * 100);
 
-      // ============================================================
-      // STEP 4: Handle free tickets
-      // ============================================================
+      // ── Free ticket — insert directly as paid ─────────────────────────
       if (unitPriceCents === 0) {
         await db.insert(tickets).values({
           userId,
           eventId: input.eventId,
-          tierId: input.tierId,
+          tierId: input.tierId ?? null,
           quantity: input.quantity,
           currency: "CAD",
           unitPrice: 0,
@@ -166,59 +140,83 @@ export const ticketsRouter = router({
           status: "paid",
         });
 
+        if (tier && input.tierId) {
+          await db
+            .update(ticketTiers)
+            .set({ sold: Number(tier.sold ?? 0) + input.quantity })
+            .where(eq(ticketTiers.id, input.tierId));
+        }
+
         return { success: true, free: true };
       }
 
-      // ============================================================
-      // STEP 5: Create Stripe session with server-calculated prices
-      // ============================================================
+      // ── Paid — insert as pending, webhook confirms ────────────────────
+      const [inserted] = await db.insert(tickets).values({
+        userId,
+        eventId: input.eventId,
+        tierId: input.tierId ?? null,
+        quantity: input.quantity,
+        currency: "CAD",
+        unitPrice: unitPriceDollars,
+        subtotal: subtotalDollars,
+        serviceFee: serviceFeeAmountDollars,
+        taxAmount: taxAmountDollars,
+        total: totalDollars,
+        status: "pending",
+        stripeSessionId: null,
+      });
+
+      const ticketId = (inserted as any).insertId;
+
+      // ── Stripe Checkout session ───────────────────────────────────────
+      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+        {
+          price_data: {
+            currency: "cad",
+            product_data: {
+              name: String(event.title),
+              description: `${tierName} × ${input.quantity}`,
+            },
+            unit_amount: unitPriceCents,
+          },
+          quantity: input.quantity,
+        },
+      ];
+
+      if (serviceFeeAmountCents > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "cad",
+            product_data: { name: "Service Fee (3%)" },
+            unit_amount: Math.round(serviceFeeAmountCents / input.quantity),
+          },
+          quantity: input.quantity,
+        });
+      }
+
+      if (taxAmountCents > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "cad",
+            product_data: { name: `Tax (${TAX_RATE * 100}%)` },
+            unit_amount: Math.round(taxAmountCents / input.quantity),
+          },
+          quantity: input.quantity,
+        });
+      }
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "cad",
-              product_data: {
-                name: eventTitle,
-                description: `${tierName} - ${input.quantity} ticket(s)`,
-              },
-              unit_amount: unitPriceCents,
-            },
-            quantity: input.quantity,
-          },
-          ...(TAX_RATE > 0
-            ? [
-                {
-                  price_data: {
-                    currency: "cad",
-                    product_data: { name: "HST (13%)" },
-                    unit_amount: Math.round(taxAmountCents / input.quantity),
-                  },
-                  quantity: input.quantity,
-                },
-              ]
-            : []),
-          ...(SERVICE_FEE_PERCENT > 0
-            ? [
-                {
-                  price_data: {
-                    currency: "cad",
-                    product_data: { name: "Service Fee (3%)" },
-                    unit_amount: Math.round(serviceFeeAmountCents / input.quantity),
-                  },
-                  quantity: input.quantity,
-                },
-              ]
-            : []),
-        ],
+        line_items: lineItems,
         mode: "payment",
         customer_email: userEmail,
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/`,
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?success=true`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/${event.citySlug}/${event.slug}`,
         metadata: {
+          ticketId: String(ticketId),   // ← used by webhook to update status
           userId: String(userId),
           eventId: input.eventId,
-          tierId: input.tierId ? String(input.tierId) : "default",
+          tierId: input.tierId ? String(input.tierId) : "",
           quantity: String(input.quantity),
           unitPrice: String(unitPriceCents),
           subtotal: String(subtotalCents),
@@ -230,7 +228,7 @@ export const ticketsRouter = router({
 
       return {
         success: true,
-        sessionId: session.id,
+        free: false,
         url: session.url,
         breakdown: {
           unitPrice: unitPriceDollars,
