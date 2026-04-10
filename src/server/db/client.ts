@@ -1,4 +1,4 @@
-import { drizzle } from "drizzle-orm/mysql2";  // ← must be mysql2, not mysql-core
+import { drizzle } from "drizzle-orm/mysql2";
 import mysql, { Pool } from "mysql2/promise";
 import * as schema from "./schema";
 
@@ -13,7 +13,7 @@ function buildPool(): Pool {
     port: Number(parsed.port || 3306),
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^//, ""),
+    database: parsed.pathname.slice(1),  // strips leading "/"
     waitForConnections: true,
     connectionLimit: 10,
     ssl: { rejectUnauthorized: true },
