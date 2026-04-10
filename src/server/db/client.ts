@@ -1,10 +1,11 @@
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql, { Pool } from "mysql2/promise";
+import mysql from "mysql2/promise";
 import * as schema from "./schema";
 
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _db: any = null;
 
-function buildPool(): Pool {
+function buildPool() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
   const parsed = new URL(url);
@@ -13,7 +14,7 @@ function buildPool(): Pool {
     port: Number(parsed.port || 3306),
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.slice(1),  // strips leading "/"
+    database: parsed.pathname.slice(1),
     waitForConnections: true,
     connectionLimit: 10,
     ssl: { rejectUnauthorized: true },
@@ -21,10 +22,10 @@ function buildPool(): Pool {
 }
 
 export async function getDb() {
-  if (_db) return _db;
+  if (_db) return _db as ReturnType<typeof drizzle<typeof schema>>;
   try {
     _db = drizzle(buildPool(), { schema });
-    return _db;
+    return _db as ReturnType<typeof drizzle<typeof schema>>;
   } catch (error) {
     console.error("[Database] Failed to connect:", error);
     return null;
