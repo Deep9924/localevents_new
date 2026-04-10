@@ -114,6 +114,23 @@ export const notificationPreferences = mysqlTable("notificationPreferences", {
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;
 
+export const ticketTiers = mysqlTable("ticketTiers", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 255 })
+    .notNull()
+    .references(() => events.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  price: double("price").notNull(),
+  quantity: int("quantity"),
+  sold: int("sold").default(0),
+  isActive: int("isActive").default(1),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TicketTier = typeof ticketTiers.$inferSelect;
+export type InsertTicketTier = typeof ticketTiers.$inferInsert;
+
 export const tickets = mysqlTable("tickets", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId")
@@ -122,12 +139,19 @@ export const tickets = mysqlTable("tickets", {
   eventId: varchar("eventId", { length: 255 })
     .notNull()
     .references(() => events.id, { onDelete: "cascade" }),
+  tierId: int("tierId")
+    .references(() => ticketTiers.id, { onDelete: "set null" }),
   quantity: int("quantity").notNull(),
-  currency: varchar("currency", { length: 10 }).notNull(), // e.g. "CAD"
-  total: double("total").notNull(), // total amount charged
+  currency: varchar("currency", { length: 10 }).notNull(),
+  unitPrice: double("unitPrice").notNull(),
+  subtotal: double("subtotal").notNull(),
+  serviceFee: double("serviceFee").default(0),
+  taxAmount: double("taxAmount").default(0),
+  total: double("total").notNull(),
   status: mysqlEnum("status", ["paid", "refunded", "pending"])
     .default("paid")
     .notNull(),
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

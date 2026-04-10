@@ -51,9 +51,13 @@ export const ticketsRouter = router({
       z.object({
         eventId: z.string(),
         eventTitle: z.string(),
+        tierId: z.number().optional(),
+        tierName: z.string().optional(),
         quantity: z.number().min(1).max(100),
-        priceInCents: z.number().min(0),
+        unitPriceInCents: z.number().min(0),
         currency: z.string().default("CAD"),
+        taxRate: z.number().default(0.13),
+        serviceFeePercent: z.number().default(0.03),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -64,23 +68,36 @@ export const ticketsRouter = router({
         throw new Error("Stripe secret key not configured");
       }
 
-      if (input.priceInCents === 0) {
+      // Calculate fees
+      const subtotalCents = input.unitPriceInCents * input.quantity;
+      const subtotalDollars = subtotalCents / 100;
+      const taxAmountDollars = subtotalDollars * input.taxRate;
+      const serviceFeeAmountDollars = subtotalDollars * input.serviceFeePercent;
+      const totalDollars = subtotalDollars + taxAmountDollars + serviceFeeAmountDollars;
+      const totalCents = Math.round(totalDollars * 100);
+
+      if (input.unitPriceInCents === 0) {
         // Free event - create ticket directly without Stripe
         const { getDb } = await import("@/server/db");
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
         const { tickets } = await import("@/server/db/schema");
-        const [result] = await db.insert(tickets).values({
+        await db.insert(tickets).values({
           userId,
           eventId: input.eventId,
+          tierId: input.tierId,
           quantity: input.quantity,
           currency: input.currency,
+          unitPrice: 0,
+          subtotal: 0,
+          serviceFee: 0,
+          taxAmount: 0,
           total: 0,
           status: "paid",
         });
 
-        return { success: true, ticketId: result.insertId, free: true };
+        return { success: true, free: true };
       }
 
       const session = await stripe.checkout.sessions.create({
@@ -91,12 +108,32 @@ export const ticketsRouter = router({
               currency: input.currency.toLowerCase(),
               product_data: {
                 name: input.eventTitle,
-                description: `${input.quantity} ticket(s)`,
+                description: input.tierName ? `${input.tierName} - ${input.quantity} ticket(s)` : `${input.quantity} ticket(s)`,
               },
-              unit_amount: input.priceInCents,
+              unit_amount: input.unitPriceInCents,
             },
             quantity: input.quantity,
           },
+          ...(input.taxRate > 0 ? [{
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              product_data: {
+                name: "HST (13%)",
+              },
+              unit_amount: Math.round((taxAmountDollars / input.quantity) * 100),
+            },
+            quantity: input.quantity,
+          }] : []),
+          ...(input.serviceFeePercent > 0 ? [{
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              product_data: {
+                name: "Service Fee",
+              },
+              unit_amount: Math.round((serviceFeeAmountDollars / input.quantity) * 100),
+            },
+            quantity: input.quantity,
+          }] : []),
         ],
         mode: "payment",
         customer_email: userEmail,
@@ -105,7 +142,11 @@ export const ticketsRouter = router({
         metadata: {
           userId: String(userId),
           eventId: input.eventId,
+          tierId: input.tierId ? String(input.tierId) : "default",
           quantity: String(input.quantity),
+          subtotal: String(Math.round(subtotalDollars * 100)),
+          taxAmount: String(Math.round(taxAmountDollars * 100)),
+          serviceFee: String(Math.round(serviceFeeAmountDollars * 100)),
         },
       });
 
@@ -113,6 +154,12 @@ export const ticketsRouter = router({
         success: true,
         sessionId: session.id,
         url: session.url,
+        breakdown: {
+          subtotal: subtotalDollars,
+          tax: taxAmountDollars,
+          serviceFee: serviceFeeAmountDollars,
+          total: totalDollars,
+        },
       };
     }),
 });
