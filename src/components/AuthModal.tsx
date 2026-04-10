@@ -1,6 +1,8 @@
+// src/components/AuthModal.tsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +25,11 @@ type Step = "initial" | "login" | "signup" | "google-only";
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const PASSWORD_RULES = [
-  { test: (p: string) => p.length >= 8,           label: "8+ characters" },
-  { test: (p: string) => /[A-Z]/.test(p),         label: "Uppercase"     },
-  { test: (p: string) => /[a-z]/.test(p),         label: "Lowercase"     },
-  { test: (p: string) => /[0-9]/.test(p),         label: "Number"        },
-  { test: (p: string) => /[^a-zA-Z0-9]/.test(p),  label: "Special char"  },
+  { test: (p: string) => p.length >= 8,          label: "8+ characters" },
+  { test: (p: string) => /[A-Z]/.test(p),        label: "Uppercase"     },
+  { test: (p: string) => /[a-z]/.test(p),        label: "Lowercase"     },
+  { test: (p: string) => /[0-9]/.test(p),        label: "Number"        },
+  { test: (p: string) => /[^a-zA-Z0-9]/.test(p), label: "Special char"  },
 ] as const;
 
 const STEP_TITLES: Record<Step, string> = {
@@ -106,15 +108,14 @@ function GoogleButton({ isLoading, onClick, label = "Continue with Google" }: {
   );
 }
 
-function PrimaryButton({ isLoading, onClick, label }: {
+function PrimaryButton({ isLoading, label }: {
   isLoading: boolean;
-  onClick: () => void;
   label: string;
 }) {
   return (
     <Button
+      type="submit"
       className="h-10 w-full bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-700"
-      onClick={onClick}
       disabled={isLoading}
     >
       {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
@@ -160,20 +161,19 @@ function InitialStep({ email, error, isLoading, isGoogleLoading, onEmailChange, 
     <div className="space-y-4">
       <GoogleButton isLoading={isGoogleLoading} onClick={onGoogleSignIn} />
       <OrDivider />
-      <div className="space-y-3">
+      <form onSubmit={(e) => { e.preventDefault(); onContinue(); }} className="space-y-3">
         <div className="space-y-1.5">
           <Input
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onContinue()}
             className={`h-10 text-sm ${error ? "border-rose-300 focus-visible:ring-rose-200" : ""}`}
           />
           <FormError message={error} />
         </div>
-        <PrimaryButton isLoading={isLoading} onClick={onContinue} label="Continue" />
-      </div>
+        <PrimaryButton isLoading={isLoading} label="Continue" />
+      </form>
     </div>
   );
 }
@@ -187,7 +187,7 @@ function LoginStep({ email, password, error, isLoading, onPasswordChange, onLogi
   onLogin: () => void;
 }) {
   return (
-    <div className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); onLogin(); }} className="space-y-4">
       <EmailBadge email={email} />
       <div className="space-y-1.5">
         <Input
@@ -196,13 +196,12 @@ function LoginStep({ email, password, error, isLoading, onPasswordChange, onLogi
           value={password}
           autoFocus
           onChange={(e) => onPasswordChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onLogin()}
           className={`h-10 text-sm ${error ? "border-rose-300 focus-visible:ring-rose-200" : ""}`}
         />
         <FormError message={error} />
       </div>
-      <PrimaryButton isLoading={isLoading} onClick={onLogin} label="Sign In" />
-    </div>
+      <PrimaryButton isLoading={isLoading} label="Sign In" />
+    </form>
   );
 }
 
@@ -220,7 +219,7 @@ function SignupStep({ email, name, password, confirmPassword, error, isLoading,
   onSignup: () => void;
 }) {
   return (
-    <div className="space-y-3">
+    <form onSubmit={(e) => { e.preventDefault(); onSignup(); }} className="space-y-3">
       <EmailBadge email={email} />
       <Input
         type="text"
@@ -246,11 +245,10 @@ function SignupStep({ email, name, password, confirmPassword, error, isLoading,
         value={confirmPassword}
         className="h-10 text-sm"
         onChange={(e) => onConfirmChange(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && onSignup()}
       />
       <FormError message={error} />
-      <PrimaryButton isLoading={isLoading} onClick={onSignup} label="Create Account" />
-    </div>
+      <PrimaryButton isLoading={isLoading} label="Create Account" />
+    </form>
   );
 }
 
@@ -275,6 +273,8 @@ function GoogleOnlyStep({ isGoogleLoading, onGoogleSignIn }: {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+  const router                           = useRouter();
+  const utils                            = trpc.useUtils();
   const [step, setStep]                  = useState<Step>("initial");
   const [email, setEmail]                = useState("");
   const [password, setPassword]          = useState("");
@@ -296,20 +296,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
   const handleClose = () => { reset(); onClose(); };
 
-  // Cookie is set by /api/auth/login route handler — reload picks it up
+  // Refresh server components + invalidate tRPC user cache — no hard reload
   const finish = () => {
     handleClose();
-    setTimeout(() => window.location.reload(), 100);
+    router.refresh();
+    utils.auth.me.invalidate();
+    onSuccess();
   };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoad(true);
-    try {
-      await signIn("google", { callbackUrl: window.location.href });
-    } catch {
-      toast.error("Google sign-in failed. Please try again.");
-      setGoogleLoad(false);
-    }
+    // No try/catch — signIn redirects the page; errors come back as ?error= on callback URL
+    await signIn("google", { callbackUrl: window.location.href });
   };
 
   const handleEmailContinue = async () => {
@@ -369,6 +367,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           <div className="flex items-center gap-2">
             {step !== "initial" && (
               <button
+                type="button"
                 onClick={reset}
                 className="rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600"
               >
@@ -402,9 +401,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             <SignupStep
               email={email} name={name} password={password}
               confirmPassword={confirmPassword} error={error} isLoading={isLoading}
-              onNameChange={(v)     => { setName(v);    clearError(); }}
+              onNameChange={(v)     => { setName(v);     clearError(); }}
               onPasswordChange={(v) => { setPassword(v); clearError(); }}
-              onConfirmChange={(v)  => { setConfirm(v); clearError(); }}
+              onConfirmChange={(v)  => { setConfirm(v);  clearError(); }}
               onSignup={handleSignup}
             />
           )}

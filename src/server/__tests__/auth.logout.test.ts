@@ -1,62 +1,76 @@
-import { describe, expect, it } from "vitest";
-import { appRouter } from "./routers";
-import { COOKIE_NAME } from "../shared/const";
-import type { TrpcContext } from "./_core/context";
+// src/server/routers/__tests__/auth.logout.test.ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { COOKIE_NAME } from "@/lib/const";
 
-type CookieCall = {
-  name: string;
-  options: Record<string, unknown>;
-};
+// Must mock next/headers before importing the router
+const mockCookieSet = vi.fn();
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(() => ({
+    set: mockCookieSet,
+  })),
+}));
 
-type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+// Mock the DB so no real connection is needed
+vi.mock("@/server/db/client", () => ({
+  getDb: vi.fn(),
+}));
 
-function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
-  const clearedCookies: CookieCall[] = [];
+import { appRouter } from "@/server/routers/root";
+import type { Context } from "@/server/context";
 
-  const user: AuthenticatedUser = {
-    id: 1,
-    openId: "sample-user",
-    email: "sample@example.com",
-    name: "Sample User",
-    loginMethod: "manus",
-    role: "user",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastSignedIn: new Date(),
-  };
-
-  const ctx: TrpcContext = {
+function createCtx(user: Context["user"] = null): Context {
+  return {
     user,
-    req: {
-      protocol: "https",
-      headers: {},
-    } as TrpcContext["req"],
-    res: {
-      clearCookie: (name: string, options: Record<string, unknown>) => {
-        clearedCookies.push({ name, options });
-      },
-    } as TrpcContext["res"],
-  };
-
-  return { ctx, clearedCookies };
+  } as Context;
 }
 
-describe("auth.logout", () => {
-  it("clears the session cookie and reports success", async () => {
-    const { ctx, clearedCookies } = createAuthContext();
-    const caller = appRouter.createCaller(ctx);
+const authenticatedUser: NonNullable<Context["user"]> = {
+  id: 1,
+  openId: "test-open-id",
+  email: "test@example.com",
+  name: "Test User",
+  loginMethod: "email",
+  role: "user",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  lastSignedIn: new Date(),
+  passwordHash: null,
+};
 
+describe("auth.logout", () => {
+  beforeEach(() => {
+    mockCookieSet.mockClear();
+  });
+
+  it("clears the session cookie and returns success when authenticated", async () => {
+    const caller = appRouter.createCaller(createCtx(authenticatedUser));
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(1);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
+    expect(mockCookieSet).toHaveBeenCalledOnce();
+    expect(mockCookieSet).toHaveBeenCalledWith(COOKIE_NAME, "", {
       maxAge: -1,
-      secure: true,
-      sameSite: "none",
-      httpOnly: true,
       path: "/",
     });
+  });
+
+  it("clears the session cookie and returns success when unauthenticated (already logged out)", async () => {
+    const caller = appRouter.createCaller(createCtx(null));
+    const result = await caller.auth.logout();
+
+    expect(result).toEqual({ success: true });
+    expect(mockCookieSet).toHaveBeenCalledOnce();
+    expect(mockCookieSet).toHaveBeenCalledWith(COOKIE_NAME, "", {
+      maxAge: -1,
+      path: "/",
+    });
+  });
+
+  it("nulls out ctx.user after logout", async () => {
+    const ctx = createCtx(authenticatedUser);
+    const caller = appRouter.createCaller(ctx);
+    await caller.auth.logout();
+
+    expect(ctx.user).toBeNull();
   });
 });

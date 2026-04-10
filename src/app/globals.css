@@ -45,54 +45,42 @@
 }
 
 :root {
-  /* Civic Warmth: Deep Indigo + Amber */
   --radius: 0.5rem;
 
-  /* Primary: Deep Indigo */
   --primary: oklch(0.38 0.18 270);
   --primary-foreground: oklch(0.98 0 0);
 
-  /* Background: Warm White */
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.18 0.02 270);
 
-  /* Cards */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.02 270);
 
-  /* Popover */
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 270);
 
-  /* Secondary: Light Indigo */
   --secondary: oklch(0.95 0.02 270);
   --secondary-foreground: oklch(0.38 0.18 270);
 
-  /* Muted */
   --muted: oklch(0.96 0.005 80);
   --muted-foreground: oklch(0.55 0.01 270);
 
-  /* Accent: Amber */
   --accent: oklch(0.78 0.17 70);
   --accent-foreground: oklch(0.18 0.02 270);
 
-  /* Destructive */
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
 
-  /* Borders */
   --border: oklch(0.91 0.005 270);
   --input: oklch(0.91 0.005 270);
   --ring: oklch(0.38 0.18 270);
 
-  /* Charts */
   --chart-1: oklch(0.38 0.18 270);
   --chart-2: oklch(0.78 0.17 70);
   --chart-3: oklch(0.55 0.15 270);
   --chart-4: oklch(0.65 0.12 70);
   --chart-5: oklch(0.45 0.1 270);
 
-  /* Sidebar */
   --sidebar: oklch(0.99 0.003 80);
   --sidebar-foreground: oklch(0.18 0.02 270);
   --sidebar-primary: oklch(0.38 0.18 270);
@@ -110,6 +98,9 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Nunito', sans-serif;
+    /* clip horizontal overflow WITHOUT creating a scroll container
+       overflow:hidden would break position:sticky — clip does not */
+    overflow-x: clip;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Sora', sans-serif;
@@ -136,10 +127,9 @@
     padding-right: 1rem;
   }
 
-  .flex {
-    min-height: 0;
-    min-width: 0;
-  }
+  /* REMOVED: .flex { min-height: 0; min-width: 0; }
+     This was overriding Tailwind's flex utility globally and
+     collapsing scroll containers, which breaks position:sticky */
 
   @media (min-width: 640px) {
     .container {
@@ -156,7 +146,6 @@
     }
   }
 
-  /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -165,7 +154,6 @@
     display: none;
   }
 
-  /* Line clamp utilities */
   .line-clamp-1 {
     overflow: hidden;
     display: -webkit-box;

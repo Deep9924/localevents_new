@@ -1,3 +1,5 @@
+"use client"; // ✅ added
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
@@ -22,7 +24,8 @@ export function ThemeProvider({
   switchable = false,
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (switchable) {
+    // ✅ guard against SSR crash
+    if (switchable && typeof window !== "undefined") {
       const stored = localStorage.getItem("theme");
       return (stored as Theme) || defaultTheme;
     }
@@ -36,16 +39,13 @@ export function ThemeProvider({
     } else {
       root.classList.remove("dark");
     }
-
     if (switchable) {
       localStorage.setItem("theme", theme);
     }
   }, [theme, switchable]);
 
   const toggleTheme = switchable
-    ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
-      }
+    ? () => setTheme((prev) => (prev === "light" ? "dark" : "light"))
     : undefined;
 
   return (

@@ -10,7 +10,7 @@ import {
   getCategoriesFromDb,
 } from "../db/index";
 import { events, cities, categories } from "../db/schema";
-import { sql, eq, and, like, or, gte, lte, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 type CityCountRow = {
   citySlug: string;

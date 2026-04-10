@@ -3,7 +3,7 @@
 import { signIn, signOut } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { User } from "@/server/db/schema";
 
 type UseAuthOptions = {
@@ -27,8 +27,8 @@ export function useAuth(options?: UseAuthOptions) {
   const loading         = meQuery.isLoading && !initialUser;
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/login", { method: "DELETE" }); // clears custom session cookie
-    await signOut({ redirect: false });                    // clears NextAuth session
+    await fetch("/api/auth/logout", { method: "POST" }); // ✅ fixed URL
+    await signOut({ redirect: false });
     await utils.auth.me.invalidate();
     router.push("/toronto");
   }, [utils, router]);
@@ -37,9 +37,12 @@ export function useAuth(options?: UseAuthOptions) {
     signIn("google");
   }, []);
 
-  if (redirectOnUnauthenticated && !loading && !isAuthenticated) {
-    router.push("/toronto");
-  }
+  // moved out of render into effect
+  useEffect(() => {
+    if (redirectOnUnauthenticated && !loading && !isAuthenticated) {
+      router.push("/toronto");
+    }
+  }, [redirectOnUnauthenticated, loading, isAuthenticated, router]);
 
   return {
     user,

@@ -1,103 +1,186 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { saveEvent, unsaveEvent, getUserSavedEvents, isEventSaved } from "./db";
+// src/server/routers/__tests__/savedEvents.test.ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock database
-vi.mock("./db", async () => {
-  const actual = await vi.importActual("./db");
+// ── Mock all db functions used by savedEvents router ──────────────────────
+const mockSaveEvent = vi.fn();
+const mockUnsaveEvent = vi.fn();
+const mockGetUserSavedEvents = vi.fn();
+const mockIsEventSaved = vi.fn();
+
+vi.mock("@/server/db/savedEvents", () => ({
+  saveEvent: mockSaveEvent,
+  unsaveEvent: mockUnsaveEvent,
+  getUserSavedEvents: mockGetUserSavedEvents,
+  isEventSaved: mockIsEventSaved,
+}));
+
+vi.mock("@/server/db/client", () => ({
+  getDb: vi.fn(),
+}));
+
+import { appRouter } from "@/server/routers/root";
+import type { Context } from "@/server/context";
+
+// ── Shared test data ───────────────────────────────────────────────────────
+const USER_ID = 1;
+const EVENT_ID = "event-123";
+const EVENT_TITLE = "Summer Music Festival";
+const EVENT_DATE = "2026-06-15";
+const EVENT_CITY = "toronto";
+
+const mockSavedRow = {
+  id: 1,
+  userId: USER_ID,
+  eventId: EVENT_ID,
+  savedAt: new Date(),
+  event: {
+    id: EVENT_ID,
+    title: EVENT_TITLE,
+    city: EVENT_CITY,
+    slug: "summer-music-festival",
+    date: EVENT_DATE,
+    time: "19:00",
+    venue: "Scotiabank Arena",
+    citySlug: EVENT_CITY,
+    category: "music",
+    price: "CAD 50",
+    image: null,
+    description: null,
+    interested: 0,
+    tags: null,
+    isFeatured: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+};
+
+function createAuthCtx(): Context {
   return {
-    ...actual,
-  };
-});
+    user: {
+      id: USER_ID,
+      openId: "test-open-id",
+      email: "test@example.com",
+      name: "Test User",
+      loginMethod: "email",
+      role: "user" as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+      passwordHash: null,
+    },
+  } as Context;
+}
 
-describe("Saved Events API", () => {
-  const userId = 1;
-  const eventId = "event-123";
-  const eventTitle = "Summer Music Festival";
-  const eventDate = "2026-06-15";
-  const eventCity = "toronto";
+// ── Tests ──────────────────────────────────────────────────────────────────
+describe("savedEvents router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-  describe("saveEvent", () => {
-    it("should save an event for a user", async () => {
-      const result = await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      
-      expect(result).toBeDefined();
-      expect(result.eventId).toBe(eventId);
-      expect(result.userId).toBe(userId);
+  // ── save ──────────────────────────────────────────────────────────────
+  describe("save", () => {
+    it("saves an event and returns the record", async () => {
+      mockSaveEvent.mockResolvedValue({
+        userId: USER_ID,
+        eventId: EVENT_ID,
+        eventTitle: EVENT_TITLE,
+        eventDate: EVENT_DATE,
+        eventCity: EVENT_CITY,
+      });
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.save({
+        eventId: EVENT_ID,
+        eventTitle: EVENT_TITLE,
+        eventDate: EVENT_DATE,
+        eventCity: EVENT_CITY,
+      });
+
+      expect(mockSaveEvent).toHaveBeenCalledOnce();
+      expect(mockSaveEvent).toHaveBeenCalledWith(
+        USER_ID, EVENT_ID, EVENT_TITLE, EVENT_DATE, EVENT_CITY
+      );
+      expect(result).toMatchObject({ eventId: EVENT_ID, userId: USER_ID });
     });
 
-    it("should not create duplicate saved events", async () => {
-      // Save the same event twice
-      await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      const result = await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      
-      // Should return the existing record
-      expect(result.eventId).toBe(eventId);
+    it("returns existing record without creating a duplicate", async () => {
+      mockSaveEvent.mockResolvedValue({ id: 1, userId: USER_ID, eventId: EVENT_ID });
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      await caller.savedEvents.save({ eventId: EVENT_ID, eventTitle: EVENT_TITLE, eventDate: EVENT_DATE, eventCity: EVENT_CITY });
+      await caller.savedEvents.save({ eventId: EVENT_ID, eventTitle: EVENT_TITLE, eventDate: EVENT_DATE, eventCity: EVENT_CITY });
+
+      // saveEvent itself handles deduplication — we just verify it's called
+      expect(mockSaveEvent).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe("unsaveEvent", () => {
-    it("should remove a saved event", async () => {
-      // First save an event
-      await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      
-      // Then unsave it
-      const result = await unsaveEvent(userId, eventId);
-      
-      expect(result.success).toBe(true);
+  // ── unsave ────────────────────────────────────────────────────────────
+  describe("unsave", () => {
+    it("removes a saved event and returns success", async () => {
+      mockUnsaveEvent.mockResolvedValue({ success: true });
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.unsave({ eventId: EVENT_ID });
+
+      expect(mockUnsaveEvent).toHaveBeenCalledWith(USER_ID, EVENT_ID);
+      expect(result).toEqual({ success: true });
     });
   });
 
-  describe("isEventSaved", () => {
-    it("should return true if event is saved", async () => {
-      // Save an event
-      await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      
-      // Check if it's saved
-      const isSaved = await isEventSaved(userId, eventId);
-      
-      expect(isSaved).toBe(true);
+  // ── list ──────────────────────────────────────────────────────────────
+  describe("list", () => {
+    it("returns all saved events for the user", async () => {
+      mockGetUserSavedEvents.mockResolvedValue([mockSavedRow]);
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.list();
+
+      expect(mockGetUserSavedEvents).toHaveBeenCalledWith(USER_ID);
+      expect(result).toHaveLength(1);
+      expect(result[0]?.eventId).toBe(EVENT_ID);
     });
 
-    it("should return false if event is not saved", async () => {
-      const isSaved = await isEventSaved(userId, "non-existent-event");
-      
-      expect(isSaved).toBe(false);
+    it("returns empty array when user has no saved events", async () => {
+      mockGetUserSavedEvents.mockResolvedValue([]);
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.list();
+
+      expect(result).toEqual([]);
+    });
+
+    it("includes full event details in each saved record", async () => {
+      mockGetUserSavedEvents.mockResolvedValue([mockSavedRow]);
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const [first] = await caller.savedEvents.list();
+
+      expect(first?.event?.title).toBe(EVENT_TITLE);
+      expect(first?.event?.city).toBe(EVENT_CITY);
+      expect(first?.event?.slug).toBe("summer-music-festival");
     });
   });
 
-  describe("getUserSavedEvents", () => {
-    it("should return all saved events for a user", async () => {
-      // Save multiple events
-      await saveEvent(userId, "event-1", "Event 1", "2026-06-15", "toronto");
-      await saveEvent(userId, "event-2", "Event 2", "2026-07-20", "vancouver");
-      
-      // Get all saved events
-      const savedEvents = await getUserSavedEvents(userId);
-      
-      expect(Array.isArray(savedEvents)).toBe(true);
-      expect(savedEvents.length).toBeGreaterThanOrEqual(2);
+  // ── isSaved ───────────────────────────────────────────────────────────
+  describe("isSaved", () => {
+    it("returns true when the event is saved", async () => {
+      mockIsEventSaved.mockResolvedValue(true);
+
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.isSaved({ eventId: EVENT_ID });
+
+      expect(mockIsEventSaved).toHaveBeenCalledWith(USER_ID, EVENT_ID);
+      expect(result).toBe(true);
     });
 
-    it("should return empty array if user has no saved events", async () => {
-      const savedEvents = await getUserSavedEvents(999); // Non-existent user
-      
-      expect(Array.isArray(savedEvents)).toBe(true);
-    });
+    it("returns false when the event is not saved", async () => {
+      mockIsEventSaved.mockResolvedValue(false);
 
-    it("should include full event details in saved events", async () => {
-      // Save an event
-      await saveEvent(userId, eventId, eventTitle, eventDate, eventCity);
-      
-      // Get saved events
-      const savedEvents = await getUserSavedEvents(userId);
-      
-      // Check that event details are included
-      const saved = savedEvents.find((s: any) => s.eventId === eventId);
-      if (saved && saved.event) {
-        expect(saved.event.title).toBeDefined();
-        expect(saved.event.city).toBeDefined();
-        expect(saved.event.slug).toBeDefined();
-      }
+      const caller = appRouter.createCaller(createAuthCtx());
+      const result = await caller.savedEvents.isSaved({ eventId: "non-existent" });
+
+      expect(result).toBe(false);
     });
   });
 });

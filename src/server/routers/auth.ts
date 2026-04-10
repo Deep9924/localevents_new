@@ -5,32 +5,45 @@ import { z } from "zod";
 import { getDb } from "../db/index";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { COOKIE_NAME } from "@/lib/const";
 
-const COOKIE_NAME = "session";
-const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_DURATION_SEC = SESSION_DURATION_MS / 1000;
+const REFRESH_THRESHOLD_SEC = 24 * 60 * 60;
 
 function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+  return bcrypt.hashSync(password, 12);
+}
+
+function verifyPassword(plain: string, hash: string): boolean {
+  return bcrypt.compareSync(plain, hash);
 }
 
 async function createSessionCookie(openId: string, name: string) {
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "fallback-secret");
+  const secret = new TextEncoder().encode(
+    process.env.JWT_SECRET ?? "fallback-secret"
+  );
   const token = await new SignJWT({ openId, name, appId: "localevents" })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setExpirationTime(Math.floor((Date.now() + ONE_YEAR_MS) / 1000))
+    .setIssuedAt()
+    .setExpirationTime(Math.floor((Date.now() + SESSION_DURATION_MS) / 1000))
     .sign(secret);
+
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: ONE_YEAR_MS / 1000,
+    maxAge: SESSION_DURATION_SEC,
     path: "/",
   });
 }
+
+export { createSessionCookie, REFRESH_THRESHOLD_SEC, COOKIE_NAME, SESSION_DURATION_MS };
 
 export const authRouter = router({
   me: publicProcedure.query((opts) => opts.ctx.user ?? null),
@@ -60,14 +73,15 @@ export const authRouter = router({
     .input(
       z.object({
         email: z.string().email(),
-        password: z.string()
+        password: z
+          .string()
           .min(8, "Password must be at least 8 characters")
           .regex(/[a-z]/, "Must contain lowercase letters")
           .regex(/[A-Z]/, "Must contain uppercase letters")
           .regex(/[0-9]/, "Must contain numbers")
           .regex(/[^a-zA-Z0-9]/, "Must contain special characters"),
         name: z.string().min(2),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -93,10 +107,12 @@ export const authRouter = router({
         });
       }
 
+      const passwordHash = hashPassword(input.password);
+
       await db.insert(users).values({
         email: input.email,
         name: input.name,
-        passwordHash: hashPassword(input.password),
+        passwordHash,
         openId: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         loginMethod: "email",
         lastSignedIn: new Date(),
@@ -111,7 +127,7 @@ export const authRouter = router({
       z.object({
         email: z.string().email(),
         password: z.string(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -124,15 +140,11 @@ export const authRouter = router({
         .limit(1);
 
       if (result.length === 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid email or password.",
-        });
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid email or password." });
       }
 
       const user = result[0];
 
-      // Block email login if account was created with Google
       if (user.loginMethod === "google") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -140,11 +152,29 @@ export const authRouter = router({
         });
       }
 
-      if (!user.passwordHash || hashPassword(input.password) !== user.passwordHash) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid email or password.",
-        });
+      if (!user.passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid email or password." });
+      }
+
+      const bcryptValid = verifyPassword(input.password, user.passwordHash);
+
+      if (!bcryptValid) {
+        // Legacy fallback: accounts created with old SHA-256 system
+        const legacyHash = crypto
+          .createHash("sha256")
+          .update(input.password)
+          .digest("hex");
+
+        if (user.passwordHash === legacyHash) {
+          // Upgrade to bcrypt silently — only happens once per legacy user
+          const newHash = hashPassword(input.password);
+          await db
+            .update(users)
+            .set({ passwordHash: newHash })
+            .where(eq(users.id, user.id));
+        } else {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid email or password." });
+        }
       }
 
       await db

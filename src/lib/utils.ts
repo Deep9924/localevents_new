@@ -1,3 +1,4 @@
+// src/lib/utils.ts
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -5,9 +6,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Format date string to readable format
- */
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", {
@@ -17,9 +15,6 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-/**
- * Format time string to readable format
- */
 export function formatTime(timeStr: string): string {
   const [hours, minutes] = timeStr.split(":").map(Number);
   const date = new Date(2000, 0, 1, hours, minutes);
@@ -30,16 +25,10 @@ export function formatTime(timeStr: string): string {
   });
 }
 
-/**
- * Combine date and time into a readable string
- */
 export function formatDateTime(date: string, time: string): string {
   return `${formatDate(date)} • ${formatTime(time)}`;
 }
 
-/**
- * Generate a slug from a string
- */
 export function generateSlug(str: string): string {
   return str
     .toLowerCase()
@@ -49,9 +38,6 @@ export function generateSlug(str: string): string {
     .trim();
 }
 
-/**
- * Truncate text to a maximum length
- */
 export function truncate(
   text: string,
   maxLength: number,
@@ -61,9 +47,6 @@ export function truncate(
   return text.substring(0, maxLength - suffix.length) + suffix;
 }
 
-/**
- * Format currency amount
- */
 export function formatCurrency(
   amount: string | number,
   currency: string = "CAD"
@@ -76,41 +59,31 @@ export function formatCurrency(
   }).format(numAmount);
 }
 
-/**
- * Format number with commas for thousands
- */
 export function formatNumber(num: number): string {
   return num.toLocaleString("en-US");
 }
 
 /**
- * Fetch IP-based geolocation data
+ * Calculate distance between two coordinates in km using Haversine formula.
+ * Single source of truth — import this in detectCity.ts too.
  */
-export async function getIPGeolocation() {
-  try {
-    const response = await fetch("https://ipapi.co/json/");
-    if (!response.ok) throw new Error("Failed to fetch geolocation");
-    return await response.json();
-  } catch (error) {
-    console.error("Geolocation error:", error);
-    return null;
-  }
-}
-
-/**
- * Calculate distance between two coordinates in km using Haversine formula
- */
-export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Radius of the earth in km
+export function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
+  return R * c;
 }
 
 function deg2rad(deg: number): number {

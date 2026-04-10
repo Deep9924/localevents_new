@@ -17,8 +17,8 @@ interface CityContextType {
 }
 
 const CityContext = createContext<CityContextType>({
-  citySlug:    null,
-  cityName:    "",
+  citySlug: null,
+  cityName: "",
   setCitySlug: () => {},
 });
 
@@ -30,27 +30,30 @@ export function CityProvider({
   children: ReactNode;
 }) {
   const [citySlug, setCitySlugState] = useState<string | null>(initialCity);
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
 
-  // First-time visitor with no detected city — send to /cities picker
   useEffect(() => {
     if (!citySlug && pathname !== "/cities") {
       router.replace("/cities");
     }
-  }, [citySlug, pathname]);
+  }, [citySlug, pathname, router]);
 
   const setCitySlug = (slug: string) => {
     setCitySlugState(slug);
-    document.cookie = `city=${slug}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    if (typeof document !== "undefined") {
+      document.cookie = `city=${slug}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    }
   };
 
   return (
-    <CityContext.Provider value={{
-      citySlug,
-      cityName:    citySlug ? slugToName(citySlug) : "",
-      setCitySlug,
-    }}>
+    <CityContext.Provider
+      value={{
+        citySlug,
+        cityName: citySlug ? slugToName(citySlug) : "", // ✅ actually computed now
+        setCitySlug,
+      }}
+    >
       {children}
     </CityContext.Provider>
   );

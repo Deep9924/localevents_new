@@ -1,54 +1,60 @@
 // src/server/routers/tickets.ts
 import { router, protectedProcedure } from "../trpc";
 import { getUserTickets } from "@/server/db";
+import { getDb } from "@/server/db";
+import { events, ticketTiers, tickets } from "@/server/db/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import { eq } from "drizzle-orm";
 
-const stripe = process.env.STRIPE_SECRET_KEY 
+const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2024-12-15.acacia",
+      apiVersion: "2026-03-25.dahlia",
     })
   : null;
 
-// Server-side configuration - NOT from client
-const TAX_RATE = 0.13; // HST 13%
+const TAX_RATE = 0.13;           // HST 13%
 const SERVICE_FEE_PERCENT = 0.03; // 3% service fee
 
 export const ticketsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user.id;
-    const tickets = await getUserTickets(userId);
-    return tickets;
+    return getUserTickets(ctx.user.id);
   }),
 
   getById: protectedProcedure
     .input(z.object({ ticketId: z.number() }))
     .query(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-      const tickets = await getUserTickets(userId);
-      const ticket = tickets.find((t) => t.id === input.ticketId);
-      if (!ticket) {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const result = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, input.ticketId))
+        .limit(1);
+
+      const ticket = result[0];
+
+      // Ensure the ticket belongs to this user
+      if (!ticket || ticket.userId !== ctx.user.id) {
         throw new Error("Ticket not found or access denied");
       }
+
       return ticket;
     }),
 
   getStats: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user.id;
-    const tickets = await getUserTickets(userId);
+    const userTickets = await getUserTickets(ctx.user.id);
 
-    const stats = {
-      total: tickets.length,
-      paid: tickets.filter((t) => t.status === "paid").length,
-      pending: tickets.filter((t) => t.status === "pending").length,
-      refunded: tickets.filter((t) => t.status === "refunded").length,
-      totalSpent: tickets
+    return {
+      total: userTickets.length,
+      paid: userTickets.filter((t) => t.status === "paid").length,
+      pending: userTickets.filter((t) => t.status === "pending").length,
+      refunded: userTickets.filter((t) => t.status === "refunded").length,
+      totalSpent: userTickets
         .filter((t) => t.status === "paid")
         .reduce((sum, t) => sum + Number(t.total), 0),
     };
-
-    return stats;
   }),
 
   createCheckoutSession: protectedProcedure
@@ -67,19 +73,17 @@ export const ticketsRouter = router({
         throw new Error("Stripe secret key not configured");
       }
 
-      // ============================================================
-      // STEP 1: Fetch event from database (server-side validation)
-      // ============================================================
-      const { getDb } = await import("@/server/db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const { events, ticketTiers, tickets } = await import("@/server/db/schema");
-      
+      // ============================================================
+      // STEP 1: Fetch event from database (server-side validation)
+      // ============================================================
       const eventResult = await db
         .select()
         .from(events)
-        .where(eq(events.id, input.eventId));
+        .where(eq(events.id, input.eventId))
+        .limit(1);
 
       if (eventResult.length === 0) {
         throw new Error("Event not found");
@@ -98,7 +102,8 @@ export const ticketsRouter = router({
         const tierResult = await db
           .select()
           .from(ticketTiers)
-          .where(eq(ticketTiers.id, input.tierId));
+          .where(eq(ticketTiers.id, input.tierId))
+          .limit(1);
 
         if (tierResult.length === 0) {
           throw new Error("Ticket tier not found");
@@ -106,17 +111,14 @@ export const ticketsRouter = router({
 
         const tier = tierResult[0];
 
-        // Validate that tier belongs to this event
         if (tier.eventId !== input.eventId) {
           throw new Error("Ticket tier does not belong to this event");
         }
 
-        // Validate tier is active
         if (tier.isActive === 0) {
           throw new Error("This ticket tier is no longer available");
         }
 
-        // Validate availability
         if (tier.quantity && tier.sold && tier.sold >= tier.quantity) {
           throw new Error("This ticket tier is sold out");
         }
@@ -124,7 +126,6 @@ export const ticketsRouter = router({
         unitPriceDollars = tier.price;
         tierName = tier.name;
       } else {
-        // Use event's default price
         if (event.price === "Free" || event.price === null) {
           unitPriceDollars = 0;
         } else {
@@ -185,31 +186,35 @@ export const ticketsRouter = router({
             },
             quantity: input.quantity,
           },
-          ...(TAX_RATE > 0 ? [{
-            price_data: {
-              currency: "cad",
-              product_data: {
-                name: "HST (13%)",
-              },
-              unit_amount: Math.round(taxAmountCents / input.quantity),
-            },
-            quantity: input.quantity,
-          }] : []),
-          ...(SERVICE_FEE_PERCENT > 0 ? [{
-            price_data: {
-              currency: "cad",
-              product_data: {
-                name: "Service Fee (3%)",
-              },
-              unit_amount: Math.round(serviceFeeAmountCents / input.quantity),
-            },
-            quantity: input.quantity,
-          }] : []),
+          ...(TAX_RATE > 0
+            ? [
+                {
+                  price_data: {
+                    currency: "cad",
+                    product_data: { name: "HST (13%)" },
+                    unit_amount: Math.round(taxAmountCents / input.quantity),
+                  },
+                  quantity: input.quantity,
+                },
+              ]
+            : []),
+          ...(SERVICE_FEE_PERCENT > 0
+            ? [
+                {
+                  price_data: {
+                    currency: "cad",
+                    product_data: { name: "Service Fee (3%)" },
+                    unit_amount: Math.round(serviceFeeAmountCents / input.quantity),
+                  },
+                  quantity: input.quantity,
+                },
+              ]
+            : []),
         ],
         mode: "payment",
         customer_email: userEmail,
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/account/tickets?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/`,
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/`,
         metadata: {
           userId: String(userId),
           eventId: input.eventId,
