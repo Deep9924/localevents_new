@@ -24,7 +24,7 @@ function buildPool() {
 export async function getDb() {
   if (_db) return _db as ReturnType<typeof drizzle<typeof schema>>;
   try {
-    _db = drizzle(buildPool(), { schema });
+    _db = drizzle(buildPool(), { schema, mode: "default" });  // ← add mode
     return _db as ReturnType<typeof drizzle<typeof schema>>;
   } catch (error) {
     console.error("[Database] Failed to connect:", error);
