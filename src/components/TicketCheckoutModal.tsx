@@ -25,9 +25,6 @@ interface TicketTier {
   isActive: number;
 }
 
-const TAX_RATE = 0.13; // HST 13%
-const SERVICE_FEE_PERCENT = 0.03; // 3% service fee
-
 export default function TicketCheckoutModal({
   isOpen,
   onClose,
@@ -49,22 +46,22 @@ export default function TicketCheckoutModal({
   const hasMultipleTiers = tiers.length > 0;
   const isFree = price === "Free" || price === null;
 
-  // Get the selected tier or use the default price
+  // Get the selected tier for display purposes only
   const selectedTier = selectedTierId 
     ? tiers.find(t => t.id === selectedTierId)
     : null;
 
-  const unitPriceNumber = selectedTier 
+  // Display prices from database (for UI only - NOT used for payment)
+  const displayUnitPrice = selectedTier 
     ? selectedTier.price
     : isFree 
       ? 0 
       : parseFloat(price?.replace(/[^\d.]/g, "") || "0");
 
-  const unitPriceCents = Math.round(unitPriceNumber * 100);
-  const subtotal = unitPriceNumber * quantity;
-  const taxAmount = subtotal * TAX_RATE;
-  const serviceFee = subtotal * SERVICE_FEE_PERCENT;
-  const total = subtotal + taxAmount + serviceFee;
+  const displaySubtotal = displayUnitPrice * quantity;
+  const displayTax = displaySubtotal * 0.13;
+  const displayServiceFee = displaySubtotal * 0.03;
+  const displayTotal = displaySubtotal + displayTax + displayServiceFee;
 
   useEffect(() => {
     if (hasMultipleTiers && tiers.length > 0 && !selectedTierId) {
@@ -77,16 +74,13 @@ export default function TicketCheckoutModal({
   const handleCheckout = async () => {
     try {
       toast.info("Processing your order...");
+      
+      // Only send IDs and quantity to server
+      // Server will fetch prices from database and calculate fees
       const result = await createCheckoutMutation.mutateAsync({
         eventId,
-        eventTitle,
-        tierId: selectedTierId || undefined,
-        tierName: selectedTier?.name,
         quantity,
-        unitPriceInCents: unitPriceCents,
-        currency: "CAD",
-        taxRate: TAX_RATE,
-        serviceFeePercent: SERVICE_FEE_PERCENT,
+        tierId: selectedTierId || undefined,
       });
 
       if (result.free) {
@@ -214,7 +208,7 @@ export default function TicketCheckoutModal({
             </div>
           </div>
 
-          {/* Price Breakdown */}
+          {/* Price Breakdown (Display Only - Calculated on Server) */}
           <div className="bg-slate-50 rounded-xl p-4 space-y-2.5">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Price Breakdown
@@ -223,33 +217,33 @@ export default function TicketCheckoutModal({
             {/* Subtotal */}
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-600">
-                {unitPriceNumber === 0 ? "Free" : `CAD $${unitPriceNumber.toFixed(2)}`} × {quantity} {quantity === 1 ? "ticket" : "tickets"}
+                {displayUnitPrice === 0 ? "Free" : `CAD $${displayUnitPrice.toFixed(2)}`} × {quantity} {quantity === 1 ? "ticket" : "tickets"}
               </span>
               <span className="font-medium text-slate-900">
-                {unitPriceNumber === 0 ? "Free" : `CAD $${subtotal.toFixed(2)}`}
+                {displayUnitPrice === 0 ? "Free" : `CAD $${displaySubtotal.toFixed(2)}`}
               </span>
             </div>
 
             {/* Tax */}
-            {unitPriceNumber > 0 && TAX_RATE > 0 && (
+            {displayUnitPrice > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600">
                   HST (13%)
                 </span>
                 <span className="font-medium text-slate-900">
-                  CAD ${taxAmount.toFixed(2)}
+                  CAD ${displayTax.toFixed(2)}
                 </span>
               </div>
             )}
 
             {/* Service Fee */}
-            {unitPriceNumber > 0 && SERVICE_FEE_PERCENT > 0 && (
+            {displayUnitPrice > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600">
                   Service Fee (3%)
                 </span>
                 <span className="font-medium text-slate-900">
-                  CAD ${serviceFee.toFixed(2)}
+                  CAD ${displayServiceFee.toFixed(2)}
                 </span>
               </div>
             )}
@@ -259,10 +253,15 @@ export default function TicketCheckoutModal({
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-900">Total</span>
                 <span className="text-lg font-bold text-indigo-600">
-                  {unitPriceNumber === 0 ? "Free" : `CAD $${total.toFixed(2)}`}
+                  {displayUnitPrice === 0 ? "Free" : `CAD $${displayTotal.toFixed(2)}`}
                 </span>
               </div>
             </div>
+
+            {/* Security Note */}
+            <p className="text-xs text-slate-400 italic mt-3 pt-3 border-t border-slate-200">
+              Final prices calculated securely on the server
+            </p>
           </div>
 
           {/* Terms */}
@@ -293,7 +292,7 @@ export default function TicketCheckoutModal({
             ) : (
               <>
                 <Check className="w-4 h-4 mr-2" />
-                {unitPriceNumber === 0 ? "Get" : "Pay"} Now
+                {displayUnitPrice === 0 ? "Get" : "Pay"} Now
               </>
             )}
           </Button>
