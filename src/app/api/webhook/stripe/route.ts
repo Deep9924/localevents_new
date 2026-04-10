@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getDb } from "@/server/db/index";
-import { tickets } from "@/server/db/schema";
+import { tickets, ticketTiers } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
-    console.error("Webhook signature failed:", err.message);
+    console.error("Stripe webhook signature failed:", err.message);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -34,10 +34,14 @@ export async function POST(req: NextRequest) {
   }
 
   switch (event.type) {
+
+    // ── Payment confirmed ─────────────────────────────────────────────
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const ticketId = session.metadata?.ticketId;
+      const { ticketId, tierId, quantity } = session.metadata ?? {};
+
       if (ticketId) {
+        // Confirm the ticket
         await db
           .update(tickets)
           .set({
@@ -45,14 +49,31 @@ export async function POST(req: NextRequest) {
             stripeSessionId: session.id,
           })
           .where(eq(tickets.id, Number(ticketId)));
+
+        // Increment tier sold count
+        if (tierId && tierId !== "" && quantity) {
+          const tier = await db.query.ticketTiers.findFirst({
+            where: eq(ticketTiers.id, Number(tierId)),
+          });
+          if (tier) {
+            await db
+              .update(ticketTiers)
+              .set({ sold: Number(tier.sold ?? 0) + Number(quantity) })
+              .where(eq(ticketTiers.id, Number(tierId)));
+          }
+        }
       }
       break;
     }
 
+    // ── User abandoned checkout ───────────────────────────────────────
     case "checkout.session.expired": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const ticketId = session.metadata?.ticketId;
+      const { ticketId } = session.metadata ?? {};
+
       if (ticketId) {
+        // Leave as "pending" — admin can clean these up periodically
+        // or you can delete: await db.delete(tickets).where(eq(tickets.id, Number(ticketId)));
         await db
           .update(tickets)
           .set({ status: "pending" })
@@ -61,9 +82,13 @@ export async function POST(req: NextRequest) {
       break;
     }
 
+    // ── Refund issued ─────────────────────────────────────────────────
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
-      const sessionId = charge.payment_intent as string;
+      const sessionId = typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+
       if (sessionId) {
         await db
           .update(tickets)
