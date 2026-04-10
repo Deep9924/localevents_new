@@ -1,6 +1,6 @@
 import { router, protectedProcedure } from "../trpc";
-import { getDb } from "@/server/db/client";          // ← direct, avoids circular
-import { getUserTickets } from "@/server/db/tickets"; // ← direct, avoids circular
+import { getDb } from "@/server/db/client";
+import { getUserTickets } from "@/server/db/tickets";
 import { events, ticketTiers, tickets } from "@/server/db/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -15,11 +15,22 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const TAX_RATE = 0;
 const SERVICE_FEE_PERCENT = 0.03;
 
+type LineItem = {
+  price_data: {
+    currency: string;
+    product_data: { name: string; description?: string };
+    unit_amount: number;
+  };
+  quantity: number;
+};
+
 export const ticketsRouter = router({
+  // ── List all tickets for the logged-in user ─────────────────────────
   list: protectedProcedure.query(async ({ ctx }) => {
     return getUserTickets(ctx.user.id);
   }),
 
+  // ── Get a single ticket by ID (must belong to user) ─────────────────
   getById: protectedProcedure
     .input(z.object({ ticketId: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -40,6 +51,7 @@ export const ticketsRouter = router({
       return ticket;
     }),
 
+  // ── Ticket stats for account dashboard ──────────────────────────────
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const userTickets = await getUserTickets(ctx.user.id);
     return {
@@ -53,6 +65,7 @@ export const ticketsRouter = router({
     };
   }),
 
+  // ── Create Stripe checkout session (or confirm free ticket) ─────────
   createCheckoutSession: protectedProcedure
     .input(
       z.object({
@@ -106,23 +119,28 @@ export const ticketsRouter = router({
         tierName = tier.name;
       } else {
         if (event.price !== "Free" && event.price !== null) {
-          const parsed = parseFloat(String(event.price).replace(/[^d.]/g, ""));
+          const parsed = parseFloat(
+            String(event.price).replace(/[^d.]/g, "")
+          );
           unitPriceDollars = isNaN(parsed) ? 0 : parsed;
         }
       }
 
-      // ── Fees ────────────────────────────────────────────────────────
+      // ── Calculate fees ──────────────────────────────────────────────
       const subtotalDollars = unitPriceDollars * input.quantity;
-      const serviceFeeAmountDollars = Math.round(subtotalDollars * SERVICE_FEE_PERCENT * 100) / 100;
-      const taxAmountDollars = Math.round(subtotalDollars * TAX_RATE * 100) / 100;
-      const totalDollars = subtotalDollars + serviceFeeAmountDollars + taxAmountDollars;
+      const serviceFeeAmountDollars =
+        Math.round(subtotalDollars * SERVICE_FEE_PERCENT * 100) / 100;
+      const taxAmountDollars =
+        Math.round(subtotalDollars * TAX_RATE * 100) / 100;
+      const totalDollars =
+        subtotalDollars + serviceFeeAmountDollars + taxAmountDollars;
 
       const unitPriceCents = Math.round(unitPriceDollars * 100);
       const serviceFeeAmountCents = Math.round(serviceFeeAmountDollars * 100);
       const taxAmountCents = Math.round(taxAmountDollars * 100);
       const totalCents = Math.round(totalDollars * 100);
 
-      // ── Free ticket ─────────────────────────────────────────────────
+      // ── Free ticket — insert directly as paid ───────────────────────
       if (unitPriceCents === 0) {
         await db.insert(tickets).values({
           userId,
@@ -148,7 +166,7 @@ export const ticketsRouter = router({
         return { success: true, free: true };
       }
 
-      // ── Paid — insert pending, webhook confirms ──────────────────────
+      // ── Paid — insert as pending, webhook confirms ──────────────────
       const [inserted] = await db.insert(tickets).values({
         userId,
         eventId: input.eventId,
@@ -166,8 +184,8 @@ export const ticketsRouter = router({
 
       const ticketId = (inserted as any).insertId;
 
-      // ── Line items (no Stripe type annotation — v22 removed it) ─────
-      const lineItems = [
+      // ── Line items ──────────────────────────────────────────────────
+      const lineItems: LineItem[] = [
         {
           price_data: {
             currency: "cad",
@@ -203,6 +221,7 @@ export const ticketsRouter = router({
         });
       }
 
+      // ── Create Stripe session ───────────────────────────────────────
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: lineItems,
