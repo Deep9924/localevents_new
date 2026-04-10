@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getDb } from "@/server/db/index";
+import { getDb } from "@/server/db/client";
 import { tickets, ticketTiers } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-03-25.dahlia",
-});
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY is not set");
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2026-03-25.dahlia",
+  });
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -15,6 +20,8 @@ export async function POST(req: NextRequest) {
   if (!sig) {
     return NextResponse.json({ error: "No signature" }, { status: 400 });
   }
+
+  const stripe = getStripe();
 
   let event: Stripe.Event;
   try {
@@ -35,19 +42,16 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
 
-    // ── Payment confirmed ─────────────────────────────────────────────
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const { ticketId, tierId, quantity } = session.metadata ?? {};
 
       if (ticketId) {
-        // Mark ticket as paid
         await db
           .update(tickets)
           .set({ status: "paid", stripeSessionId: session.id })
           .where(eq(tickets.id, Number(ticketId)));
 
-        // Increment tier sold count using .select() instead of db.query.*
         if (tierId && tierId !== "" && quantity) {
           const tierRows = await db
             .select()
@@ -67,7 +71,6 @@ export async function POST(req: NextRequest) {
       break;
     }
 
-    // ── User abandoned checkout ───────────────────────────────────────
     case "checkout.session.expired": {
       const session = event.data.object as Stripe.Checkout.Session;
       const { ticketId } = session.metadata ?? {};
@@ -81,7 +84,6 @@ export async function POST(req: NextRequest) {
       break;
     }
 
-    // ── Refund issued ─────────────────────────────────────────────────
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
       const sessionId =
