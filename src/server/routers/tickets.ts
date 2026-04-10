@@ -1,6 +1,6 @@
 import { router, protectedProcedure } from "../trpc";
-import { getUserTickets } from "@/server/db";
-import { getDb } from "@/server/db";
+import { getDb } from "@/server/db/client";          // ← direct, avoids circular
+import { getUserTickets } from "@/server/db/tickets"; // ← direct, avoids circular
 import { events, ticketTiers, tickets } from "@/server/db/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -12,7 +12,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
-const TAX_RATE = 0;              // set to 0.05 when GST registered, 0.11 for SK
+const TAX_RATE = 0;
 const SERVICE_FEE_PERCENT = 0.03;
 
 export const ticketsRouter = router({
@@ -42,7 +42,6 @@ export const ticketsRouter = router({
 
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const userTickets = await getUserTickets(ctx.user.id);
-
     return {
       total: userTickets.length,
       paid: userTickets.filter((t) => t.status === "paid").length,
@@ -71,7 +70,7 @@ export const ticketsRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      // ── Fetch event ───────────────────────────────────────────────────
+      // ── Fetch event ─────────────────────────────────────────────────
       const eventResult = await db
         .select()
         .from(events)
@@ -81,7 +80,7 @@ export const ticketsRouter = router({
       if (eventResult.length === 0) throw new Error("Event not found");
       const event = eventResult[0];
 
-      // ── Fetch tier ────────────────────────────────────────────────────
+      // ── Fetch tier ──────────────────────────────────────────────────
       let unitPriceDollars = 0;
       let tierName = "Standard Ticket";
       let tier: typeof ticketTiers.$inferSelect | null = null;
@@ -103,7 +102,7 @@ export const ticketsRouter = router({
         if (tier.quantity && Number(tier.sold ?? 0) >= Number(tier.quantity))
           throw new Error("This ticket tier is sold out");
 
-        unitPriceDollars = Number(tier.price); // coerce string decimal
+        unitPriceDollars = Number(tier.price);
         tierName = tier.name;
       } else {
         if (event.price !== "Free" && event.price !== null) {
@@ -112,19 +111,18 @@ export const ticketsRouter = router({
         }
       }
 
-      // ── Calculate fees ────────────────────────────────────────────────
+      // ── Fees ────────────────────────────────────────────────────────
       const subtotalDollars = unitPriceDollars * input.quantity;
-      const taxAmountDollars = subtotalDollars * TAX_RATE;
-      const serviceFeeAmountDollars = subtotalDollars * SERVICE_FEE_PERCENT;
-      const totalDollars = subtotalDollars + taxAmountDollars + serviceFeeAmountDollars;
+      const serviceFeeAmountDollars = Math.round(subtotalDollars * SERVICE_FEE_PERCENT * 100) / 100;
+      const taxAmountDollars = Math.round(subtotalDollars * TAX_RATE * 100) / 100;
+      const totalDollars = subtotalDollars + serviceFeeAmountDollars + taxAmountDollars;
 
       const unitPriceCents = Math.round(unitPriceDollars * 100);
-      const subtotalCents = Math.round(subtotalDollars * 100);
-      const taxAmountCents = Math.round(taxAmountDollars * 100);
       const serviceFeeAmountCents = Math.round(serviceFeeAmountDollars * 100);
+      const taxAmountCents = Math.round(taxAmountDollars * 100);
       const totalCents = Math.round(totalDollars * 100);
 
-      // ── Free ticket — insert directly as paid ─────────────────────────
+      // ── Free ticket ─────────────────────────────────────────────────
       if (unitPriceCents === 0) {
         await db.insert(tickets).values({
           userId,
@@ -150,7 +148,7 @@ export const ticketsRouter = router({
         return { success: true, free: true };
       }
 
-      // ── Paid — insert as pending, webhook confirms ────────────────────
+      // ── Paid — insert pending, webhook confirms ──────────────────────
       const [inserted] = await db.insert(tickets).values({
         userId,
         eventId: input.eventId,
@@ -168,8 +166,8 @@ export const ticketsRouter = router({
 
       const ticketId = (inserted as any).insertId;
 
-      // ── Stripe Checkout session ───────────────────────────────────────
-      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      // ── Line items (no Stripe type annotation — v22 removed it) ─────
+      const lineItems = [
         {
           price_data: {
             currency: "cad",
@@ -213,15 +211,14 @@ export const ticketsRouter = router({
         success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?success=true`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/${event.citySlug}/${event.slug}`,
         metadata: {
-          ticketId: String(ticketId),   // ← used by webhook to update status
+          ticketId: String(ticketId),
           userId: String(userId),
           eventId: input.eventId,
           tierId: input.tierId ? String(input.tierId) : "",
           quantity: String(input.quantity),
           unitPrice: String(unitPriceCents),
-          subtotal: String(subtotalCents),
-          taxAmount: String(taxAmountCents),
           serviceFee: String(serviceFeeAmountCents),
+          taxAmount: String(taxAmountCents),
           total: String(totalCents),
         },
       });
