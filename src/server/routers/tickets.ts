@@ -130,10 +130,6 @@ export const ticketsRouter = router({
           confirmEmail: z.string().email(),
           country: z.enum(COUNTRY_CODES),
         })
-        .refine((data) => data.email === data.confirmEmail, {
-          message: "Emails do not match",
-          path: ["confirmEmail"],
-        })
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
