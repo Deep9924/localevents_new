@@ -146,8 +146,8 @@ function QrPanel({
 function PaymentPanel({ ticket }: { ticket: TicketItem }) {
   const count = getTicketCount(ticket);
   const totalNum = Number(ticket.total);
-  const serviceFee = Number((ticket as any).serviceFee ?? 0);
-  const taxAmount = Number((ticket as any).taxAmount ?? 0);
+  const serviceFee = Number((ticket as TicketItem & { serviceFee?: number }).serviceFee ?? 0);
+  const taxAmount = Number((ticket as TicketItem & { taxAmount?: number }).taxAmount ?? 0);
   const totalLabel = totalNum === 0 ? "Free" : `CAD ${totalNum.toFixed(2)}`;
 
   return (
@@ -183,7 +183,7 @@ function PaymentPanel({ ticket }: { ticket: TicketItem }) {
                   <span className="font-medium text-amber-600">Pending</span>
                 </>
               ) : (
-                <span className="capitalize font-medium text-slate-500">
+                <span className="font-medium capitalize text-slate-500">
                   {ticket.status}
                 </span>
               )}
@@ -396,7 +396,9 @@ function AccountTicketsInner() {
                     <div className="mt-3.5 flex items-center justify-between">
                       <div
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium ${
-                          isPaid ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"
+                          isPaid
+                            ? "bg-green-50 text-green-700"
+                            : "bg-amber-50 text-amber-600"
                         }`}
                       >
                         <Ticket className="h-3 w-3" />
@@ -491,4 +493,4 @@ export default function AccountTickets() {
       <AccountTicketsInner />
     </Suspense>
   );
-                  }
+                }
