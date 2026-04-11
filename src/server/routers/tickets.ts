@@ -332,8 +332,12 @@ export const ticketsRouter = router({
           stripeSessionId: null,
         });
 
-        const ticketId = (inserted as { insertId: number }).insertId;
+type InsertResult = {
+  insertId: number;
+};
 
+const ticketId = (inserted as unknown as InsertResult).insertId;
+        
         if (!ticketId) {
           throw new Error("Failed to create ticket record");
         }
