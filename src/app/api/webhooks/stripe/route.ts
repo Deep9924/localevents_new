@@ -8,6 +8,7 @@ function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY is not set");
   }
+
   return new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: "2026-03-25.dahlia",
   });
@@ -21,6 +22,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No signature" }, { status: 400 });
   }
 
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: "STRIPE_WEBHOOK_SECRET is not set" },
+      { status: 500 }
+    );
+  }
+
   const stripe = getStripe();
 
   let event: Stripe.Event;
@@ -28,11 +36,14 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(
       body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err: any) {
     console.error("Stripe webhook signature failed:", err.message);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid signature", details: err.message },
+      { status: 400 }
+    );
   }
 
   const db = await getDb();
@@ -41,62 +52,69 @@ export async function POST(req: NextRequest) {
   }
 
   switch (event.type) {
-
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const { ticketId, tierId, quantity } = session.metadata ?? {};
+      const ticketIdsRaw = session.metadata?.ticketIds ?? "";
+      const ticketIds = ticketIdsRaw
+        .split(",")
+        .map((id) => Number(id.trim()))
+        .filter((id) => Number.isFinite(id) && id > 0);
 
-      if (ticketId) {
+      for (const ticketId of ticketIds) {
+        const ticketRows = await db
+          .select()
+          .from(tickets)
+          .where(eq(tickets.id, ticketId))
+          .limit(1);
+
+        const ticket = ticketRows[0];
+        if (!ticket) continue;
+
         await db
           .update(tickets)
-          .set({ status: "paid", stripeSessionId: session.id })
-          .where(eq(tickets.id, Number(ticketId)));
+          .set({
+            status: "paid",
+            stripeSessionId: session.id,
+          })
+          .where(eq(tickets.id, ticketId));
 
-        if (tierId && tierId !== "" && quantity) {
+        if (ticket.tierId) {
           const tierRows = await db
             .select()
             .from(ticketTiers)
-            .where(eq(ticketTiers.id, Number(tierId)))
+            .where(eq(ticketTiers.id, Number(ticket.tierId)))
             .limit(1);
 
           const tier = tierRows[0];
           if (tier) {
             await db
               .update(ticketTiers)
-              .set({ sold: Number(tier.sold ?? 0) + Number(quantity) })
-              .where(eq(ticketTiers.id, Number(tierId)));
+              .set({
+                sold: Number(tier.sold ?? 0) + Number(ticket.quantity ?? 0),
+              })
+              .where(eq(ticketTiers.id, Number(ticket.tierId)));
           }
         }
       }
+
       break;
     }
 
     case "checkout.session.expired": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const { ticketId } = session.metadata ?? {};
+      const ticketIdsRaw = session.metadata?.ticketIds ?? "";
+      const ticketIds = ticketIdsRaw
+        .split(",")
+        .map((id) => Number(id.trim()))
+        .filter((id) => Number.isFinite(id) && id > 0);
 
-      if (ticketId) {
+      for (const ticketId of ticketIds) {
         await db
           .update(tickets)
           .set({ status: "pending" })
-          .where(eq(tickets.id, Number(ticketId)));
+          .where(eq(tickets.id, ticketId));
       }
-      break;
-    }
 
-    case "charge.refunded": {
-      const charge = event.data.object as Stripe.Charge;
-      const sessionId =
-        typeof charge.payment_intent === "string"
-          ? charge.payment_intent
-          : charge.payment_intent?.id;
-
-      if (sessionId) {
-        await db
-          .update(tickets)
-          .set({ status: "refunded" })
-          .where(eq(tickets.stripeSessionId, sessionId));
-      }
       break;
     }
 

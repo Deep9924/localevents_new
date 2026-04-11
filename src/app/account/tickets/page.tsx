@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/server/auth";
+import { auth } from "@/auth";
+import { getUserByOpenId } from "@/server/db/users";
 import { getUserTickets, type TicketFilter } from "@/server/db/tickets";
 import AccountTicketsClient from "@/components/account/AccountTicketsClient";
 
@@ -10,19 +10,31 @@ type PageProps = {
   }>;
 };
 
-export default async function AccountTicketsPage({ searchParams }: PageProps) {
-  const session = await getServerSession(authOptions);
+export default async function TicketsPage({ searchParams }: PageProps) {
+  const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/signin");
+    redirect("/login");
+  }
+
+  const dbUser = await getUserByOpenId(session.user.id);
+
+  if (!dbUser) {
+    redirect("/login");
   }
 
   const params = (await searchParams) ?? {};
   const rawFilter = params.filter;
+
   const filter: TicketFilter =
     rawFilter === "past" || rawFilter === "all" ? rawFilter : "upcoming";
 
-  const tickets = await getUserTickets(Number(session.user.id), filter);
+  const userTickets = await getUserTickets(dbUser.id, filter);
 
-  return <AccountTicketsClient initialTickets={tickets} initialFilter={filter} />;
+  return (
+    <AccountTicketsClient
+      initialTickets={userTickets}
+      initialFilter={filter}
+    />
+  );
 }

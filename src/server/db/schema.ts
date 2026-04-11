@@ -6,12 +6,7 @@ import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, double } from "dr
  * Columns use camelCase to match both database fields and generated types.
  */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -145,7 +140,7 @@ export const tickets = mysqlTable("tickets", {
   currency: varchar("currency", { length: 10 }).notNull(),
   unitPrice: double("unitPrice").notNull(),
   subtotal: double("subtotal").notNull(),
-  serviceFee: double("serviceFee").default(0),
+  processingFee: double("processingFee").default(0),
   taxAmount: double("taxAmount").default(0),
   total: double("total").notNull(),
   status: mysqlEnum("status", ["paid", "refunded", "pending"])
@@ -157,3 +152,19 @@ export const tickets = mysqlTable("tickets", {
 
 export type Ticket = typeof tickets.$inferSelect;
 export type InsertTicket = typeof tickets.$inferInsert;
+
+export const taxRates = mysqlTable("taxRates", {
+  id: int("id").autoincrement().primaryKey(),
+  provinceCode: varchar("provinceCode", { length: 2 }).notNull().unique(),
+  provinceName: varchar("provinceName", { length: 100 }).notNull(),
+  gstRate: double("gstRate").notNull().default(0),
+  pstRate: double("pstRate").notNull().default(0),
+  hstRate: double("hstRate").notNull().default(0),
+  totalRate: double("totalRate").notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TaxRate = typeof taxRates.$inferSelect;
+export type InsertTaxRate = typeof taxRates.$inferInsert;

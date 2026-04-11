@@ -1,10 +1,10 @@
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { getDb } from "@/server/db/client";
 import { getUserTickets } from "@/server/db/tickets";
-import { events, ticketTiers, tickets } from "@/server/db/schema";
+import { events, ticketTiers, tickets, taxRates } from "@/server/db/schema";
 import { z } from "zod";
 import Stripe from "stripe";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -12,19 +12,65 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
-const TAX_RATE = 0;
-const SERVICE_FEE_PERCENT = 0.03;
+const DOMESTIC_PROCESSING_PERCENT_FEE = 0.05;
+const INTERNATIONAL_PROCESSING_PERCENT_FEE = 0.06;
+const PROCESSING_FIXED_FEE_CAD = 1.5;
 
-type LineItem = {
-  price_data: {
-    currency: string;
-    product_data: { name: string; description?: string };
-    unit_amount: number;
-  };
-  quantity: number;
-};
+const PROVINCE_CODES = [
+  "AB",
+  "BC",
+  "MB",
+  "NB",
+  "NL",
+  "NS",
+  "NT",
+  "NU",
+  "ON",
+  "PE",
+  "QC",
+  "SK",
+  "YT",
+] as const;
+
+const COUNTRY_CODES = ["CA", "US"] as const;
+
+const checkoutLineItemSchema = z.object({
+  tierId: z.number().nullable(),
+  quantity: z.number().int().min(1).max(100),
+});
 
 export const ticketsRouter = router({
+  getTaxRates: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    return db.select().from(taxRates).where(eq(taxRates.isActive, 1));
+  }),
+
+  getTaxRateByProvince: publicProcedure
+    .input(
+      z.object({
+        provinceCode: z.enum(PROVINCE_CODES),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const result = await db
+        .select()
+        .from(taxRates)
+        .where(
+          and(
+            eq(taxRates.provinceCode, input.provinceCode),
+            eq(taxRates.isActive, 1)
+          )
+        )
+        .limit(1);
+
+      return result[0] ?? null;
+    }),
+
   list: protectedProcedure
     .input(
       z
@@ -73,15 +119,25 @@ export const ticketsRouter = router({
 
   createCheckoutSession: protectedProcedure
     .input(
-      z.object({
-        eventId: z.string(),
-        quantity: z.number().min(1).max(100),
-        tierId: z.number().optional(),
-      })
+      z
+        .object({
+          eventId: z.string(),
+          lineItems: z.array(checkoutLineItemSchema).min(1),
+          billingProvince: z.enum(PROVINCE_CODES),
+          firstName: z.string().min(1).max(100),
+          lastName: z.string().min(1).max(100),
+          email: z.string().email(),
+          confirmEmail: z.string().email(),
+          country: z.enum(COUNTRY_CODES),
+        })
+        .refine((data) => data.email === data.confirmEmail, {
+          message: "Emails do not match",
+          path: ["confirmEmail"],
+        })
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const userEmail = ctx.user.email || undefined;
+      const userEmail = input.email || ctx.user.email || undefined;
 
       if (!stripe) throw new Error("Stripe secret key not configured");
 
@@ -97,160 +153,331 @@ export const ticketsRouter = router({
       if (eventResult.length === 0) throw new Error("Event not found");
       const event = eventResult[0];
 
-      let unitPriceDollars = 0;
-      let tierName = "Standard Ticket";
-      let tier: typeof ticketTiers.$inferSelect | null = null;
+      const normalizedItems = input.lineItems.filter((item) => item.quantity > 0);
+      if (normalizedItems.length === 0) {
+        throw new Error("Please select at least one ticket.");
+      }
 
-      if (input.tierId) {
-        const tierResult = await db
-          .select()
-          .from(ticketTiers)
-          .where(eq(ticketTiers.id, input.tierId))
-          .limit(1);
+      const taxRateResult = await db
+        .select()
+        .from(taxRates)
+        .where(
+          and(
+            eq(taxRates.provinceCode, input.billingProvince),
+            eq(taxRates.isActive, 1)
+          )
+        )
+        .limit(1);
 
-        if (tierResult.length === 0) throw new Error("Ticket tier not found");
-        tier = tierResult[0];
+      const taxRate = taxRateResult[0];
+      if (!taxRate) {
+        throw new Error(`Tax rate not found for province: ${input.billingProvince}`);
+      }
 
-        if (tier.eventId !== input.eventId) {
-          throw new Error("Ticket tier does not belong to this event");
-        }
-        if (tier.isActive === 0) {
-          throw new Error("This ticket tier is no longer available");
-        }
-        if (tier.quantity && Number(tier.sold ?? 0) >= Number(tier.quantity)) {
-          throw new Error("This ticket tier is sold out");
-        }
+      const gstRate = Number(taxRate.gstRate);
+      const pstRate = Number(taxRate.pstRate);
+      const hstRate = Number(taxRate.hstRate);
 
-        unitPriceDollars = Number(tier.price);
-        tierName = tier.name;
-      } else {
-        if (event.price !== "Free" && event.price !== null) {
-          const parsed = parseFloat(String(event.price).replace(/[^d.]/g, ""));
-          unitPriceDollars = isNaN(parsed) ? 0 : parsed;
+      const isInternational = input.country.toUpperCase() !== "CA";
+      const processingPercentFee = isInternational
+        ? INTERNATIONAL_PROCESSING_PERCENT_FEE
+        : DOMESTIC_PROCESSING_PERCENT_FEE;
+
+      const pricedItems: Array<{
+        tierId: number | null;
+        quantity: number;
+        tierName: string;
+        unitPriceDollars: number;
+        unitPriceCents: number;
+        subtotalDollars: number;
+        subtotalCents: number;
+        tierRow: typeof ticketTiers.$inferSelect | null;
+      }> = [];
+
+      for (const item of normalizedItems) {
+        if (item.tierId) {
+          const tierResult = await db
+            .select()
+            .from(ticketTiers)
+            .where(eq(ticketTiers.id, item.tierId))
+            .limit(1);
+
+          if (tierResult.length === 0) throw new Error("Ticket tier not found");
+          const tier = tierResult[0];
+
+          if (tier.eventId !== input.eventId) {
+            throw new Error("Ticket tier does not belong to this event");
+          }
+
+          if (tier.isActive === 0) {
+            throw new Error(`"${tier.name}" is no longer available`);
+          }
+
+          const sold = Number(tier.sold ?? 0);
+          const quantityLimit = tier.quantity ? Number(tier.quantity) : null;
+
+          if (quantityLimit !== null && sold >= quantityLimit) {
+            throw new Error(`"${tier.name}" is sold out`);
+          }
+
+          if (quantityLimit !== null && sold + item.quantity > quantityLimit) {
+            throw new Error(`Not enough "${tier.name}" tickets remaining`);
+          }
+
+          const unitPriceDollars = Number(tier.price);
+          const subtotalDollars = unitPriceDollars * item.quantity;
+
+          pricedItems.push({
+            tierId: tier.id,
+            quantity: item.quantity,
+            tierName: tier.name,
+            unitPriceDollars,
+            unitPriceCents: Math.round(unitPriceDollars * 100),
+            subtotalDollars,
+            subtotalCents: Math.round(subtotalDollars * 100),
+            tierRow: tier,
+          });
+        } else {
+          let unitPriceDollars = 0;
+
+          if (event.price !== "Free" && event.price !== null) {
+            const parsed = parseFloat(String(event.price).replace(/[^\d.]/g, ""));
+            unitPriceDollars = isNaN(parsed) ? 0 : parsed;
+          }
+
+          const subtotalDollars = unitPriceDollars * item.quantity;
+
+          pricedItems.push({
+            tierId: null,
+            quantity: item.quantity,
+            tierName: "Standard Ticket",
+            unitPriceDollars,
+            unitPriceCents: Math.round(unitPriceDollars * 100),
+            subtotalDollars,
+            subtotalCents: Math.round(subtotalDollars * 100),
+            tierRow: null,
+          });
         }
       }
 
-      const subtotalDollars = unitPriceDollars * input.quantity;
-      const serviceFeeAmountDollars =
-        Math.round(subtotalDollars * SERVICE_FEE_PERCENT * 100) / 100;
-      const taxAmountDollars =
-        Math.round(subtotalDollars * TAX_RATE * 100) / 100;
-      const totalDollars =
-        subtotalDollars + serviceFeeAmountDollars + taxAmountDollars;
+      const subtotalDollars = pricedItems.reduce(
+        (sum, item) => sum + item.subtotalDollars,
+        0
+      );
 
-      const unitPriceCents = Math.round(unitPriceDollars * 100);
-      const serviceFeeAmountCents = Math.round(serviceFeeAmountDollars * 100);
-      const taxAmountCents = Math.round(taxAmountDollars * 100);
+      const processingFeeDollars =
+        subtotalDollars > 0
+          ? Math.round(
+              (subtotalDollars * processingPercentFee + PROCESSING_FIXED_FEE_CAD) * 100
+            ) / 100
+          : 0;
+
+      const gstAmountDollars = Math.round(subtotalDollars * gstRate * 100) / 100;
+      const pstAmountDollars = Math.round(subtotalDollars * pstRate * 100) / 100;
+      const hstAmountDollars = Math.round(subtotalDollars * hstRate * 100) / 100;
+      const totalTaxDollars = gstAmountDollars + pstAmountDollars + hstAmountDollars;
+      const totalDollars = subtotalDollars + processingFeeDollars + totalTaxDollars;
+
+      const processingFeeCents = Math.round(processingFeeDollars * 100);
+      const gstAmountCents = Math.round(gstAmountDollars * 100);
+      const pstAmountCents = Math.round(pstAmountDollars * 100);
+      const hstAmountCents = Math.round(hstAmountDollars * 100);
+      const totalTaxCents = Math.round(totalTaxDollars * 100);
       const totalCents = Math.round(totalDollars * 100);
 
-      if (unitPriceCents === 0) {
-        await db.insert(tickets).values({
+      const allFree = pricedItems.every((item) => item.unitPriceCents === 0);
+
+      const createdTicketIds: number[] = [];
+
+      for (const item of pricedItems) {
+        const itemShare =
+          subtotalDollars > 0 ? item.subtotalDollars / subtotalDollars : 0;
+
+        const itemProcessingFeeDollars = allFree
+          ? 0
+          : Math.round(processingFeeDollars * itemShare * 100) / 100;
+
+        const itemTaxAmountDollars = allFree
+          ? 0
+          : Math.round(totalTaxDollars * itemShare * 100) / 100;
+
+        const itemTotalDollars =
+          item.subtotalDollars + itemProcessingFeeDollars + itemTaxAmountDollars;
+
+        const inserted = await db.insert(tickets).values({
           userId,
           eventId: input.eventId,
-          tierId: input.tierId ?? null,
-          quantity: input.quantity,
+          tierId: item.tierId,
+          quantity: item.quantity,
           currency: "CAD",
-          unitPrice: 0,
-          subtotal: 0,
-          serviceFee: 0,
-          taxAmount: 0,
-          total: 0,
-          status: "paid",
+          unitPrice: item.unitPriceDollars,
+          subtotal: item.subtotalDollars,
+          processingFee: itemProcessingFeeDollars,
+          taxAmount: itemTaxAmountDollars,
+          total: itemTotalDollars,
+          status: allFree ? "paid" : "pending",
+          stripeSessionId: null,
         });
 
-        if (tier && input.tierId) {
-          await db
-            .update(ticketTiers)
-            .set({ sold: Number(tier.sold ?? 0) + input.quantity })
-            .where(eq(ticketTiers.id, input.tierId));
+        const ticketId =
+          (inserted as any).insertId ??
+          (Array.isArray(inserted) ? inserted[0]?.insertId : null);
+
+        if (!ticketId) {
+          throw new Error("Failed to create ticket record");
         }
 
-        return { success: true, free: true };
+        createdTicketIds.push(Number(ticketId));
       }
 
-      const [inserted] = await db.insert(tickets).values({
-        userId,
-        eventId: input.eventId,
-        tierId: input.tierId ?? null,
-        quantity: input.quantity,
-        currency: "CAD",
-        unitPrice: unitPriceDollars,
-        subtotal: subtotalDollars,
-        serviceFee: serviceFeeAmountDollars,
-        taxAmount: taxAmountDollars,
-        total: totalDollars,
-        status: "pending",
-        stripeSessionId: null,
-      });
+      if (allFree) {
+        for (const item of pricedItems) {
+          if (item.tierId && item.tierRow) {
+            await db
+              .update(ticketTiers)
+              .set({
+                sold: Number(item.tierRow.sold ?? 0) + item.quantity,
+              })
+              .where(eq(ticketTiers.id, item.tierId));
+          }
+        }
 
-      const ticketId = (inserted as any).insertId;
+        return {
+          success: true,
+          free: true,
+          ticketIds: createdTicketIds,
+        };
+      }
 
-      const lineItems: LineItem[] = [
-        {
+      const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+        pricedItems.map((item) => ({
           price_data: {
             currency: "cad",
             product_data: {
               name: String(event.title),
-              description: `${tierName} × ${input.quantity}`,
+              description: `${item.tierName} × ${item.quantity}`,
             },
-            unit_amount: unitPriceCents,
+            unit_amount: item.unitPriceCents,
           },
-          quantity: input.quantity,
-        },
-      ];
+          quantity: item.quantity,
+        }));
 
-      if (serviceFeeAmountCents > 0) {
-        lineItems.push({
+      const processingFeeLabel = isInternational
+        ? `Processing Fee (International card: ${(processingPercentFee * 100).toFixed(0)}% + $${PROCESSING_FIXED_FEE_CAD.toFixed(2)})`
+        : `Processing Fee (${(processingPercentFee * 100).toFixed(0)}% + $${PROCESSING_FIXED_FEE_CAD.toFixed(2)})`;
+
+      if (processingFeeCents > 0) {
+        stripeLineItems.push({
           price_data: {
             currency: "cad",
-            product_data: { name: "Service Fee (3%)" },
-            unit_amount: Math.round(serviceFeeAmountCents / input.quantity),
+            product_data: {
+              name: processingFeeLabel,
+              description: isInternational
+                ? "Payment processing and platform costs for international cards"
+                : "Payment processing and platform costs",
+            },
+            unit_amount: processingFeeCents,
           },
-          quantity: input.quantity,
+          quantity: 1,
         });
       }
 
-      if (taxAmountCents > 0) {
-        lineItems.push({
+      if (gstAmountCents > 0) {
+        stripeLineItems.push({
           price_data: {
             currency: "cad",
-            product_data: { name: `Tax (${TAX_RATE * 100}%)` },
-            unit_amount: Math.round(taxAmountCents / input.quantity),
+            product_data: {
+              name: `GST (${(gstRate * 100).toFixed(2)}%)`,
+            },
+            unit_amount: gstAmountCents,
           },
-          quantity: input.quantity,
+          quantity: 1,
+        });
+      }
+
+      if (pstAmountCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad",
+            product_data: {
+              name: `PST (${(pstRate * 100).toFixed(2)}%)`,
+            },
+            unit_amount: pstAmountCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      if (hstAmountCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad",
+            product_data: {
+              name: `HST (${(hstRate * 100).toFixed(2)}%)`,
+            },
+            unit_amount: hstAmountCents,
+          },
+          quantity: 1,
         });
       }
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: lineItems,
         mode: "payment",
+        line_items: stripeLineItems,
         customer_email: userEmail,
+        billing_address_collection: "required",
         success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?success=true`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/${event.citySlug}/${event.slug}`,
         metadata: {
-          ticketId: String(ticketId),
+          ticketIds: createdTicketIds.join(","),
           userId: String(userId),
           eventId: input.eventId,
-          tierId: input.tierId ? String(input.tierId) : "",
-          quantity: String(input.quantity),
-          unitPrice: String(unitPriceCents),
-          serviceFee: String(serviceFeeAmountCents),
-          taxAmount: String(taxAmountCents),
+          billingProvince: input.billingProvince,
+          country: input.country,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email,
+          subtotal: String(Math.round(subtotalDollars * 100)),
+          processingFee: String(processingFeeCents),
+          processingPercentFee: String(processingPercentFee),
+          processingFixedFee: String(PROCESSING_FIXED_FEE_CAD),
+          isInternational: String(isInternational),
+          gstAmount: String(gstAmountCents),
+          pstAmount: String(pstAmountCents),
+          hstAmount: String(hstAmountCents),
+          taxAmount: String(totalTaxCents),
           total: String(totalCents),
         },
       });
+
+      for (const ticketId of createdTicketIds) {
+        await db
+          .update(tickets)
+          .set({
+            stripeSessionId: session.id,
+          })
+          .where(eq(tickets.id, ticketId));
+      }
 
       return {
         success: true,
         free: false,
         url: session.url,
+        ticketIds: createdTicketIds,
         breakdown: {
-          unitPrice: unitPriceDollars,
           subtotal: subtotalDollars,
-          tax: taxAmountDollars,
-          serviceFee: serviceFeeAmountDollars,
+          processingFee: processingFeeDollars,
+          processingPercentFee,
+          processingFixedFee: PROCESSING_FIXED_FEE_CAD,
+          isInternational,
+          gst: gstAmountDollars,
+          pst: pstAmountDollars,
+          hst: hstAmountDollars,
+          tax: totalTaxDollars,
           total: totalDollars,
+          provinceCode: input.billingProvince,
+          provinceName: taxRate.provinceName,
         },
       };
     }),

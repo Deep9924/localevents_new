@@ -199,7 +199,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: Props) {
 
       {/* Main content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-28 lg:pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 lg:gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 lg:gap-12">
 
           {/* ── LEFT column ── */}
           <div>
@@ -339,7 +339,7 @@ export default function EventDetailPage({ citySlug, eventSlug }: Props) {
             <div className="border-t border-gray-100 mb-8" />
 
             {/* Terms & Conditions */}
-            <section className="mb-2">
+            <section className="mb-0">
               <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-gray-400" />
@@ -369,32 +369,26 @@ export default function EventDetailPage({ citySlug, eventSlug }: Props) {
           </div>
 
           {/* ── RIGHT sidebar (desktop only) ── */}
-          {/*
-            STICKY FIX: Do NOT use inline style position:sticky — Tailwind's
-            sticky class is processed differently and avoids the overflow:hidden
-            ancestor issue common in Next.js app router layouts.
-            Adjust the top-[Xpx] value to match your navbar height exactly.
-          */}
           <div className="hidden lg:block">
-            <div className="sticky top-[80px]">
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-                <EventDetailSidebar {...sidebarProps} />
-              </div>
-            </div>
-          </div>
+  <div className="sticky top-[125px]">
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+      <EventDetailSidebar {...sidebarProps} />
+    </div>
+  </div>
+</div>
 
         </div>{/* end grid */}
 
         {/* Similar events */}
         {(similarEvents as any[]).length > 0 && (
           <section className="mt-12 pt-8 border-t border-gray-100">
-            <h2
-              className="text-base font-bold text-gray-900 mb-4"
-              style={{ fontFamily: "'Sora', sans-serif" }}
-            >
-              More events like this ✨
-            </h2>
-            <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory scrollbar-hide">
+            <div className="flex items-center gap-3 mb-5">
+  <div className="w-1 h-5 rounded-full bg-indigo-600" />
+  <h2 className="text-base font-bold text-gray-900 tracking-tight">
+    You might also like
+  </h2>
+</div>
+            <div className="flex gap-4 overflow-x-auto pb-2 px-4 sm:px-6 snap-x snap-mandatory scrollbar-hide">
               {(similarEvents as any[]).map((e) => (
                 <div key={e.id} className="shrink-0 w-[200px] sm:w-[220px] snap-start">
                   <EventCard event={e} citySlug={citySlug} />

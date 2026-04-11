@@ -26,9 +26,10 @@ export function EventDetailSidebar({
 
   return (
     <div className="space-y-4">
+
       {/* Price */}
       <div className="pb-4 border-b border-gray-100">
-        <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-1">
+        <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-0.5">
           Tickets from
         </p>
         <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-gray-900"}`}>
@@ -36,44 +37,41 @@ export function EventDetailSidebar({
             ? `CAD $${selectedPrice.toFixed(2)}`
             : displayPrice ?? "Free"}
         </p>
-        {!isFree && (
-          <p className="text-xs text-gray-400 mt-0.5">Per person · No hidden fees</p>
-        )}
       </div>
 
-      {/* Ticket tiers — only shown when tiers exist */}
+      {/* Ticket tiers */}
       {tiers.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium">
-            Select ticket type
+        <div>
+          <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-3">
+            Ticket types
           </p>
-          {tiers.map(tier => {
-            const tierPrice = Number(tier.price);
-            const isSelected = selectedTierId === tier.id;
-            return (
-              <button
-                key={tier.id}
-                onClick={() => onSelectTier(tier.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left transition-colors
-                  ${isSelected
-                    ? "border-indigo-600 bg-indigo-50 text-indigo-800"
-                    : "border-gray-200 hover:border-indigo-200 hover:bg-gray-50 text-gray-700"
-                  }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold leading-tight truncate">{tier.name}</p>
-                  {tier.description && (
-                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">{tier.description}</p>
-                  )}
+          <div className="divide-y divide-gray-50">
+            {tiers.map(tier => {
+              const tierPrice = Number(tier.price);
+              return (
+                <div key={tier.id} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 leading-snug">
+                      {tier.name}
+                    </p>
+                    {tier.description && (
+                      <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                        {tier.description}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-gray-900 shrink-0 pt-px">
+                    {tierPrice === 0 ? "Free" : `$${tierPrice.toFixed(2)}`}
+                  </p>
                 </div>
-                <p className={`text-sm font-bold shrink-0 ml-3 ${isSelected ? "text-indigo-700" : "text-gray-900"}`}>
-                  {tierPrice === 0 ? "Free" : `$${tierPrice.toFixed(2)}`}
-                </p>
-              </button>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {/* Divider before CTA */}
+      {tiers.length > 0 && <div className="border-t border-gray-100" />}
 
       {/* Get Tickets CTA */}
       <Button
@@ -93,6 +91,7 @@ export function EventDetailSidebar({
       <p className="text-center text-[11px] text-gray-300">
         Secure checkout · LocalEvents
       </p>
+
     </div>
   );
 }

@@ -5,13 +5,15 @@ import { eq, desc } from "drizzle-orm";
 export type TicketFilter = "upcoming" | "past" | "all";
 
 function parseEventDate(dateStr: string, timeStr?: string): Date {
-  if (/^d{4}-d{2}-d{2}$/.test(dateStr)) {
+  if (!dateStr) return new Date("2099-01-01T12:00:00");
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const d = new Date(`${dateStr}T${timeStr || "12:00"}:00`);
     if (!isNaN(d.getTime())) return d;
   }
 
   const currentYear = new Date().getFullYear();
-  const normalized = /d{4}/.test(dateStr) ? dateStr : `${dateStr}, ${currentYear}`;
+  const normalized = /\d{4}/.test(dateStr) ? dateStr : `${dateStr}, ${currentYear}`;
   const d = new Date(`${normalized} ${timeStr || "12:00"}`);
   if (!isNaN(d.getTime())) return d;
 
@@ -39,7 +41,7 @@ export async function getUserTickets(
       currency: tickets.currency,
       unitPrice: tickets.unitPrice,
       subtotal: tickets.subtotal,
-      serviceFee: tickets.serviceFee,
+      processingFee: tickets.processingFee,
       taxAmount: tickets.taxAmount,
       total: tickets.total,
       status: tickets.status,
@@ -74,7 +76,9 @@ export async function getUserTickets(
   const validRows = rows.filter(
     (ticket) =>
       ticket.event !== null &&
-      (ticket.status === "paid" || ticket.status === "pending")
+      (ticket.status === "paid" ||
+        ticket.status === "pending" ||
+        ticket.status === "refunded")
   );
 
   if (filter === "all") return validRows;
@@ -83,26 +87,29 @@ export async function getUserTickets(
 
   if (filter === "upcoming") {
     return validRows
-      .filter(
-        (ticket) =>
-          startOfDay(parseEventDate(ticket.event.date, ticket.event.time)) >=
-          today
-      )
+      .filter((ticket) => {
+        const eventDate = startOfDay(
+          parseEventDate(ticket.event.date, ticket.event.time ?? undefined)
+        );
+        return eventDate.getTime() >= today.getTime();
+      })
       .sort(
         (a, b) =>
-          parseEventDate(a.event.date, a.event.time).getTime() -
-          parseEventDate(b.event.date, b.event.time).getTime()
+          parseEventDate(a.event.date, a.event.time ?? undefined).getTime() -
+          parseEventDate(b.event.date, b.event.time ?? undefined).getTime()
       );
   }
 
   return validRows
-    .filter(
-      (ticket) =>
-        startOfDay(parseEventDate(ticket.event.date, ticket.event.time)) < today
-    )
+    .filter((ticket) => {
+      const eventDate = startOfDay(
+        parseEventDate(ticket.event.date, ticket.event.time ?? undefined)
+      );
+      return eventDate.getTime() < today.getTime();
+    })
     .sort(
       (a, b) =>
-        parseEventDate(b.event.date, b.event.time).getTime() -
-        parseEventDate(a.event.date, a.event.time).getTime()
+        parseEventDate(b.event.date, b.event.time ?? undefined).getTime() -
+        parseEventDate(a.event.date, a.event.time ?? undefined).getTime()
     );
 }

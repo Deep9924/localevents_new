@@ -1,5 +1,5 @@
 // src/server/context.ts
-import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import { getUserByOpenId } from "./db/index";
 import type { User } from "./db/schema";
 import { cookies } from "next/headers";
