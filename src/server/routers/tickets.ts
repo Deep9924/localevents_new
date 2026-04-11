@@ -1,496 +1,490 @@
-"use client";
+import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { getDb } from "@/server/db/client";
+import { getUserTickets } from "@/server/db/tickets";
+import { events, ticketTiers, tickets, taxRates } from "@/server/db/schema";
+import { z } from "zod";
+import Stripe from "stripe";
+import { eq, and } from "drizzle-orm";
 
-import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  ArrowLeft,
-  Ticket,
-  Calendar,
-  QrCode,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CreditCard,
-  MapPin,
-  CheckCircle,
-  Clock,
-} from "lucide-react";
-import QRCode from "react-qr-code";
-import { useRouter } from "next/navigation";
-import { useRef, useState, useCallback, Suspense } from "react";
-import { formatDate, formatTime } from "@/lib/utils";
-import type { AppRouter } from "@/server/routers";
-import type { inferRouterOutputs } from "@trpc/server";
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2026-03-25.dahlia",
+    })
+  : null;
 
-type RouterOutputs = inferRouterOutputs<AppRouter>;
-type TicketItem = RouterOutputs["tickets"]["list"][number];
+const DOMESTIC_PROCESSING_PERCENT_FEE = 0.05;
+const INTERNATIONAL_PROCESSING_PERCENT_FEE = 0.06;
+const PROCESSING_FIXED_FEE_CAD = 1.5;
 
-type FilterType = "upcoming" | "past";
-type ExpandedPanel = "qr" | "payment" | null;
+const PROVINCE_CODES = [
+  "AB",
+  "BC",
+  "MB",
+  "NB",
+  "NL",
+  "NS",
+  "NT",
+  "NU",
+  "ON",
+  "PE",
+  "QC",
+  "SK",
+  "YT",
+] as const;
 
-function getTicketCount(ticket: TicketItem): number {
-  return ticket.quantity || 1;
-}
+const COUNTRY_CODES = ["CA", "US"] as const;
 
-function QrPanel({
-  totalTickets,
-  ticketCode,
-}: {
-  totalTickets: number;
-  ticketCode: string;
-}) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+const checkoutLineItemSchema = z.object({
+  tierId: z.number().nullable(),
+  quantity: z.number().int().min(1).max(100),
+});
 
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setActiveIndex(Math.round(el.scrollLeft / el.clientWidth));
-  };
+export const ticketsRouter = router({
+  getTaxRates: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
 
-  const goTo = (i: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
+    return db.select().from(taxRates).where(eq(taxRates.isActive, 1));
+  }),
 
-    el.scrollTo({
-      left: i * el.clientWidth,
-      behavior: "smooth",
-    });
-  };
+  getTaxRateByProvince: publicProcedure
+    .input(
+      z.object({
+        provinceCode: z.enum(PROVINCE_CODES),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
 
-  return (
-    <div className="bg-slate-50/60 px-5 pb-7 pt-5">
-      <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-        Scan at Entry
-      </p>
+      const result = await db
+        .select()
+        .from(taxRates)
+        .where(
+          and(
+            eq(taxRates.provinceCode, input.provinceCode),
+            eq(taxRates.isActive, 1)
+          )
+        )
+        .limit(1);
 
-      <div className="relative">
-        {totalTickets > 1 && activeIndex > 0 && (
-          <button
-            type="button"
-            onClick={() => goTo(activeIndex - 1)}
-            className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-x-3 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
-          >
-            <ChevronLeft className="h-4 w-4 text-slate-600" />
-          </button>
-        )}
+      return result[0] ?? null;
+    }),
 
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {Array.from({ length: totalTickets }).map((_, i) => {
-            const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
+  list: protectedProcedure
+    .input(
+      z
+        .object({
+          filter: z.enum(["upcoming", "past", "all"]).default("all"),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      return getUserTickets(ctx.user.id, input?.filter ?? "all");
+    }),
 
-            return (
-              <div
-                key={i}
-                className="flex w-full min-w-full snap-center flex-col items-center py-1"
-              >
-                <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                  <QRCode
-                    value={codeValue}
-                    size={170}
-                    bgColor="#ffffff"
-                    fgColor="#0f172a"
-                  />
-                </div>
+  getById: protectedProcedure
+    .input(z.object({ ticketId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
 
-                <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
-                  {codeValue}
-                </p>
+      const result = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, input.ticketId))
+        .limit(1);
 
-                {totalTickets > 1 && (
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    {i + 1} / {totalTickets}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {totalTickets > 1 && activeIndex < totalTickets - 1 && (
-          <button
-            type="button"
-            onClick={() => goTo(activeIndex + 1)}
-            className="absolute right-0 top-1/2 z-10 flex h-8 w-8 translate-x-3 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
-          >
-            <ChevronRight className="h-4 w-4 text-slate-600" />
-          </button>
-        )}
-      </div>
-
-      {totalTickets > 1 && (
-        <div className="mt-3 flex justify-center gap-1.5">
-          {Array.from({ length: totalTickets }).map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => goTo(i)}
-              aria-label={`Go to ticket ${i + 1}`}
-              className={`h-1.5 rounded-full transition-all ${
-                i === activeIndex ? "w-5 bg-slate-700" : "w-1.5 bg-slate-300"
-              }`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PaymentPanel({ ticket }: { ticket: TicketItem }) {
-  const count = getTicketCount(ticket);
-  const totalNum = Number(ticket.total);
-  const serviceFee = Number((ticket as TicketItem & { serviceFee?: number }).serviceFee ?? 0);
-  const taxAmount = Number((ticket as TicketItem & { taxAmount?: number }).taxAmount ?? 0);
-  const totalLabel = totalNum === 0 ? "Free" : `CAD ${totalNum.toFixed(2)}`;
-
-  return (
-    <div className="bg-slate-50/60 px-5 pb-7 pt-5">
-      <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-        Payment Details
-      </p>
-
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="bg-slate-50/80 px-4 py-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Order Info
-          </p>
-
-          <div className="mb-1.5 flex items-center justify-between text-[12px]">
-            <span className="text-slate-400">Order ID</span>
-            <span className="font-mono font-medium text-slate-700">
-              #{String(ticket.id).toUpperCase()}
-            </span>
-          </div>
-
-          <div className="mb-1.5 flex items-center justify-between text-[12px]">
-            <span className="text-slate-400">Status</span>
-            <span className="inline-flex items-center gap-1">
-              {ticket.status === "paid" ? (
-                <>
-                  <CheckCircle className="h-3 w-3 text-green-600" />
-                  <span className="font-medium text-green-700">Confirmed</span>
-                </>
-              ) : ticket.status === "pending" ? (
-                <>
-                  <Clock className="h-3 w-3 text-amber-500" />
-                  <span className="font-medium text-amber-600">Pending</span>
-                </>
-              ) : (
-                <span className="font-medium capitalize text-slate-500">
-                  {ticket.status}
-                </span>
-              )}
-            </span>
-          </div>
-
-          {ticket.createdAt != null && (
-            <div className="flex items-center justify-between text-[12px]">
-              <span className="text-slate-400">Purchased</span>
-              <span className="text-slate-700">
-                {new Date(String(ticket.createdAt)).toLocaleDateString("en-CA", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-dashed border-slate-200" />
-
-        <div className="px-4 py-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Price Summary
-          </p>
-
-          <div className="mb-1.5 flex items-center justify-between text-[12px]">
-            <span className="text-slate-500">Quantity</span>
-            <span className="font-medium text-slate-700">
-              {count} {count === 1 ? "ticket" : "tickets"}
-            </span>
-          </div>
-
-          {serviceFee > 0 && (
-            <div className="mb-1.5 flex items-center justify-between text-[12px]">
-              <span className="text-slate-500">Service fee</span>
-              <span className="text-slate-700">CAD {serviceFee.toFixed(2)}</span>
-            </div>
-          )}
-
-          {taxAmount > 0 && (
-            <div className="mb-1.5 flex items-center justify-between text-[12px]">
-              <span className="text-slate-500">Tax</span>
-              <span className="text-slate-700">CAD {taxAmount.toFixed(2)}</span>
-            </div>
-          )}
-
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="text-sm font-semibold text-slate-700">Total paid</span>
-            <span className="text-sm font-bold text-slate-900">{totalLabel}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AccountTicketsInner() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth({
-    redirectOnUnauthenticated: true,
-  });
-
-  const router = useRouter();
-  const [filterType, setFilterType] = useState<FilterType>("upcoming");
-  const [expanded, setExpanded] = useState<Record<number, ExpandedPanel>>({});
-
-  const { data: tickets = [], isLoading: ticketsLoading } =
-    trpc.tickets.list.useQuery(
-      { filter: filterType },
-      { enabled: !!user }
-    );
-
-  const togglePanel = useCallback((id: number, panel: ExpandedPanel) => {
-    setExpanded((prev) => ({
-      ...prev,
-      [id]: prev[id] === panel ? null : panel,
-    }));
-  }, []);
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !user) return null;
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-3xl px-4 py-4">
-          <div className="mb-5 flex items-center gap-4">
-            <button
-              onClick={() => router.push("/account/profile")}
-              className="group flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 transition hover:bg-slate-100"
-            >
-              <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:-translate-x-0.5" />
-            </button>
-
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              My Tickets
-            </h1>
-          </div>
-
-          <div className="flex rounded-2xl bg-slate-100 p-1">
-            {(["upcoming", "past"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  setFilterType(type);
-                  setExpanded({});
-                }}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                  filterType === type
-                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/50"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {type === "upcoming" ? "Upcoming" : "Past Events"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        {ticketsLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-64 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm"
-              />
-            ))}
-          </div>
-        ) : tickets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50">
-              <Ticket className="h-8 w-8 text-slate-300" />
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900">
-              {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Time to discover some amazing events!
-            </p>
-
-            <Button
-              onClick={() => router.push("/")}
-              className="mt-6 rounded-2xl bg-slate-900 px-8 py-6 text-sm font-bold hover:bg-slate-800"
-            >
-              Explore Events
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {tickets.map((ticket) => {
-              const event = ticket.event;
-              if (!event) return null;
-
-              const count = getTicketCount(ticket);
-              const openPanel = expanded[ticket.id];
-              const ticketCode = `TKT-${String(ticket.id).padStart(6, "0")}`;
-              const isPaid = ticket.status === "paid";
-
-              return (
-                <div
-                  key={ticket.id}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <button
-                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
-                    className="group relative block w-full overflow-hidden"
-                  >
-                    <div className="relative h-48 w-full sm:h-52">
-                      <img
-                        src={event.image || "/placeholder-event.jpg"}
-                        alt={event.title ?? "Event"}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    </div>
-                  </button>
-
-                  <div className="px-5 pb-3 pt-4">
-                    <h3 className="text-[16px] font-bold leading-snug text-slate-900">
-                      {event.title}
-                    </h3>
-
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {event.city} · {event.category}
-                    </p>
-
-                    <div className="mt-3 flex flex-col gap-1.5">
-                      <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
-                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        {formatDate(event.date)} · {formatTime(event.time)}
-                      </span>
-
-                      <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate">{event.venue ?? event.city}</span>
-                      </span>
-                    </div>
-
-                    <div className="mt-3.5 flex items-center justify-between">
-                      <div
-                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium ${
-                          isPaid
-                            ? "bg-green-50 text-green-700"
-                            : "bg-amber-50 text-amber-600"
-                        }`}
-                      >
-                        <Ticket className="h-3 w-3" />
-                        {isPaid
-                          ? `${count} ${count === 1 ? "ticket" : "tickets"} confirmed`
-                          : "Payment pending"}
-                      </div>
-
-                      {event.price && (
-                        <span className="text-[13px] font-semibold text-slate-700">
-                          {event.price}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mx-5 border-t border-slate-100" />
-
-                  <div className="grid grid-cols-2 gap-2 px-5 pb-5 pt-3">
-                    <button
-                      onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors ${
-                        openPanel === "payment"
-                          ? "bg-slate-900 text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                      }`}
-                    >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      Payment
-                      <ChevronDown
-                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                          openPanel === "payment" ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-
-                    <button
-                      onClick={() => isPaid && togglePanel(ticket.id, "qr")}
-                      disabled={!isPaid}
-                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors ${
-                        !isPaid
-                          ? "cursor-not-allowed bg-slate-50 text-slate-300"
-                          : openPanel === "qr"
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                      }`}
-                    >
-                      <QrCode className="h-3.5 w-3.5" />
-                      {isPaid ? "QR Code" : "Pending"}
-                      {isPaid && (
-                        <ChevronDown
-                          className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                            openPanel === "qr" ? "rotate-180" : ""
-                          }`}
-                        />
-                      )}
-                    </button>
-                  </div>
-
-                  {openPanel === "payment" && (
-                    <>
-                      <div className="mx-5 border-t border-slate-100" />
-                      <PaymentPanel ticket={ticket} />
-                    </>
-                  )}
-
-                  {openPanel === "qr" && isPaid && (
-                    <>
-                      <div className="mx-5 border-t border-slate-100" />
-                      <QrPanel totalTickets={count} ticketCode={ticketCode} />
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function AccountTickets() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-50">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        </div>
+      const ticket = result[0];
+      if (!ticket || ticket.userId !== ctx.user.id) {
+        throw new Error("Ticket not found or access denied");
       }
-    >
-      <AccountTicketsInner />
-    </Suspense>
-  );
-                }
+
+      return ticket;
+    }),
+
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const userTickets = await getUserTickets(ctx.user.id, "all");
+
+    return {
+      total: userTickets.length,
+      paid: userTickets.filter((t) => t.status === "paid").length,
+      pending: userTickets.filter((t) => t.status === "pending").length,
+      refunded: userTickets.filter((t) => t.status === "refunded").length,
+      totalSpent: userTickets
+        .filter((t) => t.status === "paid")
+        .reduce((sum, t) => sum + Number(t.total), 0),
+    };
+  }),
+
+  createCheckoutSession: protectedProcedure
+    .input(
+      z
+        .object({
+          eventId: z.string(),
+          lineItems: z.array(checkoutLineItemSchema).min(1),
+          billingProvince: z.enum(PROVINCE_CODES),
+          firstName: z.string().min(1).max(100),
+          lastName: z.string().min(1).max(100),
+          email: z.string().email(),
+          confirmEmail: z.string().email(),
+          country: z.enum(COUNTRY_CODES),
+        })
+        .refine((data) => data.email === data.confirmEmail, {
+          message: "Emails do not match",
+          path: ["confirmEmail"],
+        })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.id;
+      const userEmail = input.email || ctx.user.email || undefined;
+
+      if (!stripe) throw new Error("Stripe secret key not configured");
+
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const eventResult = await db
+        .select()
+        .from(events)
+        .where(eq(events.id, input.eventId))
+        .limit(1);
+
+      if (eventResult.length === 0) throw new Error("Event not found");
+      const event = eventResult[0];
+
+      const normalizedItems = input.lineItems.filter((item) => item.quantity > 0);
+      if (normalizedItems.length === 0) {
+        throw new Error("Please select at least one ticket.");
+      }
+
+      const taxRateResult = await db
+        .select()
+        .from(taxRates)
+        .where(
+          and(
+            eq(taxRates.provinceCode, input.billingProvince),
+            eq(taxRates.isActive, 1)
+          )
+        )
+        .limit(1);
+
+      const taxRate = taxRateResult[0];
+      if (!taxRate) {
+        throw new Error(`Tax rate not found for province: ${input.billingProvince}`);
+      }
+
+      const gstRate = Number(taxRate.gstRate);
+      const pstRate = Number(taxRate.pstRate);
+      const hstRate = Number(taxRate.hstRate);
+
+      const isInternational = input.country.toUpperCase() !== "CA";
+      const processingPercentFee = isInternational
+        ? INTERNATIONAL_PROCESSING_PERCENT_FEE
+        : DOMESTIC_PROCESSING_PERCENT_FEE;
+
+      const pricedItems: Array<{
+        tierId: number | null;
+        quantity: number;
+        tierName: string;
+        unitPriceDollars: number;
+        unitPriceCents: number;
+        subtotalDollars: number;
+        subtotalCents: number;
+        tierRow: typeof ticketTiers.$inferSelect | null;
+      }> = [];
+
+      for (const item of normalizedItems) {
+        if (item.tierId) {
+          const tierResult = await db
+            .select()
+            .from(ticketTiers)
+            .where(eq(ticketTiers.id, item.tierId))
+            .limit(1);
+
+          if (tierResult.length === 0) throw new Error("Ticket tier not found");
+          const tier = tierResult[0];
+
+          if (tier.eventId !== input.eventId) {
+            throw new Error("Ticket tier does not belong to this event");
+          }
+
+          if (tier.isActive === 0) {
+            throw new Error(`"${tier.name}" is no longer available`);
+          }
+
+          const sold = Number(tier.sold ?? 0);
+          const quantityLimit = tier.quantity ? Number(tier.quantity) : null;
+
+          if (quantityLimit !== null && sold >= quantityLimit) {
+            throw new Error(`"${tier.name}" is sold out`);
+          }
+
+          if (quantityLimit !== null && sold + item.quantity > quantityLimit) {
+            throw new Error(`Not enough "${tier.name}" tickets remaining`);
+          }
+
+          const unitPriceDollars = Number(tier.price);
+          const subtotalDollars = unitPriceDollars * item.quantity;
+
+          pricedItems.push({
+            tierId: tier.id,
+            quantity: item.quantity,
+            tierName: tier.name,
+            unitPriceDollars,
+            unitPriceCents: Math.round(unitPriceDollars * 100),
+            subtotalDollars,
+            subtotalCents: Math.round(subtotalDollars * 100),
+            tierRow: tier,
+          });
+        } else {
+          let unitPriceDollars = 0;
+
+          if (event.price !== "Free" && event.price !== null) {
+            const parsed = parseFloat(String(event.price).replace(/[^\d.]/g, ""));
+            unitPriceDollars = isNaN(parsed) ? 0 : parsed;
+          }
+
+          const subtotalDollars = unitPriceDollars * item.quantity;
+
+          pricedItems.push({
+            tierId: null,
+            quantity: item.quantity,
+            tierName: "Standard Ticket",
+            unitPriceDollars,
+            unitPriceCents: Math.round(unitPriceDollars * 100),
+            subtotalDollars,
+            subtotalCents: Math.round(subtotalDollars * 100),
+            tierRow: null,
+          });
+        }
+      }
+
+      const subtotalDollars = pricedItems.reduce(
+        (sum, item) => sum + item.subtotalDollars,
+        0
+      );
+
+      const processingFeeDollars =
+        subtotalDollars > 0
+          ? Math.round(
+              (subtotalDollars * processingPercentFee + PROCESSING_FIXED_FEE_CAD) * 100
+            ) / 100
+          : 0;
+
+      const gstAmountDollars = Math.round(subtotalDollars * gstRate * 100) / 100;
+      const pstAmountDollars = Math.round(subtotalDollars * pstRate * 100) / 100;
+      const hstAmountDollars = Math.round(subtotalDollars * hstRate * 100) / 100;
+      const totalTaxDollars = gstAmountDollars + pstAmountDollars + hstAmountDollars;
+      const totalDollars = subtotalDollars + processingFeeDollars + totalTaxDollars;
+
+      const processingFeeCents = Math.round(processingFeeDollars * 100);
+      const gstAmountCents = Math.round(gstAmountDollars * 100);
+      const pstAmountCents = Math.round(pstAmountDollars * 100);
+      const hstAmountCents = Math.round(hstAmountDollars * 100);
+      const totalTaxCents = Math.round(totalTaxDollars * 100);
+      const totalCents = Math.round(totalDollars * 100);
+
+      const allFree = pricedItems.every((item) => item.unitPriceCents === 0);
+
+      const createdTicketIds: number[] = [];
+
+      for (const item of pricedItems) {
+        const itemShare =
+          subtotalDollars > 0 ? item.subtotalDollars / subtotalDollars : 0;
+
+        const itemProcessingFeeDollars = allFree
+          ? 0
+          : Math.round(processingFeeDollars * itemShare * 100) / 100;
+
+        const itemTaxAmountDollars = allFree
+          ? 0
+          : Math.round(totalTaxDollars * itemShare * 100) / 100;
+
+        const itemTotalDollars =
+          item.subtotalDollars + itemProcessingFeeDollars + itemTaxAmountDollars;
+
+        const inserted = await db.insert(tickets).values({
+          userId,
+          eventId: input.eventId,
+          tierId: item.tierId,
+          quantity: item.quantity,
+          currency: "CAD",
+          unitPrice: item.unitPriceDollars,
+          subtotal: item.subtotalDollars,
+          processingFee: itemProcessingFeeDollars,
+          taxAmount: itemTaxAmountDollars,
+          total: itemTotalDollars,
+          status: allFree ? "paid" : "pending",
+          stripeSessionId: null,
+        });
+
+        const ticketId =
+          (inserted as { insertId?: number }).insertId ??
+          (Array.isArray(inserted)
+            ? (inserted[0] as { insertId?: number } | undefined)?.insertId
+            : null);
+
+        if (!ticketId) {
+          throw new Error("Failed to create ticket record");
+        }
+
+        createdTicketIds.push(Number(ticketId));
+      }
+
+      if (allFree) {
+        for (const item of pricedItems) {
+          if (item.tierId && item.tierRow) {
+            await db
+              .update(ticketTiers)
+              .set({
+                sold: Number(item.tierRow.sold ?? 0) + item.quantity,
+              })
+              .where(eq(ticketTiers.id, item.tierId));
+          }
+        }
+
+        return {
+          success: true,
+          free: true,
+          ticketIds: createdTicketIds,
+        };
+      }
+
+      const stripeLineItems = pricedItems.map((item) => ({
+        price_data: {
+          currency: "cad" as const,
+          product_data: {
+            name: String(event.title),
+            description: `${item.tierName} × ${item.quantity}`,
+          },
+          unit_amount: item.unitPriceCents,
+        },
+        quantity: item.quantity,
+      }));
+
+      const processingFeeLabel = isInternational
+        ? `Processing Fee (International card: ${(processingPercentFee * 100).toFixed(0)}% + $${PROCESSING_FIXED_FEE_CAD.toFixed(2)})`
+        : `Processing Fee (${(processingPercentFee * 100).toFixed(0)}% + $${PROCESSING_FIXED_FEE_CAD.toFixed(2)})`;
+
+      if (processingFeeCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad" as const,
+            product_data: {
+              name: processingFeeLabel,
+              description: isInternational
+                ? "Payment processing and platform costs for international cards"
+                : "Payment processing and platform costs",
+            },
+            unit_amount: processingFeeCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      if (gstAmountCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad" as const,
+            product_data: {
+              name: `GST (${(gstRate * 100).toFixed(2)}%)`,
+description: "Goods and Services Tax",
+            },
+            unit_amount: gstAmountCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      if (pstAmountCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad" as const,
+            product_data: {
+              name: `PST (${(pstRate * 100).toFixed(2)}%)`,
+description: "Provincial Sales Tax",
+            },
+            unit_amount: pstAmountCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      if (hstAmountCents > 0) {
+        stripeLineItems.push({
+          price_data: {
+            currency: "cad" as const,
+            product_data: {
+              name: `HST (${(hstRate * 100).toFixed(2)}%)`,
+description: "Harmonized Sales Tax",
+            },
+            unit_amount: hstAmountCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
+        payment_method_types: ["card"],
+        mode: "payment",
+        line_items: stripeLineItems,
+        customer_email: userEmail,
+        billing_address_collection: "required",
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/account/tickets?success=true`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/${event.citySlug}/${event.slug}`,
+        metadata: {
+          ticketIds: createdTicketIds.join(","),
+          userId: String(userId),
+          eventId: input.eventId,
+          billingProvince: input.billingProvince,
+          country: input.country,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email,
+          subtotal: String(Math.round(subtotalDollars * 100)),
+          processingFee: String(processingFeeCents),
+          processingPercentFee: String(processingPercentFee),
+          processingFixedFee: String(PROCESSING_FIXED_FEE_CAD),
+          isInternational: String(isInternational),
+          gstAmount: String(gstAmountCents),
+          pstAmount: String(pstAmountCents),
+          hstAmount: String(hstAmountCents),
+          taxAmount: String(totalTaxCents),
+          total: String(totalCents),
+        },
+      };
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
+
+      for (const ticketId of createdTicketIds) {
+        await db
+          .update(tickets)
+          .set({
+            stripeSessionId: session.id,
+          })
+          .where(eq(tickets.id, ticketId));
+      }
+
+      return {
+        success: true,
+        free: false,
+        url: session.url,
+        ticketIds: createdTicketIds,
+        breakdown: {
+          subtotal: subtotalDollars,
+          processingFee: processingFeeDollars,
+          processingPercentFee,
+          processingFixedFee: PROCESSING_FIXED_FEE_CAD,
+          isInternational,
+          gst: gstAmountDollars,
+          pst: pstAmountDollars,
+          hst: hstAmountDollars,
+          tax: totalTaxDollars,
+          total: totalDollars,
+          provinceCode: input.billingProvince,
+          provinceName: taxRate.provinceName,
+        },
+      };
+    }),
+});
