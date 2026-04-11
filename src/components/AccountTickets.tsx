@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useCallback, Suspense } from "react";
+import { useRef, useState, useCallback, Suspense } from "react";
 import { formatDate, formatTime } from "@/lib/utils";
 import type { AppRouter } from "@/server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -24,36 +24,11 @@ type TicketWithEvent = TicketItem & {
 type FilterType = "upcoming" | "past";
 type ExpandedPanel = "qr" | "payment" | null;
 
-const parseEventDate = (dateStr: string, timeStr?: string): Date => {
-  if (/^d{4}-d{2}-d{2}$/.test(dateStr)) {
-    const d = new Date(`${dateStr}T${timeStr || "00:00"}:00`);
-    if (!isNaN(d.getTime())) return d;
-  }
-  if (dateStr.includes(",")) {
-    const currentYear = new Date().getFullYear();
-    const withYear = dateStr.match(/d{4}/)
-      ? `${dateStr} ${timeStr || "00:00"}`
-      : `${dateStr} ${currentYear} ${timeStr || "00:00"}`;
-    const d = new Date(withYear);
-    if (!isNaN(d.getTime())) return d;
-  }
-  const d = new Date(dateStr);
-  if (!isNaN(d.getTime())) return d;
-  return new Date();
-};
-
 function getTicketCount(ticket: TicketItem): number {
   return ticket.quantity || 1;
 }
 
-/* ─── QR Panel ───────────────────────────────────────────────────────────── */
-function QrPanel({
-  totalTickets,
-  ticketCode,
-}: {
-  totalTickets: number;
-  ticketCode: string;
-}) {
+function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCode: string }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -65,7 +40,7 @@ function QrPanel({
 
   const goTo = (i: number) => {
     scrollRef.current?.scrollTo({
-      left: i * (scrollRef.current.clientWidth),
+      left: i * scrollRef.current.clientWidth,
       behavior: "smooth",
     });
   };
@@ -95,17 +70,9 @@ function QrPanel({
           {Array.from({ length: totalTickets }).map((_, i) => {
             const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
             return (
-              <div
-                key={i}
-                className="flex w-full min-w-full snap-center flex-col items-center py-1"
-              >
+              <div key={i} className="flex w-full min-w-full snap-center flex-col items-center py-1">
                 <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                  <QRCode
-                    value={codeValue}
-                    size={170}
-                    bgColor="#ffffff"
-                    fgColor="#0f172a"
-                  />
+                  <QRCode value={codeValue} size={170} bgColor="#ffffff" fgColor="#0f172a" />
                 </div>
                 <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
                   {codeValue}
@@ -150,7 +117,6 @@ function QrPanel({
   );
 }
 
-/* ─── Payment Panel ──────────────────────────────────────────────────────── */
 function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
   const count = getTicketCount(ticket);
   const totalNum = Number(ticket.total);
@@ -245,7 +211,6 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
   );
 }
 
-/* ─── Main page ──────────────────────────────────────────────────────────── */
 function AccountTicketsInner() {
   const { user, loading: authLoading, isAuthenticated } = useAuth({
     redirectOnUnauthenticated: true,
@@ -254,43 +219,10 @@ function AccountTicketsInner() {
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
   const [expanded, setExpanded] = useState<Record<string | number, ExpandedPanel>>({});
 
-  const { data: tickets = [], isLoading: ticketsLoading } =
-    trpc.tickets.list.useQuery(undefined, { enabled: !!user });
-
-  const filteredTickets = useMemo(() => {
-    const now = new Date();
-
-    // Show paid + pending — exclude refunded
-    const validTickets = tickets.filter(
-      (item: TicketItem): item is TicketWithEvent =>
-        item.event !== null &&
-        (item.status === "paid" || item.status === "pending")
-    );
-
-    if (filterType === "upcoming") {
-      // Upcoming = event date is today or in the future
-      return validTickets
-        .filter(
-          (item) => parseEventDate(item.event.date, item.event.time) >= now
-        )
-        .sort(
-          (a, b) =>
-            parseEventDate(a.event.date, a.event.time).getTime() -
-            parseEventDate(b.event.date, b.event.time).getTime()
-        );
-    }
-
-    // Past = event date is before now
-    return validTickets
-      .filter(
-        (item) => parseEventDate(item.event.date, item.event.time) < now
-      )
-      .sort(
-        (a, b) =>
-          parseEventDate(b.event.date, b.event.time).getTime() -
-          parseEventDate(a.event.date, a.event.time).getTime()
-      );
-  }, [tickets, filterType]);
+  const { data: tickets = [], isLoading: ticketsLoading } = trpc.tickets.list.useQuery(
+    { filter: filterType },
+    { enabled: !!user }
+  );
 
   const togglePanel = useCallback((id: number, panel: ExpandedPanel) => {
     setExpanded((prev) => ({
@@ -311,7 +243,6 @@ function AccountTicketsInner() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header — not sticky */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="mb-5 flex items-center gap-4">
@@ -326,7 +257,6 @@ function AccountTicketsInner() {
             </h1>
           </div>
 
-          {/* Filter tabs — not sticky */}
           <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
@@ -335,12 +265,11 @@ function AccountTicketsInner() {
                   setFilterType(type);
                   setExpanded({});
                 }}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all
-                  ${
-                    filterType === type
-                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/50"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
+                className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
+                  filterType === type
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/50"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
               >
                 {type === "upcoming" ? "Upcoming" : "Past Events"}
               </button>
@@ -349,7 +278,6 @@ function AccountTicketsInner() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="mx-auto max-w-3xl px-4 py-6">
         {ticketsLoading ? (
           <div className="space-y-4">
@@ -360,15 +288,13 @@ function AccountTicketsInner() {
               />
             ))}
           </div>
-        ) : filteredTickets.length === 0 ? (
+        ) : tickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50">
               <Ticket className="h-8 w-8 text-slate-300" />
             </div>
             <h3 className="text-lg font-bold text-slate-900">
-              {filterType === "upcoming"
-                ? "No upcoming tickets"
-                : "No past tickets"}
+              {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
               Time to discover some amazing events!
@@ -382,8 +308,10 @@ function AccountTicketsInner() {
           </div>
         ) : (
           <div className="space-y-5">
-            {filteredTickets.map((ticket) => {
+            {tickets.map((ticket) => {
               const event = ticket.event;
+              if (!event) return null;
+
               const count = getTicketCount(ticket);
               const openPanel = expanded[ticket.id];
               const ticketCode = `TKT-${String(ticket.id).padStart(6, "0")}`;
@@ -394,11 +322,8 @@ function AccountTicketsInner() {
                   key={ticket.id}
                   className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
-                  {/* Event image */}
                   <button
-                    onClick={() =>
-                      router.push(`/${event.citySlug}/${event.slug}`)
-                    }
+                    onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
                     className="group relative block w-full overflow-hidden"
                   >
                     <div className="relative h-48 w-full sm:h-52">
@@ -410,7 +335,6 @@ function AccountTicketsInner() {
                     </div>
                   </button>
 
-                  {/* Event info */}
                   <div className="px-5 pt-4 pb-3">
                     <h3 className="text-[16px] font-bold leading-snug text-slate-900">
                       {event.title}
@@ -426,22 +350,21 @@ function AccountTicketsInner() {
                       </span>
                       <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        {/* ✅ fixed: use event.venue not event.eventVenue */}
                         <span className="truncate">{event.venue ?? event.city}</span>
                       </span>
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between">
                       <div
-                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium
-                          ${isPaid ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"}`}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium ${
+                          isPaid ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"
+                        }`}
                       >
                         <Ticket className="h-3 w-3" />
                         {isPaid
                           ? `${count} ${count === 1 ? "ticket" : "tickets"} confirmed`
                           : "Payment pending"}
                       </div>
-                      {/* ✅ fixed: use event.price not event.eventPrice */}
                       {event.price && (
                         <span className="text-[13px] font-semibold text-slate-700">
                           {event.price}
@@ -452,16 +375,14 @@ function AccountTicketsInner() {
 
                   <div className="mx-5 border-t border-slate-100" />
 
-                  {/* Action buttons */}
                   <div className="grid grid-cols-2 gap-2 px-5 pt-3 pb-5">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
-                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors
-                        ${
-                          openPanel === "payment"
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                        }`}
+                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors ${
+                        openPanel === "payment"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                      }`}
                     >
                       <CreditCard className="h-3.5 w-3.5" />
                       Payment
@@ -472,18 +393,16 @@ function AccountTicketsInner() {
                       />
                     </button>
 
-                    {/* QR button — disabled until payment confirmed */}
                     <button
                       onClick={() => isPaid && togglePanel(ticket.id, "qr")}
                       disabled={!isPaid}
-                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors
-                        ${
-                          !isPaid
-                            ? "cursor-not-allowed bg-slate-50 text-slate-300"
-                            : openPanel === "qr"
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                        }`}
+                      className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors ${
+                        !isPaid
+                          ? "cursor-not-allowed bg-slate-50 text-slate-300"
+                          : openPanel === "qr"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                      }`}
                     >
                       <QrCode className="h-3.5 w-3.5" />
                       {isPaid ? "QR Code" : "Pending"}
@@ -500,9 +419,10 @@ function AccountTicketsInner() {
                   {openPanel === "payment" && (
                     <>
                       <div className="mx-5 border-t border-slate-100" />
-                      <PaymentPanel ticket={ticket} />
+                      <PaymentPanel ticket={ticket as TicketWithEvent} />
                     </>
                   )}
+
                   {openPanel === "qr" && isPaid && (
                     <>
                       <div className="mx-5 border-t border-slate-100" />
