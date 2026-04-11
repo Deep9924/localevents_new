@@ -25,12 +25,18 @@ type LineItem = {
 };
 
 export const ticketsRouter = router({
-  // ── List all tickets for the logged-in user ─────────────────────────
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return getUserTickets(ctx.user.id);
-  }),
+  list: protectedProcedure
+    .input(
+      z
+        .object({
+          filter: z.enum(["upcoming", "past", "all"]).default("all"),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      return getUserTickets(ctx.user.id, input?.filter ?? "all");
+    }),
 
-  // ── Get a single ticket by ID (must belong to user) ─────────────────
   getById: protectedProcedure
     .input(z.object({ ticketId: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -51,9 +57,9 @@ export const ticketsRouter = router({
       return ticket;
     }),
 
-  // ── Ticket stats for account dashboard ──────────────────────────────
   getStats: protectedProcedure.query(async ({ ctx }) => {
-    const userTickets = await getUserTickets(ctx.user.id);
+    const userTickets = await getUserTickets(ctx.user.id, "all");
+
     return {
       total: userTickets.length,
       paid: userTickets.filter((t) => t.status === "paid").length,
@@ -65,7 +71,6 @@ export const ticketsRouter = router({
     };
   }),
 
-  // ── Create Stripe checkout session (or confirm free ticket) ─────────
   createCheckoutSession: protectedProcedure
     .input(
       z.object({
@@ -83,7 +88,6 @@ export const ticketsRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      // ── Fetch event ─────────────────────────────────────────────────
       const eventResult = await db
         .select()
         .from(events)
@@ -93,7 +97,6 @@ export const ticketsRouter = router({
       if (eventResult.length === 0) throw new Error("Event not found");
       const event = eventResult[0];
 
-      // ── Fetch tier ──────────────────────────────────────────────────
       let unitPriceDollars = 0;
       let tierName = "Standard Ticket";
       let tier: typeof ticketTiers.$inferSelect | null = null;
@@ -108,25 +111,25 @@ export const ticketsRouter = router({
         if (tierResult.length === 0) throw new Error("Ticket tier not found");
         tier = tierResult[0];
 
-        if (tier.eventId !== input.eventId)
+        if (tier.eventId !== input.eventId) {
           throw new Error("Ticket tier does not belong to this event");
-        if (tier.isActive === 0)
+        }
+        if (tier.isActive === 0) {
           throw new Error("This ticket tier is no longer available");
-        if (tier.quantity && Number(tier.sold ?? 0) >= Number(tier.quantity))
+        }
+        if (tier.quantity && Number(tier.sold ?? 0) >= Number(tier.quantity)) {
           throw new Error("This ticket tier is sold out");
+        }
 
         unitPriceDollars = Number(tier.price);
         tierName = tier.name;
       } else {
         if (event.price !== "Free" && event.price !== null) {
-          const parsed = parseFloat(
-            String(event.price).replace(/[^d.]/g, "")
-          );
+          const parsed = parseFloat(String(event.price).replace(/[^d.]/g, ""));
           unitPriceDollars = isNaN(parsed) ? 0 : parsed;
         }
       }
 
-      // ── Calculate fees ──────────────────────────────────────────────
       const subtotalDollars = unitPriceDollars * input.quantity;
       const serviceFeeAmountDollars =
         Math.round(subtotalDollars * SERVICE_FEE_PERCENT * 100) / 100;
@@ -140,7 +143,6 @@ export const ticketsRouter = router({
       const taxAmountCents = Math.round(taxAmountDollars * 100);
       const totalCents = Math.round(totalDollars * 100);
 
-      // ── Free ticket — insert directly as paid ───────────────────────
       if (unitPriceCents === 0) {
         await db.insert(tickets).values({
           userId,
@@ -166,7 +168,6 @@ export const ticketsRouter = router({
         return { success: true, free: true };
       }
 
-      // ── Paid — insert as pending, webhook confirms ──────────────────
       const [inserted] = await db.insert(tickets).values({
         userId,
         eventId: input.eventId,
@@ -184,7 +185,6 @@ export const ticketsRouter = router({
 
       const ticketId = (inserted as any).insertId;
 
-      // ── Line items ──────────────────────────────────────────────────
       const lineItems: LineItem[] = [
         {
           price_data: {
@@ -221,7 +221,6 @@ export const ticketsRouter = router({
         });
       }
 
-      // ── Create Stripe session ───────────────────────────────────────
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: lineItems,
