@@ -4,9 +4,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, ArrowLeft, Ticket, Calendar, QrCode,
-  ChevronDown, ChevronLeft, ChevronRight, CreditCard,
-  MapPin, CheckCircle, Clock,
+  Loader2,
+  ArrowLeft,
+  Ticket,
+  Calendar,
+  QrCode,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  MapPin,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
@@ -17,9 +26,6 @@ import type { inferRouterOutputs } from "@trpc/server";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type TicketItem = RouterOutputs["tickets"]["list"][number];
-type TicketWithEvent = TicketItem & {
-  event: NonNullable<TicketItem["event"]>;
-};
 
 type FilterType = "upcoming" | "past";
 type ExpandedPanel = "qr" | "payment" | null;
@@ -28,7 +34,13 @@ function getTicketCount(ticket: TicketItem): number {
   return ticket.quantity || 1;
 }
 
-function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCode: string }) {
+function QrPanel({
+  totalTickets,
+  ticketCode,
+}: {
+  totalTickets: number;
+  ticketCode: string;
+}) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -39,8 +51,11 @@ function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCod
   };
 
   const goTo = (i: number) => {
-    scrollRef.current?.scrollTo({
-      left: i * scrollRef.current.clientWidth,
+    const el = scrollRef.current;
+    if (!el) return;
+
+    el.scrollTo({
+      left: i * el.clientWidth,
       behavior: "smooth",
     });
   };
@@ -56,7 +71,7 @@ function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCod
           <button
             type="button"
             onClick={() => goTo(activeIndex - 1)}
-            className="absolute left-0 top-1/2 z-10 -translate-x-3 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
+            className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-x-3 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
           >
             <ChevronLeft className="h-4 w-4 text-slate-600" />
           </button>
@@ -69,14 +84,25 @@ function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCod
         >
           {Array.from({ length: totalTickets }).map((_, i) => {
             const codeValue = `${ticketCode}-${String(i + 1).padStart(3, "0")}`;
+
             return (
-              <div key={i} className="flex w-full min-w-full snap-center flex-col items-center py-1">
+              <div
+                key={i}
+                className="flex w-full min-w-full snap-center flex-col items-center py-1"
+              >
                 <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                  <QRCode value={codeValue} size={170} bgColor="#ffffff" fgColor="#0f172a" />
+                  <QRCode
+                    value={codeValue}
+                    size={170}
+                    bgColor="#ffffff"
+                    fgColor="#0f172a"
+                  />
                 </div>
+
                 <p className="mt-3 font-mono text-[11px] tracking-widest text-slate-400">
                   {codeValue}
                 </p>
+
                 {totalTickets > 1 && (
                   <p className="mt-1 text-[11px] text-slate-400">
                     {i + 1} / {totalTickets}
@@ -91,7 +117,7 @@ function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCod
           <button
             type="button"
             onClick={() => goTo(activeIndex + 1)}
-            className="absolute right-0 top-1/2 z-10 translate-x-3 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
+            className="absolute right-0 top-1/2 z-10 flex h-8 w-8 translate-x-3 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200 hover:bg-slate-50"
           >
             <ChevronRight className="h-4 w-4 text-slate-600" />
           </button>
@@ -117,9 +143,11 @@ function QrPanel({ totalTickets, ticketCode }: { totalTickets: number; ticketCod
   );
 }
 
-function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
+function PaymentPanel({ ticket }: { ticket: TicketItem }) {
   const count = getTicketCount(ticket);
   const totalNum = Number(ticket.total);
+  const serviceFee = Number((ticket as any).serviceFee ?? 0);
+  const taxAmount = Number((ticket as any).taxAmount ?? 0);
   const totalLabel = totalNum === 0 ? "Free" : `CAD ${totalNum.toFixed(2)}`;
 
   return (
@@ -133,32 +161,35 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
             Order Info
           </p>
+
           <div className="mb-1.5 flex items-center justify-between text-[12px]">
             <span className="text-slate-400">Order ID</span>
             <span className="font-mono font-medium text-slate-700">
               #{String(ticket.id).toUpperCase()}
             </span>
           </div>
+
           <div className="mb-1.5 flex items-center justify-between text-[12px]">
             <span className="text-slate-400">Status</span>
             <span className="inline-flex items-center gap-1">
               {ticket.status === "paid" ? (
                 <>
-                  <CheckCircle className="w-3 h-3 text-green-600" />
+                  <CheckCircle className="h-3 w-3 text-green-600" />
                   <span className="font-medium text-green-700">Confirmed</span>
                 </>
               ) : ticket.status === "pending" ? (
                 <>
-                  <Clock className="w-3 h-3 text-amber-500" />
+                  <Clock className="h-3 w-3 text-amber-500" />
                   <span className="font-medium text-amber-600">Pending</span>
                 </>
               ) : (
-                <span className="font-medium text-slate-500 capitalize">
+                <span className="capitalize font-medium text-slate-500">
                   {ticket.status}
                 </span>
               )}
             </span>
           </div>
+
           {ticket.createdAt != null && (
             <div className="flex items-center justify-between text-[12px]">
               <span className="text-slate-400">Purchased</span>
@@ -179,28 +210,28 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
             Price Summary
           </p>
+
           <div className="mb-1.5 flex items-center justify-between text-[12px]">
             <span className="text-slate-500">Quantity</span>
-            <span className="text-slate-700 font-medium">
+            <span className="font-medium text-slate-700">
               {count} {count === 1 ? "ticket" : "tickets"}
             </span>
           </div>
-          {Number(ticket.serviceFee ?? 0) > 0 && (
+
+          {serviceFee > 0 && (
             <div className="mb-1.5 flex items-center justify-between text-[12px]">
-              <span className="text-slate-500">Service fee (3%)</span>
-              <span className="text-slate-700">
-                CAD {Number(ticket.serviceFee).toFixed(2)}
-              </span>
+              <span className="text-slate-500">Service fee</span>
+              <span className="text-slate-700">CAD {serviceFee.toFixed(2)}</span>
             </div>
           )}
-          {Number(ticket.taxAmount ?? 0) > 0 && (
+
+          {taxAmount > 0 && (
             <div className="mb-1.5 flex items-center justify-between text-[12px]">
               <span className="text-slate-500">Tax</span>
-              <span className="text-slate-700">
-                CAD {Number(ticket.taxAmount).toFixed(2)}
-              </span>
+              <span className="text-slate-700">CAD {taxAmount.toFixed(2)}</span>
             </div>
           )}
+
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
             <span className="text-sm font-semibold text-slate-700">Total paid</span>
             <span className="text-sm font-bold text-slate-900">{totalLabel}</span>
@@ -215,14 +246,16 @@ function AccountTicketsInner() {
   const { user, loading: authLoading, isAuthenticated } = useAuth({
     redirectOnUnauthenticated: true,
   });
+
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("upcoming");
-  const [expanded, setExpanded] = useState<Record<string | number, ExpandedPanel>>({});
+  const [expanded, setExpanded] = useState<Record<number, ExpandedPanel>>({});
 
-  const { data: tickets = [], isLoading: ticketsLoading } = trpc.tickets.list.useQuery(
-    { filter: filterType },
-    { enabled: !!user }
-  );
+  const { data: tickets = [], isLoading: ticketsLoading } =
+    trpc.tickets.list.useQuery(
+      { filter: filterType },
+      { enabled: !!user }
+    );
 
   const togglePanel = useCallback((id: number, panel: ExpandedPanel) => {
     setExpanded((prev) => ({
@@ -252,6 +285,7 @@ function AccountTicketsInner() {
             >
               <ArrowLeft className="h-4 w-4 text-slate-600 transition group-hover:-translate-x-0.5" />
             </button>
+
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               My Tickets
             </h1>
@@ -293,12 +327,15 @@ function AccountTicketsInner() {
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50">
               <Ticket className="h-8 w-8 text-slate-300" />
             </div>
+
             <h3 className="text-lg font-bold text-slate-900">
               {filterType === "upcoming" ? "No upcoming tickets" : "No past tickets"}
             </h3>
+
             <p className="mt-1 text-sm text-slate-500">
               Time to discover some amazing events!
             </p>
+
             <Button
               onClick={() => router.push("/")}
               className="mt-6 rounded-2xl bg-slate-900 px-8 py-6 text-sm font-bold hover:bg-slate-800"
@@ -335,10 +372,11 @@ function AccountTicketsInner() {
                     </div>
                   </button>
 
-                  <div className="px-5 pt-4 pb-3">
+                  <div className="px-5 pb-3 pt-4">
                     <h3 className="text-[16px] font-bold leading-snug text-slate-900">
                       {event.title}
                     </h3>
+
                     <p className="mt-0.5 text-xs text-slate-400">
                       {event.city} · {event.category}
                     </p>
@@ -348,6 +386,7 @@ function AccountTicketsInner() {
                         <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         {formatDate(event.date)} · {formatTime(event.time)}
                       </span>
+
                       <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <span className="truncate">{event.venue ?? event.city}</span>
@@ -365,6 +404,7 @@ function AccountTicketsInner() {
                           ? `${count} ${count === 1 ? "ticket" : "tickets"} confirmed`
                           : "Payment pending"}
                       </div>
+
                       {event.price && (
                         <span className="text-[13px] font-semibold text-slate-700">
                           {event.price}
@@ -375,7 +415,7 @@ function AccountTicketsInner() {
 
                   <div className="mx-5 border-t border-slate-100" />
 
-                  <div className="grid grid-cols-2 gap-2 px-5 pt-3 pb-5">
+                  <div className="grid grid-cols-2 gap-2 px-5 pb-5 pt-3">
                     <button
                       onClick={() => togglePanel(ticket.id, "payment")}
                       className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors ${
@@ -400,8 +440,8 @@ function AccountTicketsInner() {
                         !isPaid
                           ? "cursor-not-allowed bg-slate-50 text-slate-300"
                           : openPanel === "qr"
-                          ? "bg-slate-900 text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                            ? "bg-slate-900 text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                       }`}
                     >
                       <QrCode className="h-3.5 w-3.5" />
@@ -419,7 +459,7 @@ function AccountTicketsInner() {
                   {openPanel === "payment" && (
                     <>
                       <div className="mx-5 border-t border-slate-100" />
-                      <PaymentPanel ticket={ticket as TicketWithEvent} />
+                      <PaymentPanel ticket={ticket} />
                     </>
                   )}
 

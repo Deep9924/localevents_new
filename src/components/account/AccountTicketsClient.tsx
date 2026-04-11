@@ -206,11 +206,11 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
               {count} {count === 1 ? "ticket" : "tickets"}
             </span>
           </div>
-          {Number(ticket.serviceFee ?? 0) > 0 && (
+          {Number(ticket.processingFee ?? 0) > 0 && (
             <div className="mb-1.5 flex items-center justify-between text-[12px]">
               <span className="text-slate-500">Service fee (3%)</span>
               <span className="text-slate-700">
-                CAD {Number(ticket.serviceFee).toFixed(2)}
+                CAD {Number(ticket.processingFee).toFixed(2)}
               </span>
             </div>
           )}

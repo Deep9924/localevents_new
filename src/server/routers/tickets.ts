@@ -320,8 +320,10 @@ export const ticketsRouter = router({
         });
 
         const ticketId =
-          (inserted as any).insertId ??
-          (Array.isArray(inserted) ? inserted[0]?.insertId : null);
+          (inserted as { insertId?: number }).insertId ??
+          (Array.isArray(inserted)
+            ? (inserted[0] as { insertId?: number } | undefined)?.insertId
+            : null);
 
         if (!ticketId) {
           throw new Error("Failed to create ticket record");
@@ -349,18 +351,17 @@ export const ticketsRouter = router({
         };
       }
 
-      const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-        pricedItems.map((item) => ({
-          price_data: {
-            currency: "cad",
-            product_data: {
-              name: String(event.title),
-              description: `${item.tierName} × ${item.quantity}`,
-            },
-            unit_amount: item.unitPriceCents,
+      const stripeLineItems = pricedItems.map((item) => ({
+        price_data: {
+          currency: "cad" as const,
+          product_data: {
+            name: String(event.title),
+            description: `${item.tierName} × ${item.quantity}`,
           },
-          quantity: item.quantity,
-        }));
+          unit_amount: item.unitPriceCents,
+        },
+        quantity: item.quantity,
+      }));
 
       const processingFeeLabel = isInternational
         ? `Processing Fee (International card: ${(processingPercentFee * 100).toFixed(0)}% + $${PROCESSING_FIXED_FEE_CAD.toFixed(2)})`
@@ -369,7 +370,7 @@ export const ticketsRouter = router({
       if (processingFeeCents > 0) {
         stripeLineItems.push({
           price_data: {
-            currency: "cad",
+            currency: "cad" as const,
             product_data: {
               name: processingFeeLabel,
               description: isInternational
@@ -385,9 +386,10 @@ export const ticketsRouter = router({
       if (gstAmountCents > 0) {
         stripeLineItems.push({
           price_data: {
-            currency: "cad",
+            currency: "cad" as const,
             product_data: {
               name: `GST (${(gstRate * 100).toFixed(2)}%)`,
+description: "Goods and Services Tax",
             },
             unit_amount: gstAmountCents,
           },
@@ -398,9 +400,10 @@ export const ticketsRouter = router({
       if (pstAmountCents > 0) {
         stripeLineItems.push({
           price_data: {
-            currency: "cad",
+            currency: "cad" as const,
             product_data: {
               name: `PST (${(pstRate * 100).toFixed(2)}%)`,
+description: "Provincial Sales Tax",
             },
             unit_amount: pstAmountCents,
           },
@@ -411,9 +414,10 @@ export const ticketsRouter = router({
       if (hstAmountCents > 0) {
         stripeLineItems.push({
           price_data: {
-            currency: "cad",
+            currency: "cad" as const,
             product_data: {
               name: `HST (${(hstRate * 100).toFixed(2)}%)`,
+description: "Harmonized Sales Tax",
             },
             unit_amount: hstAmountCents,
           },
@@ -421,7 +425,7 @@ export const ticketsRouter = router({
         });
       }
 
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         payment_method_types: ["card"],
         mode: "payment",
         line_items: stripeLineItems,
@@ -449,7 +453,9 @@ export const ticketsRouter = router({
           taxAmount: String(totalTaxCents),
           total: String(totalCents),
         },
-      });
+      };
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
 
       for (const ticketId of createdTicketIds) {
         await db

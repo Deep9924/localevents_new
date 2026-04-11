@@ -24,14 +24,20 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-export async function getUserTickets(
-  userId: number,
-  filter: TicketFilter = "all"
-) {
+type TicketRow = Awaited<ReturnType<typeof getRawUserTickets>>[number];
+type TicketWithEvent = TicketRow & {
+  event: NonNullable<TicketRow["event"]>;
+};
+
+function hasEvent(ticket: TicketRow): ticket is TicketWithEvent {
+  return ticket.event !== null;
+}
+
+async function getRawUserTickets(userId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  const rows = await db
+  return db
     .select({
       id: tickets.id,
       userId: tickets.userId,
@@ -72,21 +78,30 @@ export async function getUserTickets(
     .leftJoin(events, eq(tickets.eventId, events.id))
     .where(eq(tickets.userId, userId))
     .orderBy(desc(tickets.createdAt));
+}
+
+export async function getUserTickets(
+  userId: number,
+  filter: TicketFilter = "all"
+) {
+  const rows = await getRawUserTickets(userId);
 
   const validRows = rows.filter(
     (ticket) =>
-      ticket.event !== null &&
-      (ticket.status === "paid" ||
-        ticket.status === "pending" ||
-        ticket.status === "refunded")
+      ticket.status === "paid" ||
+      ticket.status === "pending" ||
+      ticket.status === "refunded"
   );
 
-  if (filter === "all") return validRows;
+  if (filter === "all") {
+    return validRows;
+  }
 
+  const rowsWithEvent = validRows.filter(hasEvent);
   const today = startOfDay(new Date());
 
   if (filter === "upcoming") {
-    return validRows
+    return rowsWithEvent
       .filter((ticket) => {
         const eventDate = startOfDay(
           parseEventDate(ticket.event.date, ticket.event.time ?? undefined)
@@ -100,7 +115,7 @@ export async function getUserTickets(
       );
   }
 
-  return validRows
+  return rowsWithEvent
     .filter((ticket) => {
       const eventDate = startOfDay(
         parseEventDate(ticket.event.date, ticket.event.time ?? undefined)
