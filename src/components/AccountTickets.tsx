@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2, ArrowLeft, Ticket, Calendar, QrCode,
   ChevronDown, ChevronLeft, ChevronRight, CreditCard,
-  MapPin, CheckCircle,
+  MapPin, CheckCircle, Clock,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
@@ -25,13 +25,13 @@ type FilterType = "upcoming" | "past";
 type ExpandedPanel = "qr" | "payment" | null;
 
 const parseEventDate = (dateStr: string, timeStr?: string): Date => {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+  if (/^d{4}-d{2}-d{2}$/.test(dateStr)) {
     const d = new Date(`${dateStr}T${timeStr || "00:00"}:00`);
     if (!isNaN(d.getTime())) return d;
   }
   if (dateStr.includes(",")) {
     const currentYear = new Date().getFullYear();
-    const withYear = dateStr.match(/\d{4}/)
+    const withYear = dateStr.match(/d{4}/)
       ? `${dateStr} ${timeStr || "00:00"}`
       : `${dateStr} ${currentYear} ${timeStr || "00:00"}`;
     const d = new Date(withYear);
@@ -135,8 +135,19 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
           <div className="mb-1.5 flex items-center justify-between text-[12px]">
             <span className="text-slate-400">Status</span>
             <span className="inline-flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-green-600" />
-              <span className="font-medium text-green-700 capitalize">{ticket.status}</span>
+              {ticket.status === "paid" ? (
+                <>
+                  <CheckCircle className="w-3 h-3 text-green-600" />
+                  <span className="font-medium text-green-700">Confirmed</span>
+                </>
+              ) : ticket.status === "pending" ? (
+                <>
+                  <Clock className="w-3 h-3 text-amber-500" />
+                  <span className="font-medium text-amber-600">Pending</span>
+                </>
+              ) : (
+                <span className="font-medium text-slate-500 capitalize">{ticket.status}</span>
+              )}
             </span>
           </div>
           {ticket.createdAt != null && (
@@ -159,15 +170,15 @@ function PaymentPanel({ ticket }: { ticket: TicketWithEvent }) {
             <span className="text-slate-500">Quantity</span>
             <span className="text-slate-700 font-medium">{count} {count === 1 ? "ticket" : "tickets"}</span>
           </div>
-          {(ticket.serviceFee ?? 0) > 0 && (
+          {Number(ticket.serviceFee ?? 0) > 0 && (
             <div className="mb-1.5 flex items-center justify-between text-[12px]">
               <span className="text-slate-500">Service fee (3%)</span>
               <span className="text-slate-700">CAD {Number(ticket.serviceFee).toFixed(2)}</span>
             </div>
           )}
-          {(ticket.taxAmount ?? 0) > 0 && (
+          {Number(ticket.taxAmount ?? 0) > 0 && (
             <div className="mb-1.5 flex items-center justify-between text-[12px]">
-              <span className="text-slate-500">HST (13%)</span>
+              <span className="text-slate-500">Tax</span>
               <span className="text-slate-700">CAD {Number(ticket.taxAmount).toFixed(2)}</span>
             </div>
           )}
@@ -195,17 +206,24 @@ function AccountTicketsInner() {
 
   const filteredTickets = useMemo(() => {
     const now = new Date();
+
+    // Only show paid tickets — never show pending
     const validTickets = tickets.filter(
-      (item: TicketItem): item is TicketWithEvent => item.event !== null
+      (item: TicketItem): item is TicketWithEvent =>
+        item.event !== null && item.status === "paid"
     );
 
     if (filterType === "upcoming") {
-      return validTickets.sort((a, b) =>
-        parseEventDate(a.event.date, a.event.time).getTime() -
-        parseEventDate(b.event.date, b.event.time).getTime()
-      );
+      // Upcoming = event date is today or in the future
+      return validTickets
+        .filter((item) => parseEventDate(item.event.date, item.event.time) >= now)
+        .sort((a, b) =>
+          parseEventDate(a.event.date, a.event.time).getTime() -
+          parseEventDate(b.event.date, b.event.time).getTime()
+        );
     }
 
+    // Past = event date is before now
     return validTickets
       .filter((item) => parseEventDate(item.event.date, item.event.time) < now)
       .sort((a, b) =>
@@ -230,8 +248,8 @@ function AccountTicketsInner() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur-md">
+      {/* Header — NOT sticky */}
+      <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="mb-5 flex items-center gap-4">
             <button
@@ -243,6 +261,7 @@ function AccountTicketsInner() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Tickets</h1>
           </div>
 
+          {/* Filter tabs — NOT sticky */}
           <div className="flex rounded-2xl bg-slate-100 p-1">
             {(["upcoming", "past"] as const).map((type) => (
               <button
@@ -292,12 +311,13 @@ function AccountTicketsInner() {
               const count = getTicketCount(ticket);
               const openPanel = expanded[ticket.id];
               const ticketCode = `TKT-${String(ticket.id).padStart(6, "0")}`;
+              const isPaid = ticket.status === "paid";
 
               return (
                 <div key={ticket.id}
                   className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
 
-                  {/* Event image — click to go to event */}
+                  {/* Event image */}
                   <button
                     onClick={() => router.push(`/${event.citySlug}/${event.slug}`)}
                     className="group relative block w-full overflow-hidden"
@@ -305,7 +325,7 @@ function AccountTicketsInner() {
                     <div className="relative h-48 w-full sm:h-52">
                       <img
                         src={event.image || "/placeholder-event.jpg"}
-                        alt={event.title}
+                        alt={event.title ?? "Event"}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
@@ -323,17 +343,20 @@ function AccountTicketsInner() {
                       </span>
                       <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate">{event.venue ?? event.city}</span>
+                        <span className="truncate">{event.eventVenue ?? event.city}</span>
                       </span>
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-[12px] font-medium text-green-700">
+                      <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium
+                        ${isPaid ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"}`}>
                         <Ticket className="h-3 w-3" />
-                        {count} {count === 1 ? "ticket" : "tickets"} confirmed
+                        {isPaid
+                          ? `${count} ${count === 1 ? "ticket" : "tickets"} confirmed`
+                          : "Payment pending"}
                       </div>
-                      {event.price && (
-                        <span className="text-[13px] font-semibold text-slate-700">{event.price}</span>
+                      {event.eventPrice && (
+                        <span className="text-[13px] font-semibold text-slate-700">{event.eventPrice}</span>
                       )}
                     </div>
                   </div>
@@ -354,17 +377,24 @@ function AccountTicketsInner() {
                       Payment
                       <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${openPanel === "payment" ? "rotate-180" : ""}`} />
                     </button>
+
+                    {/* QR button — disabled if not paid */}
                     <button
-                      onClick={() => togglePanel(ticket.id, "qr")}
+                      onClick={() => isPaid && togglePanel(ticket.id, "qr")}
+                      disabled={!isPaid}
                       className={`flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-medium transition-colors
-                        ${openPanel === "qr"
+                        ${!isPaid
+                          ? "cursor-not-allowed bg-slate-50 text-slate-300"
+                          : openPanel === "qr"
                           ? "bg-slate-900 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                         }`}
                     >
                       <QrCode className="h-3.5 w-3.5" />
-                      QR Code
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${openPanel === "qr" ? "rotate-180" : ""}`} />
+                      {isPaid ? "QR Code" : "Pending"}
+                      {isPaid && (
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${openPanel === "qr" ? "rotate-180" : ""}`} />
+                      )}
                     </button>
                   </div>
 
@@ -374,7 +404,7 @@ function AccountTicketsInner() {
                       <PaymentPanel ticket={ticket} />
                     </>
                   )}
-                  {openPanel === "qr" && (
+                  {openPanel === "qr" && isPaid && (
                     <>
                       <div className="mx-5 border-t border-slate-100" />
                       <QrPanel totalTickets={count} ticketCode={ticketCode} />
