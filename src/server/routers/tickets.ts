@@ -130,10 +130,14 @@ export const ticketsRouter = router({
           confirmEmail: z.string().email(),
           country: z.enum(COUNTRY_CODES),
         })
+        .refine((data) => data.email === data.confirmEmail, {
+          message: "Emails do not match",
+          path: ["confirmEmail"],
+        })
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const userEmail = input.email || ctx.user.email || undefined;
+      const userEmail = input.email ?? ctx.user.email ?? undefined;
 
       if (!stripe) throw new Error("Stripe secret key not configured");
 
@@ -167,7 +171,9 @@ export const ticketsRouter = router({
 
       const taxRate = taxRateResult[0];
       if (!taxRate) {
-        throw new Error(`Tax rate not found for province: ${input.billingProvince}`);
+        throw new Error(
+          `Tax rate not found for province: ${input.billingProvince}`
+        );
       }
 
       const gstRate = Number(taxRate.gstRate);
@@ -237,7 +243,9 @@ export const ticketsRouter = router({
           let unitPriceDollars = 0;
 
           if (event.price !== "Free" && event.price !== null) {
-            const parsed = parseFloat(String(event.price).replace(/[^\d.]/g, ""));
+            const parsed = parseFloat(
+              String(event.price).replace(/[^d.]/g, "")
+            );
             unitPriceDollars = isNaN(parsed) ? 0 : parsed;
           }
 
@@ -264,15 +272,22 @@ export const ticketsRouter = router({
       const processingFeeDollars =
         subtotalDollars > 0
           ? Math.round(
-              (subtotalDollars * processingPercentFee + PROCESSING_FIXED_FEE_CAD) * 100
+              (subtotalDollars * processingPercentFee +
+                PROCESSING_FIXED_FEE_CAD) *
+                100
             ) / 100
           : 0;
 
-      const gstAmountDollars = Math.round(subtotalDollars * gstRate * 100) / 100;
-      const pstAmountDollars = Math.round(subtotalDollars * pstRate * 100) / 100;
-      const hstAmountDollars = Math.round(subtotalDollars * hstRate * 100) / 100;
-      const totalTaxDollars = gstAmountDollars + pstAmountDollars + hstAmountDollars;
-      const totalDollars = subtotalDollars + processingFeeDollars + totalTaxDollars;
+      const gstAmountDollars =
+        Math.round(subtotalDollars * gstRate * 100) / 100;
+      const pstAmountDollars =
+        Math.round(subtotalDollars * pstRate * 100) / 100;
+      const hstAmountDollars =
+        Math.round(subtotalDollars * hstRate * 100) / 100;
+      const totalTaxDollars =
+        gstAmountDollars + pstAmountDollars + hstAmountDollars;
+      const totalDollars =
+        subtotalDollars + processingFeeDollars + totalTaxDollars;
 
       const processingFeeCents = Math.round(processingFeeDollars * 100);
       const gstAmountCents = Math.round(gstAmountDollars * 100);
@@ -298,7 +313,9 @@ export const ticketsRouter = router({
           : Math.round(totalTaxDollars * itemShare * 100) / 100;
 
         const itemTotalDollars =
-          item.subtotalDollars + itemProcessingFeeDollars + itemTaxAmountDollars;
+          item.subtotalDollars +
+          itemProcessingFeeDollars +
+          itemTaxAmountDollars;
 
         const inserted = await db.insert(tickets).values({
           userId,
@@ -315,11 +332,7 @@ export const ticketsRouter = router({
           stripeSessionId: null,
         });
 
-        const ticketId =
-          (inserted as { insertId?: number }).insertId ??
-          (Array.isArray(inserted)
-            ? (inserted[0] as { insertId?: number } | undefined)?.insertId
-            : null);
+        const ticketId = (inserted as { insertId: number }).insertId;
 
         if (!ticketId) {
           throw new Error("Failed to create ticket record");
@@ -385,7 +398,7 @@ export const ticketsRouter = router({
             currency: "cad" as const,
             product_data: {
               name: `GST (${(gstRate * 100).toFixed(2)}%)`,
-description: "Goods and Services Tax",
+              description: "Goods and Services Tax",
             },
             unit_amount: gstAmountCents,
           },
@@ -399,7 +412,7 @@ description: "Goods and Services Tax",
             currency: "cad" as const,
             product_data: {
               name: `PST (${(pstRate * 100).toFixed(2)}%)`,
-description: "Provincial Sales Tax",
+              description: "Provincial Sales Tax",
             },
             unit_amount: pstAmountCents,
           },
@@ -413,7 +426,7 @@ description: "Provincial Sales Tax",
             currency: "cad" as const,
             product_data: {
               name: `HST (${(hstRate * 100).toFixed(2)}%)`,
-description: "Harmonized Sales Tax",
+              description: "Harmonized Sales Tax",
             },
             unit_amount: hstAmountCents,
           },
@@ -456,9 +469,7 @@ description: "Harmonized Sales Tax",
       for (const ticketId of createdTicketIds) {
         await db
           .update(tickets)
-          .set({
-            stripeSessionId: session.id,
-          })
+          .set({ stripeSessionId: session.id })
           .where(eq(tickets.id, ticketId));
       }
 
