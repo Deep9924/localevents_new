@@ -8,8 +8,6 @@ interface SidebarProps {
   isFree: boolean;
   displayPrice: string | null;
   tiers: Tier[];
-  selectedTierId: number | undefined;
-  onSelectTier: (id: number) => void;
   isSaved: boolean;
   onSave: () => void;
   eventTitle: string;
@@ -18,11 +16,18 @@ interface SidebarProps {
 }
 
 export function EventDetailSidebar({
-  isFree, displayPrice, tiers, selectedTierId, onSelectTier,
-  isSaved, onSave, eventTitle, user, onGetTickets,
+  isFree,
+  displayPrice,
+  tiers,
+  isSaved,
+  onSave,
+  eventTitle,
+  user,
+  onGetTickets,
 }: SidebarProps) {
-  const selectedTier = tiers.find(t => t.id === selectedTierId);
-  const selectedPrice = selectedTier ? Number(selectedTier.price) : null;
+  const lowestPrice = tiers.length > 0
+    ? Math.min(...tiers.map((t) => Number(t.price)))
+    : null;
 
   return (
     <div className="space-y-4">
@@ -33,23 +38,26 @@ export function EventDetailSidebar({
           Tickets from
         </p>
         <p className={`text-3xl font-bold ${isFree ? "text-green-600" : "text-gray-900"}`}>
-          {selectedPrice !== null && selectedPrice > 0
-            ? `CAD $${selectedPrice.toFixed(2)}`
+          {lowestPrice !== null && lowestPrice > 0
+            ? `CAD $${lowestPrice.toFixed(2)}`
             : displayPrice ?? "Free"}
         </p>
       </div>
 
-      {/* Ticket tiers */}
+      {/* Ticket tiers — read-only price list */}
       {tiers.length > 0 && (
         <div>
           <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-3">
             Ticket types
           </p>
           <div className="divide-y divide-gray-50">
-            {tiers.map(tier => {
+            {tiers.map((tier) => {
               const tierPrice = Number(tier.price);
               return (
-                <div key={tier.id} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                <div
+                  key={tier.id}
+                  className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 leading-snug">
                       {tier.name}
@@ -61,7 +69,7 @@ export function EventDetailSidebar({
                     )}
                   </div>
                   <p className="text-sm font-bold text-gray-900 shrink-0 pt-px">
-                    {tierPrice === 0 ? "Free" : `$${tierPrice.toFixed(2)}`}
+                    {tierPrice === 0 ? "Free" : `CAD $${tierPrice.toFixed(2)}`}
                   </p>
                 </div>
               );
@@ -70,7 +78,6 @@ export function EventDetailSidebar({
         </div>
       )}
 
-      {/* Divider before CTA */}
       {tiers.length > 0 && <div className="border-t border-gray-100" />}
 
       {/* Get Tickets CTA */}
@@ -91,7 +98,6 @@ export function EventDetailSidebar({
       <p className="text-center text-[11px] text-gray-300">
         Secure checkout · LocalEvents
       </p>
-
     </div>
   );
 }
