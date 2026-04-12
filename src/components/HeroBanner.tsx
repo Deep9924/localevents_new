@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Bell, MapPin, Loader2 } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -51,44 +52,12 @@ export default function HeroBanner({
     toast.success(`You're now following events in ${cityName}!`);
   };
 
-  const handleDetectLocation = async () => {
-    setIsDetecting(true);
-    try {
-      const res = await fetch("https://ipapi.co/json/", {
-        signal: AbortSignal.timeout(4000),
-      });
-      const data = await res.json();
-
-      if (!data.latitude || !data.longitude) {
-        toast.error("Could not determine your location.");
-        return;
-      }
-
-      const closest = [...(cities as City[])]
-        .map((c) => ({
-          ...c,
-          dist: haversine(data.latitude, data.longitude, c.lat, c.lng),
-        }))
-        .sort((a, b) => a.dist - b.dist)[0];
-
-      if (!closest) {
-        toast.error("No cities found near you.");
-        return;
-      }
-
-      if (closest.slug === citySlug) {
-        toast.success(`You're already viewing events in ${closest.name}!`);
-        return;
-      }
-
-      toast.success(`Switched to ${closest.name} — closest city to you.`);
-      setCitySlug(closest.slug);
-      router.push(`/${closest.slug}`);
-    } catch {
-      toast.error("Could not detect your location. Please try again.");
-    } finally {
-      setIsDetecting(false);
-    }
+  const handleDetectLocation = () => {
+    // Location detection is now handled server-side in RootLayout.
+    // If the user wants to re-detect, we can just reload the page
+    // or open the city picker modal.
+    toast.info("Refreshing location...");
+    router.refresh();
   };
 
   return (
@@ -96,13 +65,15 @@ export default function HeroBanner({
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="relative overflow-hidden bg-slate-950 rounded-3xl">
           {/* Background image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-60"
-            style={{
-              backgroundImage:
-                "url(https://d2xsxph8kpxj0f.cloudfront.net/310519663417415848/NNyqgxtPidN4Wy7fHnA2ZS/hero-banner-k2PJ7aKE5AtZqoZvRtbUz6.webp)",
-            }}
-          />
+          <div className="absolute inset-0 opacity-60">
+            <Image
+              src="https://d2xsxph8kpxj0f.cloudfront.net/310519663417415848/NNyqgxtPidN4Wy7fHnA2ZS/hero-banner-k2PJ7aKE5AtZqoZvRtbUz6.webp"
+              alt="Hero background"
+              fill
+              priority
+              className="object-cover object-center"
+            />
+          </div>
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-amber-900/30" />
 

@@ -16,32 +16,13 @@ function getCachedCity(): string | null {
   return null;
 }
 
-async function fetchCityFromIP(): Promise<string | null> {
-  try {
-    const response = await fetch("https://ipapi.co/json/", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) throw new Error("Geolocation API failed");
-    const data = await response.json();
-    const citySlug = data.city?.toLowerCase().replace(/\s+/g, "-") ?? null;
-    if (citySlug && isBrowser()) {
-      localStorage.setItem(GEOLOCATION_CACHE_KEY, citySlug);
-      localStorage.setItem(GEOLOCATION_TIMESTAMP_KEY, Date.now().toString());
-    }
-    return citySlug;
-  } catch (error) {
-    console.warn("IP-based geolocation detection failed:", error);
-    return null;
-  }
-}
-
 /**
  * Get the user's city slug with priority:
- * 1. Valid cached preference (< 24h old) — avoids unnecessary API call
- * 2. IP-based detection — fresh fetch on first visit or stale cache
+ * 1. Valid cached preference (< 24h old)
+ * 2. Cookie-based preference (set by server or previous session)
  * 3. Default to Toronto
+ * 
+ * Note: IP-based detection is now handled server-side in RootLayout for better performance.
  */
 export async function getUserCity(): Promise<string> {
   if (!isBrowser()) return "toronto";
@@ -50,16 +31,16 @@ export async function getUserCity(): Promise<string> {
   const cached = getCachedCity();
   if (cached) return cached;
 
-  // 2. Detect from IP
-  try {
-    const detected = await fetchCityFromIP();
-    if (detected) return detected;
-  } catch (error) {
-    console.warn("IP detection error:", error);
+  // 2. Check for cookie preference
+  const cookieMatch = document.cookie.match(/city=([^;]+)/);
+  if (cookieMatch && cookieMatch[1]) {
+    const cookieCity = cookieMatch[1];
+    saveCityPreference(cookieCity);
+    return cookieCity;
   }
 
   // 3. Stale cache is better than nothing
-  const stale = isBrowser() ? localStorage.getItem(GEOLOCATION_CACHE_KEY) : null;
+  const stale = localStorage.getItem(GEOLOCATION_CACHE_KEY);
   if (stale) return stale;
 
   return "toronto";
@@ -69,10 +50,13 @@ export function saveCityPreference(citySlug: string): void {
   if (!isBrowser()) return;
   localStorage.setItem(GEOLOCATION_CACHE_KEY, citySlug);
   localStorage.setItem(GEOLOCATION_TIMESTAMP_KEY, Date.now().toString());
+  // Also update cookie for server-side awareness
+  document.cookie = `city=${citySlug}; path=/; max-age=${60 * 60 * 24 * 365}`;
 }
 
 export function clearCityPreference(): void {
   if (!isBrowser()) return;
   localStorage.removeItem(GEOLOCATION_CACHE_KEY);
   localStorage.removeItem(GEOLOCATION_TIMESTAMP_KEY);
+  document.cookie = "city=; path=/; max-age=-1";
 }

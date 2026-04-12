@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, MapPin, Users, Bookmark, BookmarkCheck } from "lucide-react";
+import Image from "next/image";
 import { trpc } from "@/lib/trpc";
 import { AppRouter } from "@/server/routers/root";
 import { inferRouterOutputs } from "@trpc/server";
@@ -44,10 +45,12 @@ export default function EventCard({
     <div onClick={handleCardClick} className="group cursor-pointer flex flex-col">
       <div className="relative overflow-hidden rounded-2xl bg-gray-100" style={{ aspectRatio: "16/9" }}>
         {!imgError && event.image ? (
-          <img
+          <Image
             src={event.image}
             alt={event.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
             onError={() => setImgError(true)}
           />
         ) : (

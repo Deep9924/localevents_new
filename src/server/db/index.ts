@@ -1,6 +1,6 @@
 // src/server/db/index.ts
 export { getDb } from "./client";
-export { upsertUser, getUserByOpenId } from "./users";
+export { upsertUser, getUserByOpenId, getUserByEmail } from "./users";
 export { saveEvent, unsaveEvent, getUserSavedEvents, isEventSaved } from "./savedEvents";
 export { getUserTickets } from "./tickets";
 export { getOrganizerById, getOrganizerEvents } from "./organizers";

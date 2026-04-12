@@ -4,6 +4,7 @@ import { getDb } from "@/server/db/client";
 import { tickets, ticketTiers } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
+
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY is not set");
@@ -60,42 +61,50 @@ export async function POST(req: NextRequest) {
         .map((id) => Number(id.trim()))
         .filter((id) => Number.isFinite(id) && id > 0);
 
-      for (const ticketId of ticketIds) {
-        const ticketRows = await db
-          .select()
-          .from(tickets)
-          .where(eq(tickets.id, ticketId))
-          .limit(1);
-
-        const ticket = ticketRows[0];
-        if (!ticket) continue;
-
-        await db
-          .update(tickets)
-          .set({
-            status: "paid",
-            stripeSessionId: session.id,
-          })
-          .where(eq(tickets.id, ticketId));
-
-        if (ticket.tierId) {
-          const tierRows = await db
+      await db.transaction(async (tx) => {
+        for (const ticketId of ticketIds) {
+          const ticketRows = await tx
             .select()
-            .from(ticketTiers)
-            .where(eq(ticketTiers.id, Number(ticket.tierId)))
+            .from(tickets)
+            .where(eq(tickets.id, ticketId))
             .limit(1);
 
-          const tier = tierRows[0];
-          if (tier) {
-            await db
-              .update(ticketTiers)
-              .set({
-                sold: Number(tier.sold ?? 0) + Number(ticket.quantity ?? 0),
-              })
-              .where(eq(ticketTiers.id, Number(ticket.tierId)));
+          const ticket = ticketRows[0];
+          if (!ticket) continue;
+
+          // Idempotency check: if already processed by this session, skip
+          if (ticket.stripeSessionId === session.id) {
+            // Ticket already processed for this session, skip to maintain idempotency
+            continue;
+          }
+
+          await tx
+            .update(tickets)
+            .set({
+              status: "paid",
+              stripeSessionId: session.id,
+            })
+            .where(eq(tickets.id, ticketId));
+
+          if (ticket.tierId) {
+            const tierRows = await tx
+              .select()
+              .from(ticketTiers)
+              .where(eq(ticketTiers.id, Number(ticket.tierId)))
+              .limit(1);
+
+            const tier = tierRows[0];
+            if (tier) {
+              await tx
+                .update(ticketTiers)
+                .set({
+                  sold: Number(tier.sold ?? 0) + Number(ticket.quantity ?? 0),
+                })
+                .where(eq(ticketTiers.id, Number(ticket.tierId)));
+            }
           }
         }
-      }
+      });
 
       break;
     }

@@ -6,13 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
-    "diagnose": "bash scripts/diagnose-server.sh",
     "lint": "eslint",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "seed": "node scripts/seed-events-comprehensive.mjs",
-    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -91,6 +89,5 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^2.1.4"
   }
 }
