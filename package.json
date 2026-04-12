@@ -10,7 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "seed": "node scripts/seed-events-comprehensive.mjs",
+    "seed": "node scripts/seed-events-comprehensive.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -88,6 +88,6 @@
     "eslint-config-next": "16.2.0",
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^5"
   }
 }

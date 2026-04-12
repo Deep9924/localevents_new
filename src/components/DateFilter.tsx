@@ -1,5 +1,7 @@
-// Design: Civic Warmth — Date filter tabs with amber active state
-import { Calendar } from "lucide-react";
+"use client";
+
+import { Calendar, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type DateFilterType = "all" | "today" | "tomorrow" | "weekend" | "week";
 
@@ -52,24 +54,37 @@ const DATE_FILTERS: DateFilterItem[] = [
 
 export default function DateFilter({ activeFilter, onFilterChange }: DateFilterProps) {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide max-w-7xl mx-auto px-4 sm:px-6">
-      <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
-      {DATE_FILTERS.map((filter) => (
-        <button
-          key={filter.id}
-          onClick={() => onFilterChange(filter.id)}
-          className={`flex flex-col items-center px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-150 shrink-0 ${
-            activeFilter === filter.id
-              ? "bg-indigo-700 text-white shadow-sm"
-              : "bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-700"
-          }`}
-        >
-          <span className="font-semibold">{filter.label}</span>
-          <span className={`text-xs ${activeFilter === filter.id ? "text-indigo-200" : "text-gray-400"}`}>
-            {filter.sublabel}
-          </span>
-        </button>
-      ))}
+    <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
+      <div className="flex items-center gap-2 shrink-0 px-2">
+        <Calendar className="w-5 h-5 text-amber-500" />
+        <span className="text-sm font-bold text-stone-900 uppercase tracking-widest font-sora">When</span>
+      </div>
+      
+      <div className="flex gap-3">
+        {DATE_FILTERS.map((filter) => {
+          const isActive = activeFilter === filter.id;
+          return (
+            <button
+              key={filter.id}
+              onClick={() => onFilterChange(filter.id)}
+              className={cn(
+                "flex flex-col items-start px-6 py-3 rounded-2xl text-sm font-bold whitespace-nowrap transition-all duration-300 snap-start border",
+                isActive
+                  ? "bg-stone-900 text-white border-stone-900 shadow-lg shadow-stone-200 scale-105"
+                  : "bg-white border-stone-100 text-stone-600 hover:border-amber-200 hover:bg-stone-50"
+              )}
+            >
+              <span className="font-bold tracking-tight">{filter.label}</span>
+              <span className={cn(
+                "text-[10px] uppercase tracking-widest font-bold mt-0.5",
+                isActive ? "text-amber-400" : "text-stone-400"
+              )}>
+                {filter.sublabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
