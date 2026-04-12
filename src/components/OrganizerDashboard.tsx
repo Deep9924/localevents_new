@@ -5,10 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { Calendar, Users, TrendingUp, Mail, Plus, Edit2, Trash2, Eye, LucideIcon, X } from "lucide-react";
-import CreateEventForm from "./CreateEventForm";
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Calendar, Users, TrendingUp, Mail, Edit2, Trash2, Eye, LucideIcon } from "lucide-react";
 
 type StatItem = [string, string, LucideIcon, string];
 
@@ -16,7 +13,6 @@ export default function OrganizerDashboard() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const isOrganizer = user?.role === "admin";
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   if (!isAuthenticated) { router.push("/"); return null; }
 
@@ -77,14 +73,8 @@ export default function OrganizerDashboard() {
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-100 shadow-sm">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="p-6 border-b border-gray-100">
             <h2 className="text-lg font-bold text-indigo-900">Your Events</h2>
-            <Button 
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-indigo-700 hover:bg-indigo-800 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />Create Event
-            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -107,15 +97,6 @@ export default function OrganizerDashboard() {
           </div>
         </div>
       </div>
-
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 border-none">
-          <CreateEventForm 
-            onSuccess={() => setIsCreateModalOpen(false)} 
-            onCancel={() => setIsCreateModalOpen(false)} 
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

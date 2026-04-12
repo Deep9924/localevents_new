@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import AuthModal from "./AuthModal";
 import CityPickerModal from "./CityPickerModal";
+import CreateEventForm from "./CreateEventForm";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { useCity } from "@/contexts/CityContext";
 import type { User as DbUser } from "@/server/db/schema";
@@ -51,6 +53,7 @@ export default function Navbar({
   const [menuMounted, setMenuMounted]       = useState(false);
   const [authModalOpen, setAuthModalOpen]   = useState(false);
   const [cityModalOpen, setCityModalOpen]   = useState(false);
+  const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [internalCategory, setInternalCategory] = useState("all");
 
   const router = useRouter();
@@ -203,7 +206,13 @@ export default function Navbar({
             {/* Desktop right actions */}
             <div className="hidden sm:flex items-center gap-2 ml-auto">
               <button
-                onClick={() => toast.info("Create Event feature coming soon!")}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    setAuthModalOpen(true);
+                  } else {
+                    setCreateEventModalOpen(true);
+                  }
+                }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-150"
                 style={{ fontFamily: "'Sora', sans-serif" }}
               >
@@ -430,7 +439,7 @@ export default function Navbar({
                 <div className="divide-y divide-gray-50">
                   <button
                     className={menuRowCls}
-                    onClick={() => { toast.info("Create Event feature coming soon!"); setMobileMenuOpen(false); }}
+                    onClick={() => { setCreateEventModalOpen(true); setMobileMenuOpen(false); }}
                   >
                     <div className="w-8 flex justify-center shrink-0">
                       <Plus className="w-4 h-4 text-gray-400" />
@@ -466,6 +475,15 @@ export default function Navbar({
           </div>
         )}
       </header>
+
+      <Dialog open={createEventModalOpen} onOpenChange={setCreateEventModalOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 border-none">
+          <CreateEventForm 
+            onSuccess={() => setCreateEventModalOpen(false)} 
+            onCancel={() => setCreateEventModalOpen(false)} 
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

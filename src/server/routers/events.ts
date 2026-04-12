@@ -1,4 +1,4 @@
-import { publicProcedure, router, protectedProcedure } from "../trpc";
+import { publicProcedure, protectedProcedure, router } from "../trpc";
 import { z } from "zod";
 import {
   getEventBySlug,

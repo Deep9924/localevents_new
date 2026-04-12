@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { toast } from "sonner";
 import RichTextEditor from "./RichTextEditor";
 import { nanoid } from "nanoid";
+import type { TRPCClientErrorLike } from "@trpc/client";
 import { X, Plus, MapPin, Calendar as CalendarIcon, Clock, Tag, Image as ImageIcon, Type } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -48,8 +49,8 @@ export default function CreateEventForm({ onSuccess, onCancel }: CreateEventForm
       toast.success("Event published successfully!");
       if (onSuccess) onSuccess();
     },
-    onError: (error) => {
-      toast.error(`Failed to publish event: ${error.message}`);
+    onError: (error: any) => {
+      toast.error(`Failed to publish event: ${error?.message || 'Unknown error'}`);
     },
   });
 
