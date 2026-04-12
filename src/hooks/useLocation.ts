@@ -36,13 +36,13 @@ export function useLocation(urlCitySlug?: string) {
 
   const { data: cities = [] } = trpc.events.getCities.useQuery();
 
-  const detectLocation = useCallback(async () => {
+  const detectLocation = useCallback(async (forceRefresh = false) => {
     if (cities.length === 0) return;
     setState((prev) => ({ ...prev, isDetecting: true, error: null }));
 
     try {
       // Use IP-based geolocation (no permission required)
-      const detectedSlug = await getUserCity();
+      const detectedSlug = await getUserCity(forceRefresh);
       const found = cities.find((c: City) => c.slug === detectedSlug);
 
       if (found) {
@@ -55,6 +55,7 @@ export function useLocation(urlCitySlug?: string) {
           hasDetectionAttempted: true,
         });
         saveCityPreference(found.slug);
+        return found.slug;
       } else {
         // Fallback to default city
         setState({
@@ -65,6 +66,7 @@ export function useLocation(urlCitySlug?: string) {
           permissionDenied: false,
           hasDetectionAttempted: true,
         });
+        return DEFAULT_CITY.slug;
       }
     } catch (error) {
       // Fallback to default city on error
@@ -76,6 +78,7 @@ export function useLocation(urlCitySlug?: string) {
         permissionDenied: false,
         hasDetectionAttempted: true,
       });
+      return DEFAULT_CITY.slug;
     }
   }, [cities]);
 

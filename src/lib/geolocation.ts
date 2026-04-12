@@ -20,26 +20,45 @@ function getCachedCity(): string | null {
  * Get the user's city slug with priority:
  * 1. Valid cached preference (< 24h old)
  * 2. Cookie-based preference (set by server or previous session)
- * 3. Default to Toronto
- * 
- * Note: IP-based detection is now handled server-side in RootLayout for better performance.
+ * 3. Active IP-based detection (if forceRefresh is true)
+ * 4. Default to Toronto
  */
-export async function getUserCity(): Promise<string> {
+export async function getUserCity(forceRefresh = false): Promise<string> {
   if (!isBrowser()) return "toronto";
 
-  // 1. Return valid cache immediately
-  const cached = getCachedCity();
-  if (cached) return cached;
+  // 1. Return valid cache immediately unless forcing refresh
+  if (!forceRefresh) {
+    const cached = getCachedCity();
+    if (cached) return cached;
 
-  // 2. Check for cookie preference
-  const cookieMatch = document.cookie.match(/city=([^;]+)/);
-  if (cookieMatch && cookieMatch[1]) {
-    const cookieCity = cookieMatch[1];
-    saveCityPreference(cookieCity);
-    return cookieCity;
+    // 2. Check for cookie preference
+    const cookieMatch = document.cookie.match(/city=([^;]+)/);
+    if (cookieMatch && cookieMatch[1]) {
+      const cookieCity = cookieMatch[1];
+      saveCityPreference(cookieCity);
+      return cookieCity;
+    }
   }
 
-  // 3. Stale cache is better than nothing
+  // 3. Active IP-based detection
+  try {
+    const res = await fetch("https://ipapi.co/json/", { 
+      signal: AbortSignal.timeout(4000) 
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.city) {
+        // Simple slugification for common Canadian cities
+        const detectedCity = data.city.toLowerCase().replace(/\s+/g, "-");
+        // We don't validate against the DB here, useLocation will do that
+        return detectedCity;
+      }
+    }
+  } catch (e) {
+    console.error("IP detection failed:", e);
+  }
+
+  // 4. Fallback to stale cache or default
   const stale = localStorage.getItem(GEOLOCATION_CACHE_KEY);
   if (stale) return stale;
 

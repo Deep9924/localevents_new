@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Bell, MapPin, Loader2 } from "lucide-react";
 import Image from "next/image";
@@ -6,6 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { trpc } from "@/lib/trpc";
 import { useCity } from "@/contexts/CityContext";
+import { useLocation } from "@/hooks/useLocation";
 import { AppRouter } from "@/server/routers/root";
 import { inferRouterOutputs } from "@trpc/server";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,8 @@ export default function HeroBanner({ citySlug }: HeroBannerProps) {
   const router = useRouter();
   const { data: cities = [] } = trpc.events.getCities.useQuery();
   const city = cities.find((c: City) => c.slug === citySlug);
+  const { detectLocation } = useLocation(citySlug);
+  const { setCitySlug } = useCity();
 
   const cityName = city?.name ?? "";
   const province = city?.province ?? "";
@@ -34,11 +39,26 @@ export default function HeroBanner({ citySlug }: HeroBannerProps) {
     toast.success(`You're now following events in ${cityName}!`);
   };
 
-  const handleDetectLocation = () => {
+  const handleDetectLocation = async () => {
     setIsDetecting(true);
-    toast.info("Refreshing location...");
-    router.refresh();
-    setTimeout(() => setIsDetecting(false), 1000);
+    toast.info("Detecting your location...");
+    
+    try {
+      // Force a fresh IP-based detection
+      const detectedSlug = await detectLocation(true);
+      
+      if (detectedSlug && detectedSlug !== citySlug) {
+        toast.success(`Location detected: ${detectedSlug.charAt(0).toUpperCase() + detectedSlug.slice(1)}`);
+        setCitySlug(detectedSlug);
+        router.push(`/${detectedSlug}`);
+      } else {
+        toast.info("You are already in the nearest detected city.");
+      }
+    } catch (error) {
+      toast.error("Could not detect location. Please select your city manually.");
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   return (
