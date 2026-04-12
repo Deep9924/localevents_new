@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Ticket, ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
+import Image from "next/image";
 import { trpc } from "@/lib/trpc";
 import { AppRouter } from "@/server/routers/root";
 import { inferRouterOutputs } from "@trpc/server";
@@ -145,7 +146,13 @@ export default function FeaturedEvent({ event, events, citySlug }: FeaturedEvent
             >
               <div className="relative w-full rounded-2xl overflow-hidden shadow-md" style={{ aspectRatio: "16/9" }}>
                 {ev.image ? (
-                  <img src={ev.image} alt={ev.title} className="w-full h-full object-cover" />
+                  <Image
+                    src={ev.image}
+                    alt={ev.title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover"
+                  />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-amber-50 flex items-center justify-center">
                     <Calendar className="w-10 h-10 text-indigo-300" />
@@ -191,7 +198,14 @@ function DesktopCard({ ev, citySlug, goTo, imgError, setImgError }: {
     <>
       <div className="w-[520px] shrink-0 rounded-2xl overflow-hidden shadow-md relative" style={{ height: 270 }}>
         {!imgError && ev.image ? (
-          <img src={ev.image} alt={ev.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} />
+          <Image
+            src={ev.image}
+            alt={ev.title}
+            fill
+            sizes="520px"
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={() => setImgError(true)}
+          />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-amber-50 flex items-center justify-center">
             <Calendar className="w-12 h-12 text-indigo-300" />
