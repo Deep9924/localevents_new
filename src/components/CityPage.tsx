@@ -14,10 +14,8 @@ import { useLocation } from "@/hooks/useLocation";
 import { useEventFilters } from "@/hooks/useEventFilters";
 import LocationDetectBanner from "@/components/LocationDetectBanner";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Sparkles, FilterX } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { City, Category, Event } from "@/types/trpc";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface CityPageProps {
   citySlug?: string;
@@ -90,14 +88,10 @@ export default function CityPage({ citySlug }: CityPageProps) {
 
   if (!effectiveSlug || (isDetecting && !citySlug)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-2xl bg-stone-900 flex items-center justify-center animate-pulse">
-              <Sparkles className="w-6 h-6 text-amber-400" />
-            </div>
-          </div>
-          <p className="text-stone-500 font-medium animate-pulse">Finding events near you...</p>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <p className="text-gray-500 text-sm">Finding events near you…</p>
         </div>
       </div>
     );
@@ -105,113 +99,96 @@ export default function CityPage({ citySlug }: CityPageProps) {
 
   if (citiesLoading || eventsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
-          <p className="text-stone-600 font-medium">Loading events in {effectiveCity?.name}...</p>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <p className="text-gray-600 text-sm">Loading events…</p>
         </div>
       </div>
     );
   }
 
+  if (!effectiveCity) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">City not found.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50/30">
+    <div className="min-h-screen bg-white">
       {permissionDenied && (
         <LocationDetectBanner onDetect={detectLocation} permissionDenied={permissionDenied} />
       )}
 
+      {featuredEvents.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          <FeaturedEvent
+            event={featuredEvents[0]}
+            events={featuredEvents}
+            citySlug={effectiveSlug}
+          />
+        </section>
+      )}
+
       <HeroBanner citySlug={effectiveSlug} />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
-        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-stone-200/40 p-2 sm:p-4 border border-stone-100">
-          <CategoryScroll
-            activeCategory={activeCategory}
-            onCategoryChange={handleCategoryChange}
-            cityName={effectiveCity.name}
-          />
-        </div>
-      </div>
+      <CategoryScroll
+        activeCategory={activeCategory}
+        onCategoryChange={handleCategoryChange}
+        cityName={effectiveCity.name}
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <DateFilter activeFilter={dateFilter} onFilterChange={handleDateChange} />
-          
-          {(searchQuery || activeCategory !== "all" || dateFilter !== "all") && (
-            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-stone-100 shadow-sm">
-              <Badge variant="secondary" className="bg-stone-100 text-stone-600 border-none px-3 py-1">
-                {filteredEvents.length} results
-              </Badge>
-              {searchQuery && (
-                <span className="text-sm text-stone-500 font-medium">
-                  for <span className="text-stone-900">"{searchQuery}"</span>
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl h-8 px-3"
-              >
-                <FilterX className="w-4 h-4 mr-2" /> Clear
-              </Button>
-            </div>
-          )}
-        </div>
+      <DateFilter activeFilter={dateFilter} onFilterChange={handleDateChange} />
 
-        {featuredEvents.length > 0 && activeCategory === "all" && (
-          <div className="mb-16">
-            <div className="flex items-center gap-2 mb-6">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <h2 className="text-2xl font-bold text-stone-900">Featured in {effectiveCity.name}</h2>
-            </div>
-            <FeaturedEvent
-              event={featuredEvents[0]}
-              events={featuredEvents}
+      {(searchQuery || activeCategory !== "all" || dateFilter !== "all") && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-1 flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-500">
+            Showing{" "}
+            <span className="font-semibold text-indigo-700">{filteredEvents.length}</span> events
+            {searchQuery && (
+              <>
+                {" "}for <span className="font-semibold">"{searchQuery}"</span>
+              </>
+            )}
+          </span>
+          <button
+            onClick={clearFilters}
+            className="text-xs text-red-500 hover:text-red-700 underline"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-10">
+        {categoriesToShow.map((category: Category) => {
+          const categoryEvents = eventsByCategory[category.id] || [];
+          if (categoryEvents.length === 0) return null;
+          return (
+            <EventSection
+              key={category.id}
+              title={category.label}
+              category={category}
+              events={categoryEvents}
+              cityName={effectiveCity.name}
               citySlug={effectiveSlug}
             />
+          );
+        })}
+        {filteredEvents.length === 0 && (
+          <div className="py-16 text-center">
+            <p className="text-2xl mb-2">🎟️</p>
+            <p className="text-gray-500 font-medium">No events found</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Try a different search or clear your filters
+            </p>
           </div>
         )}
-
-        <div className="space-y-16">
-          {categoriesToShow.map((category: Category) => {
-            const categoryEvents = eventsByCategory[category.id] || [];
-            if (categoryEvents.length === 0) return null;
-            return (
-              <EventSection
-                key={category.id}
-                title={category.label}
-                category={category}
-                events={categoryEvents}
-                cityName={effectiveCity.name}
-                citySlug={effectiveSlug}
-              />
-            );
-          })}
-          
-          {filteredEvents.length === 0 && (
-            <div className="py-24 text-center bg-white rounded-[3rem] border border-stone-100 shadow-sm">
-              <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <FilterX className="w-10 h-10 text-stone-300" />
-              </div>
-              <h3 className="text-2xl font-bold text-stone-900 mb-2">No events found</h3>
-              <p className="text-stone-500 max-w-xs mx-auto mb-8">
-                We couldn't find any events matching your current filters. Try adjusting them to see more results.
-              </p>
-              <Button 
-                onClick={clearFilters}
-                className="rounded-full bg-stone-900 hover:bg-stone-800 px-8"
-              >
-                Reset all filters
-              </Button>
-            </div>
-          )}
-        </div>
       </div>
 
-      <div className="mt-16">
-        <MapSection city={effectiveCity} events={filteredEvents} />
-      </div>
-      
+      <MapSection city={effectiveCity} events={filteredEvents} />
       <CommunityBanner />
       <Footer />
     </div>

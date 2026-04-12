@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SectionHeaderProps {
@@ -20,32 +19,17 @@ export default function SectionHeader({
   className,
 }: SectionHeaderProps) {
   return (
-    <div className={cn("flex items-end justify-between mb-8 px-2", className)}>
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          {icon ? (
-            <span className="text-2xl">{icon}</span>
-          ) : (
-            <Sparkles className="w-5 h-5 text-amber-500" />
-          )}
-          <h2 className="text-3xl font-bold text-stone-900 tracking-tight font-sora">
-            {title}
-          </h2>
-        </div>
-        {subtitle && (
-          <p className="text-stone-500 text-lg font-light leading-relaxed max-w-xl">
-            {subtitle}
-          </p>
-        )}
+    <div className={cn("flex items-center justify-between mb-4", className)}>
+      <div>
+        <h2 className="text-xl font-bold text-indigo-900 flex items-center gap-2" style={{ fontFamily: "'Sora', sans-serif" }}>
+          {icon && <span>{icon}</span>}
+          {title}
+        </h2>
+        {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
       </div>
-      
       {viewAllLink && (
-        <Link 
-          href={viewAllLink} 
-          className="hidden sm:flex items-center gap-1 text-sm font-bold text-stone-400 hover:text-stone-900 transition-all group"
-        >
-          View all
-          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+        <Link href={viewAllLink} className="text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+          View all →
         </Link>
       )}
     </div>

@@ -42,51 +42,59 @@ export default function HeroBanner({ citySlug }: HeroBannerProps) {
   };
 
   return (
-    <section className="py-4 sm:py-6">
+    <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="relative overflow-hidden bg-stone-900 rounded-[2rem] shadow-2xl shadow-stone-200/50">
+        <div className="relative overflow-hidden bg-slate-950 rounded-3xl">
           {/* Background image */}
-          <div className="absolute inset-0 opacity-40">
+          <div className="absolute inset-0 opacity-60">
             <Image
               src="https://d2xsxph8kpxj0f.cloudfront.net/310519663417415848/NNyqgxtPidN4Wy7fHnA2ZS/hero-banner-k2PJ7aKE5AtZqoZvRtbUz6.webp"
               alt="Hero background"
               fill
               priority
-              className="object-cover object-center scale-105"
+              className="object-cover object-center"
             />
           </div>
-          
-          {/* Sophisticated Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-stone-900/80 to-amber-900/20" />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-amber-900/30" />
 
           {/* Content */}
-          <div className="relative px-8 py-12 sm:py-20 lg:py-24">
-            <div className="max-w-3xl space-y-6">
+          <div className="relative px-6 py-8 sm:py-10">
+            <div className="max-w-2xl space-y-4">
               {/* Location row */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-xs font-medium text-stone-200">
-                <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                <span>{province}, {country}</span>
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-200/80">
+                <MapPin className="w-4 h-4" />
+                <span style={{ fontFamily: "'Sora', sans-serif" }}>
+                  {province}, {country}
+                </span>
               </div>
 
               {/* Heading */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1]">
+              <h1
+                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight"
+                style={{ fontFamily: "'Sora', sans-serif" }}
+              >
                 Events bringing{" "}
-                <span className="text-amber-400 italic"> {cityName} </span> together
+                <span className="text-amber-300">{cityName}</span> together
               </h1>
 
-              <p className="text-stone-300 text-lg sm:text-xl leading-relaxed max-w-xl font-light">
-                Discover concerts, meetups, and art shows happening in {cityName} this week.
+              <p
+                className="text-slate-100/85 text-sm leading-relaxed max-w-lg"
+                style={{ fontFamily: "'Sora', sans-serif" }}
+              >
+                Discover concerts, meetups, open mics, art shows and more — all
+                happening in {cityName} this week.
               </p>
 
               {/* Buttons */}
-              <div className="flex flex-wrap gap-4 pt-4">
+              <div className="flex gap-2 sm:gap-3">
                 <Button
                   onClick={handleJoin}
                   disabled={joined}
-                  size="lg"
-                  className="rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold px-8 py-6 text-base shadow-xl shadow-amber-500/20 transition-all hover:scale-105 active:scale-95"
+                  className="rounded-full bg-amber-500 hover:bg-amber-400 text-white font-semibold text-xs sm:text-sm px-4 sm:px-6 py-2.5 shadow-sm shadow-amber-200/30 transition-colors duration-200 whitespace-nowrap"
+                  style={{ fontFamily: "'Sora', sans-serif" }}
                 >
-                  <Bell className="mr-2 h-5 w-5" />
+                  <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mr-1.5" />
                   {joined ? "Following!" : "Join the community"}
                 </Button>
 
@@ -94,15 +102,20 @@ export default function HeroBanner({ citySlug }: HeroBannerProps) {
                   onClick={handleDetectLocation}
                   disabled={isDetecting}
                   variant="outline"
-                  size="lg"
-                  className="rounded-full border-white/20 bg-white/5 hover:bg-white/10 text-white font-semibold px-8 py-6 text-base backdrop-blur-md transition-all hover:scale-105 active:scale-95"
+                  className="rounded-full border-white/20 bg-white/10 hover:bg-white/15 text-white font-medium text-xs sm:text-sm px-4 sm:px-6 py-2.5 backdrop-blur-sm transition-colors duration-200 whitespace-nowrap"
+                  style={{ fontFamily: "'Sora', sans-serif" }}
                 >
                   {isDetecting ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 mr-1.5" />
+                      Detecting…
+                    </>
                   ) : (
-                    <MapPin className="mr-2 h-5 w-5" />
+                    <>
+                      <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mr-1.5" />
+                      Use my location
+                    </>
                   )}
-                  Use my location
                 </Button>
               </div>
             </div>
