@@ -98,3 +98,9 @@ export async function searchEvents(
     .orderBy(order)
     .limit(limit);
 }
+export async function createEvent(data: typeof eventsTable.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(eventsTable).values(data);
+  return data;
+}

@@ -7,5 +7,5 @@ export { getOrganizerById, getOrganizerEvents } from "./organizers";
 export { getCitiesFromDb, getCategoriesFromDb, getCityBySlug } from "./cities";
 export {
   getEventsByCity, getEventBySlug, getFeaturedEvents,
-  getSimilarEvents, searchEvents,
+  getSimilarEvents, searchEvents, createEvent,
 } from "./events";

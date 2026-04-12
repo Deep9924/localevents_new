@@ -8,6 +8,7 @@ import {
   getDb,
   getCitiesFromDb,
   getCategoriesFromDb,
+  createEvent,
 } from "../db/index";
 import { events, cities, categories } from "../db/schema";
 import { sql } from "drizzle-orm";
@@ -109,4 +110,33 @@ export const eventsRouter = router({
       (counts as CityCountRow[]).map((r: CityCountRow) => [r.citySlug, Number(r.count)])
     );
   }),
+
+  create: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        image: z.string().optional(),
+        date: z.string(),
+        time: z.string(),
+        venue: z.string(),
+        city: z.string(),
+        citySlug: z.string(),
+        category: z.string(),
+        price: z.string().optional(),
+        tags: z.string().optional(),
+        slug: z.string(),
+        organizerId: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      // In a real app, we'd verify the user is an organizer for this organizerId
+      // For now, we'll use the role check from protectedProcedure/adminProcedure
+      return createEvent({
+        ...input,
+        isFeatured: 0,
+        interested: 0,
+      });
+    }),
 });

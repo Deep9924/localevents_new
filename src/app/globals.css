@@ -1,6 +1,7 @@
 /* Design: Civic Warmth — Warm modernism, deep indigo primary, amber accent */
 /* Typography: Sora (headings) + Nunito (body) */
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
